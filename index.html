@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OEM Script Generator – Windows 11 Installationsmedium</title>
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="logo">$OEM$</span>
+    <div>
+      <h1>OEM Script Generator</h1>
+      <p class="sub">Installationsskripte für den <code>$OEM$</code>-Ordner auf dem Windows-11-Installationsmedium</p>
+    </div>
+  </div>
+  <div class="topbar-actions">
+    <input type="text" id="projectName" class="project-name" placeholder="Projektname" value="MusterPC">
+    <button class="btn" id="btnLoadProject" title="Projektdatei (.oemproj.json) laden">Projekt laden</button>
+    <button class="btn" id="btnSaveProject" title="Projektdatei speichern">Projekt speichern</button>
+    <button class="btn primary" id="btnExport" title="Komplette OEM-Struktur als ZIP herunterladen">ZIP erzeugen</button>
+  </div>
+</header>
+
+<div class="layout">
+  <nav class="sidebar">
+    <button class="nav-item active" data-view="overview"><span class="ico">▦</span>Übersicht</button>
+    <button class="nav-item" data-view="import"><span class="ico">↧</span>Import</button>
+    <button class="nav-item" data-view="apps"><span class="ico">▣</span>Anwendungen<span class="badge" id="badgeApps">0</span></button>
+    <button class="nav-item" data-view="office"><span class="ico">◫</span>Office / ODT</button>
+    <button class="nav-item" data-view="tweaks"><span class="ico">⚙</span>Tweaks<span class="badge" id="badgeTweaks">0</span></button>
+    <button class="nav-item" data-view="bloat"><span class="ico">✂</span>Bloatware<span class="badge" id="badgeBloat">0</span></button>
+    <button class="nav-item" data-view="files"><span class="ico">🗀</span>Eigene Dateien<span class="badge" id="badgeFiles">0</span></button>
+    <button class="nav-item" data-view="custom"><span class="ico">›_</span>Eigene Befehle</button>
+    <button class="nav-item" data-view="settings"><span class="ico">⚒</span>Einstellungen</button>
+    <button class="nav-item" data-view="preview"><span class="ico">◲</span>Vorschau</button>
+    <div class="sidebar-foot">
+      <div id="dropHint" class="drop-hint">Dateien irgendwo ablegen zum Importieren<br><small>.ubundle · .cmd · .ps1 · .xml · .json</small></div>
+    </div>
+  </nav>
+
+  <main class="content">
+
+    <!-- ÜBERSICHT -->
+    <section class="view active" id="view-overview">
+      <h2>Übersicht</h2>
+      <p class="lead">Dieser Generator erzeugt eine fertige <code>$OEM$</code>-Ordnerstruktur, die auf dem Windows-11-Installationsmedium
+      nach <code>sources\$OEM$</code> kopiert wird. Windows Setup übernimmt den Inhalt automatisch auf die Zielplatte;
+      <code>SetupComplete.cmd</code> wird am Ende des Setups als <b>SYSTEM</b> ausgeführt und startet die Installationskette.</p>
+
+      <div class="cards" id="overviewCards"></div>
+
+      <div class="panel">
+        <h3>Ablaufkette</h3>
+        <ol class="flow" id="flowList"></ol>
+      </div>
+
+      <div class="panel">
+        <h3>Zielstruktur auf dem Medium</h3>
+        <pre class="tree" id="overviewTree"></pre>
+      </div>
+    </section>
+
+    <!-- IMPORT -->
+    <section class="view" id="view-import">
+      <h2>Import</h2>
+      <p class="lead">Bestehende Skripte und Paketlisten einlesen. Erkannt werden UniGetUI-Bundles, winget-Exporte,
+      <code>SetupComplete.cmd</code>, ODT-<code>Configuration.xml</code>, PowerShell-Skripte und gespeicherte Projekte.</p>
+
+      <div class="dropzone" id="dropzone">
+        <div class="dz-inner">
+          <div class="dz-ico">↧</div>
+          <div><b>Dateien hierher ziehen</b> oder <button class="btn small" id="btnPickFiles">auswählen</button></div>
+          <div class="dz-types">.ubundle · .json · .cmd/.bat · .ps1 · .xml · .exe/.msi</div>
+        </div>
+        <input type="file" id="fileInput" multiple hidden>
+      </div>
+
+      <div class="grid2">
+        <div class="panel">
+          <h3>UniGetUI-Bundle importieren</h3>
+          <p class="hint">In UniGetUI: <i>Pakete-Bündel → Bündel exportieren</i>. Unterstützt werden JSON
+          (<code>.ubundle</code>/<code>.json</code>), XML und YAML sowie winget-<code>import</code>-Dateien.</p>
+          <div class="row">
+            <button class="btn" id="btnPickBundle">Bundle-Datei wählen</button>
+            <label class="chk"><input type="checkbox" id="bundleReplace"> vorhandene Liste ersetzen</label>
+          </div>
+          <input type="file" id="bundleInput" accept=".ubundle,.json,.xml,.yaml,.yml" hidden>
+          <details class="mt">
+            <summary>Bundle-Inhalt einfügen (Copy &amp; Paste)</summary>
+            <textarea id="bundlePaste" rows="6" placeholder='{ "export_version": 3, "packages": [ ... ] }'></textarea>
+            <button class="btn small mt" id="btnParsePaste">Einlesen</button>
+          </details>
+        </div>
+
+        <div class="panel">
+          <h3>Importprotokoll</h3>
+          <ul class="log" id="importLog"><li class="muted">Noch nichts importiert.</li></ul>
+          <button class="btn small" id="btnClearLog">Protokoll leeren</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ANWENDUNGEN -->
+    <section class="view" id="view-apps">
+      <h2>Anwendungen</h2>
+      <label class="switch"><input type="checkbox" id="appsEnabled" checked><span></span>Modul aktiv</label>
+
+      <div class="panel">
+        <div class="row wrap">
+          <label class="field">
+            <span>Ausführungsphase</span>
+            <select id="appsPhase">
+              <option value="firstlogon">Phase 2 – nach erster Anmeldung (empfohlen)</option>
+              <option value="setup">Phase 1 – direkt in SetupComplete (SYSTEM)</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Installationsmethode</span>
+            <select id="appsMethod">
+              <option value="individual">Einzelbefehle je Paket (robust, Fehler pro Paket)</option>
+              <option value="import">winget import (packages.json)</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Wiederholversuche</span>
+            <input type="number" id="appsRetries" min="0" max="5" value="2">
+          </label>
+        </div>
+        <div class="row wrap">
+          <label class="chk"><input type="checkbox" id="appsWaitNetwork" checked> Auf Netzwerkverbindung warten</label>
+          <label class="chk"><input type="checkbox" id="appsSourceUpdate" checked> <code>winget source update</code> vorab</label>
+          <label class="chk"><input type="checkbox" id="appsBootstrap" checked> winget/App Installer bei Bedarf nachinstallieren</label>
+          <label class="chk"><input type="checkbox" id="appsPinVersions"> exakte Versionen aus dem Bundle erzwingen</label>
+          <label class="chk"><input type="checkbox" id="appsMachineScope"> <code>--scope machine</code> bevorzugen</label>
+        </div>
+        <p class="hint" id="appsPhaseHint"></p>
+      </div>
+
+      <div class="panel">
+        <div class="toolbar">
+          <input type="search" id="appsFilter" placeholder="Filtern (Name, ID, Manager)…">
+          <span class="spacer"></span>
+          <button class="btn small" id="btnAppsAll">Alle</button>
+          <button class="btn small" id="btnAppsNone">Keine</button>
+          <button class="btn small" id="btnAppsAdd">Paket hinzufügen</button>
+          <button class="btn small danger" id="btnAppsClear">Liste leeren</button>
+        </div>
+        <div class="table-wrap">
+          <table class="tbl" id="appsTable">
+            <thead>
+              <tr><th class="w-chk"></th><th>Name</th><th>Paket-ID</th><th>Manager</th><th>Version</th><th>Zusatzargumente</th><th class="w-act"></th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <p class="hint" id="appsManagerHint"></p>
+      </div>
+    </section>
+
+    <!-- OFFICE -->
+    <section class="view" id="view-office">
+      <h2>Microsoft Office (ODT)</h2>
+      <label class="switch"><input type="checkbox" id="officeEnabled"><span></span>Modul aktiv</label>
+
+      <div class="panel">
+        <div class="row wrap">
+          <label class="field">
+            <span>Ausführungsphase</span>
+            <select id="officePhase">
+              <option value="setup">Phase 1 – SetupComplete (SYSTEM)</option>
+              <option value="firstlogon">Phase 2 – nach erster Anmeldung</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>ODT-Setup (setup.exe)</span>
+            <select id="officeSetupSource">
+              <option value="bundled">liegt im OEM-Ordner (mitliefern)</option>
+              <option value="download">zur Laufzeit von Microsoft laden</option>
+            </select>
+          </label>
+          <label class="field grow">
+            <span>Download-URL (nur bei „laden“)</span>
+            <input type="text" id="officeOdtUrl" value="https://officecdn.microsoft.com/pr/wsus/setup.exe">
+          </label>
+        </div>
+        <div class="row wrap">
+          <label class="chk"><input type="checkbox" id="officeCheckInstalled" checked> Überspringen, wenn Office bereits installiert ist</label>
+        </div>
+        <p class="hint">Bei „mitliefern“ muss <code>setup.exe</code> (Office Deployment Tool) unter <span class="mono" id="officeSetupPath"></span> abgelegt werden – der Generator legt dafür einen Platzhalter-Hinweis ab.</p>
+      </div>
+
+      <div class="grid2">
+        <div class="panel">
+          <h3>Configuration.xml</h3>
+          <div class="row">
+            <button class="btn small" id="btnOfficeImport">XML importieren</button>
+            <button class="btn small" id="btnOfficeTemplate">Vorlage einfügen</button>
+            <input type="file" id="officeInput" accept=".xml" hidden>
+          </div>
+          <textarea id="officeXml" rows="18" spellcheck="false"></textarea>
+        </div>
+        <div class="panel">
+          <h3>Erkannte Konfiguration</h3>
+          <div id="officeSummary" class="summary"><p class="muted">Keine gültige Configuration.xml.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TWEAKS -->
+    <section class="view" id="view-tweaks">
+      <h2>System-Tweaks</h2>
+      <label class="switch"><input type="checkbox" id="tweaksEnabled" checked><span></span>Modul aktiv</label>
+
+      <div class="panel">
+        <div class="row wrap">
+          <label class="field">
+            <span>Ausführungsphase</span>
+            <select id="tweaksPhase">
+              <option value="setup">Phase 1 – SetupComplete (SYSTEM)</option>
+              <option value="firstlogon">Phase 2 – nach erster Anmeldung</option>
+            </select>
+          </label>
+          <label class="chk"><input type="checkbox" id="tweaksAllUsers" checked> Benutzer-Einstellungen auch auf Default-Profil &amp; bestehende Profile anwenden</label>
+        </div>
+        <p class="hint">In Phase 1 existiert noch kein Benutzerprofil. Benutzerbezogene Registry-Werte werden deshalb in
+        <code>C:\Users\Default\NTUSER.DAT</code> geschrieben und gelten damit für alle neu angelegten Konten.</p>
+      </div>
+
+      <div class="panel">
+        <div class="toolbar">
+          <input type="search" id="tweaksFilter" placeholder="Tweaks filtern…">
+          <span class="spacer"></span>
+          <button class="btn small" id="btnTweaksNone">Auswahl leeren</button>
+        </div>
+        <div id="tweaksList" class="tweaks"></div>
+      </div>
+    </section>
+
+    <!-- BLOATWARE -->
+    <section class="view" id="view-bloat">
+      <h2>Bloatware entfernen</h2>
+      <label class="switch"><input type="checkbox" id="bloatEnabled"><span></span>Modul aktiv</label>
+      <div class="panel">
+        <div class="row wrap">
+          <label class="field">
+            <span>Ausführungsphase</span>
+            <select id="bloatPhase">
+              <option value="setup">Phase 1 – SetupComplete (SYSTEM)</option>
+              <option value="firstlogon">Phase 2 – nach erster Anmeldung</option>
+            </select>
+          </label>
+          <label class="chk"><input type="checkbox" id="bloatProvisioned" checked> Auch aus dem Provisioning entfernen (gilt für neue Benutzer)</label>
+        </div>
+        <div class="toolbar">
+          <input type="search" id="bloatFilter" placeholder="AppX-Pakete filtern…">
+          <span class="spacer"></span>
+          <button class="btn small" id="btnBloatRec">Empfehlung wählen</button>
+          <button class="btn small" id="btnBloatNone">Auswahl leeren</button>
+          <button class="btn small" id="btnBloatAdd">Eigenes Paket</button>
+        </div>
+        <div id="bloatList" class="bloat"></div>
+      </div>
+    </section>
+
+    <!-- EIGENE DATEIEN -->
+    <section class="view" id="view-files">
+      <h2>Eigene Dateien &amp; Installer</h2>
+      <p class="lead">Beliebige Dateien in die OEM-Struktur aufnehmen: Setup-Dateien (.exe/.msi) mit Silent-Parametern,
+      Skripte, Konfigurationen, Treiber. Zielordner ist standardmäßig <span class="mono" id="filesTargetPath"></span>.</p>
+      <div class="panel">
+        <div class="row">
+          <button class="btn" id="btnFilesAdd">Dateien hinzufügen</button>
+          <input type="file" id="filesInput" multiple hidden>
+          <span class="hint">Binärdateien werden nur im ZIP mitgeliefert, nicht in der Projektdatei gespeichert.</span>
+        </div>
+        <div class="table-wrap">
+          <table class="tbl" id="filesTable">
+            <thead><tr><th class="w-chk"></th><th>Datei</th><th>Zielordner</th><th>Zielpfad (relativ)</th><th>Ausführen mit</th><th>Phase</th><th class="w-act"></th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- EIGENE BEFEHLE -->
+    <section class="view" id="view-custom">
+      <h2>Eigene Befehle</h2>
+      <p class="lead">Freie Zeilen, die unverändert übernommen werden – z.&nbsp;B. aus einer importierten
+      <code>SetupComplete.cmd</code>. Sie werden nach den Modulen ausgeführt.</p>
+      <div class="grid2">
+        <div class="panel">
+          <h3>CMD-Zeilen (in SetupComplete.cmd)</h3>
+          <label class="chk"><input type="checkbox" id="customCmdEnabled" checked> aktiv</label>
+          <textarea id="customCmd" rows="12" spellcheck="false" placeholder="REM eigene Batch-Befehle"></textarea>
+          <p class="hint">Laufen als SYSTEM im Kontext von <code>%WINDIR%\Setup\Scripts</code>.</p>
+          <p class="hint" id="customCmdRefHint"></p>
+        </div>
+        <div class="panel">
+          <h3>PowerShell-Zeilen (in Install.ps1)</h3>
+          <label class="chk"><input type="checkbox" id="customPsEnabled" checked> aktiv</label>
+          <label class="field">
+            <span>Ausführungsphase</span>
+            <select id="customPsPhase">
+              <option value="setup">Phase 1 – SetupComplete (SYSTEM)</option>
+              <option value="firstlogon">Phase 2 – nach erster Anmeldung</option>
+            </select>
+          </label>
+          <textarea id="customPs" rows="10" spellcheck="false" placeholder="# eigener PowerShell-Code"></textarea>
+        </div>
+      </div>
+    </section>
+
+    <!-- EINSTELLUNGEN -->
+    <section class="view" id="view-settings">
+      <h2>Einstellungen</h2>
+      <div class="panel">
+        <h3>Pfade</h3>
+        <div class="row wrap">
+          <label class="field grow">
+            <span>Installationsordner auf dem Zielsystem</span>
+            <input type="text" id="setInstallRoot" value="C:\Install">
+          </label>
+          <label class="field">
+            <span>ZIP-Wurzel</span>
+            <select id="setZipRoot">
+              <option value="sources">sources\$OEM$\… (direkt in die ISO)</option>
+              <option value="oem">$OEM$\… (nur der Ordner)</option>
+            </select>
+          </label>
+        </div>
+      </div>
+      <div class="panel">
+        <h3>Ablauf</h3>
+        <div class="row wrap">
+          <label class="field">
+            <span>Phase 2 wird gestartet über</span>
+            <select id="setPhase2Runner">
+              <option value="task">Geplante Aufgabe als SYSTEM (zuverlässig)</option>
+              <option value="runonce">RunOnce im Kontext des ersten Benutzers</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Abschluss von Phase 2</span>
+            <select id="setFinish">
+              <option value="none">nichts tun</option>
+              <option value="reboot">Neustart</option>
+              <option value="shutdown">Herunterfahren</option>
+            </select>
+          </label>
+        </div>
+        <div class="row wrap">
+          <label class="chk"><input type="checkbox" id="setTranscript" checked> PowerShell-Transcript mitschreiben</label>
+          <label class="chk"><input type="checkbox" id="setSelfDelete" checked> <code>%WINDIR%\Setup\Scripts</code> nach Abschluss löschen</label>
+          <label class="chk"><input type="checkbox" id="setKeepInstall"> <span class="mono-inline" id="setKeepInstallLabel">C:\Install</span> nach Abschluss löschen</label>
+          <label class="chk"><input type="checkbox" id="setToastOnFinish"> Abschlussmeldung im Explorer anzeigen</label>
+        </div>
+      </div>
+      <div class="panel">
+        <h3>Projekt</h3>
+        <div class="row">
+          <button class="btn small danger" id="btnReset">Projekt zurücksetzen</button>
+          <input type="file" id="projectInput" accept=".json" hidden>
+        </div>
+      </div>
+    </section>
+
+    <!-- VORSCHAU -->
+    <section class="view" id="view-preview">
+      <h2>Vorschau</h2>
+      <div class="preview">
+        <aside class="filelist" id="fileList"></aside>
+        <div class="filebody">
+          <div class="filebar">
+            <span class="mono" id="previewPath">–</span>
+            <span class="spacer"></span>
+            <span class="muted" id="previewSize"></span>
+            <button class="btn small" id="btnCopyFile">Kopieren</button>
+            <button class="btn small" id="btnDownloadFile">Einzeln laden</button>
+          </div>
+          <pre id="previewBody" class="code"></pre>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<div class="toasts" id="toasts"></div>
+
+<script src="js/zip.js"></script>
+<script src="js/catalog.js"></script>
+<script src="js/importers.js"></script>
+<script src="js/templates.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
