@@ -25,11 +25,12 @@
     return {
       formatVersion: 1,
       meta: { name: 'MusterPC' },
-      paths: { installRoot: 'C:\\Install', zipRoot: 'sources' },
+      paths: { installRoot: 'C:\\Install', zipRoot: 'both' },
       options: {
-        transcript: true, selfDelete: true, cleanupInstall: false,
-        toastOnFinish: false, phase2Runner: 'task', finish: 'none'
+        transcript: true, selfDelete: false, cleanupInstall: false,
+        toastOnFinish: false, phase2Runner: 'task', finish: 'none', trigger: 'both'
       },
+      unattend: { xml: null, name: '', info: null },
       apps: {
         enabled: true, phase: 'firstlogon', method: 'individual', retries: 2,
         waitNetwork: true, sourceUpdate: true, bootstrap: true,
@@ -112,6 +113,7 @@
     ['customPs', 'custom.ps', 'text'],
     ['setInstallRoot', 'paths.installRoot', 'text'],
     ['setZipRoot', 'paths.zipRoot', 'text'],
+    ['setTrigger', 'options.trigger', 'text'],
     ['setPhase2Runner', 'options.phase2Runner', 'text'],
     ['setFinish', 'options.finish', 'text'],
     ['setTranscript', 'options.transcript', 'bool'],
@@ -434,6 +436,52 @@
     box.appendChild(warn);
   }
 
+  function renderUnattend() {
+    const box = $('#unattendBox');
+    const drop = $('#btnUnattendDrop');
+    box.innerHTML = '';
+    if (state.options.trigger === 'setupcomplete') { drop.hidden = true; return; }
+
+    const u = state.unattend || {};
+    if (!u.xml) {
+      const p = document.createElement('p');
+      p.className = 'hint';
+      p.textContent = 'Es wird eine eigenständige autounattend.xml erzeugt, die nur die Skripte startet. ' +
+        'Wenn Sie bereits eine Antwortdatei verwenden, importieren Sie diese hier – der Generator ergänzt sie, ' +
+        'statt sie zu ersetzen.';
+      box.appendChild(p);
+      drop.hidden = true;
+      return;
+    }
+
+    drop.hidden = false;
+    const dl = document.createElement('dl');
+    const row = (k, v) => {
+      const dt = document.createElement('dt'); dt.textContent = k;
+      const dd = document.createElement('dd'); dd.textContent = v;
+      dl.appendChild(dt); dl.appendChild(dd);
+    };
+    row('Importierte Datei', u.name);
+    row('Vorhandene Befehle', String(u.info.commandCount));
+    row('Passes', u.info.passes.filter(Boolean).join(', ') || '–');
+    row('UseConfigurationSet', u.info.useConfigurationSet ? 'true' : 'false');
+    if (u.info.productKey) row('Produktschlüssel', u.info.productKey);
+    box.appendChild(dl);
+
+    const p = document.createElement('p');
+    p.className = 'hint';
+    if (u.info.useConfigurationSet) {
+      p.innerHTML = '<b>UseConfigurationSet=true:</b> Windows Setup sucht den <code>$OEM$</code>-Ordner neben der ' +
+        'Antwortdatei, also im <b>Wurzelverzeichnis</b> des Mediums – nicht unter <code>sources\\</code>. ' +
+        'Die Ablage steht deshalb auf „beide Orte“.';
+      p.style.color = 'var(--warn)';
+    } else {
+      p.textContent = 'Die Aufrufe werden mit fortlaufender Order in die vorhandenen Blöcke eingefügt; ' +
+        'bereits vorhandene Einträge des Generators werden dabei ersetzt.';
+    }
+    box.appendChild(p);
+  }
+
   /* ---------------- Übersicht ---------------- */
 
   function renderOverview() {
@@ -578,7 +626,7 @@
 
   function renderAll() {
     syncInputs();
-    renderApps(); renderTweaks(); renderBloat(); renderFiles(); renderOfficeSummary();
+    renderApps(); renderTweaks(); renderBloat(); renderFiles(); renderOfficeSummary(); renderUnattend();
     refresh();
   }
 
@@ -690,8 +738,19 @@
         return;
       }
       case 'unattend': {
-        logImport(name + ': autounattend.xml wird nicht verarbeitet – sie gehört ins Wurzelverzeichnis des Mediums.', 'warnl');
-        toast('autounattend.xml wird nicht verändert.', 'warn');
+        let info;
+        try { info = Importers.parseUnattend(text); }
+        catch (e) { logImport(name + ': ' + e.message, 'err'); toast('autounattend.xml nicht lesbar.', 'err'); return; }
+        state.unattend = { xml: text, name: name, info: info };
+        if (state.options.trigger === 'setupcomplete') state.options.trigger = 'both';
+        if (info.useConfigurationSet && state.paths.zipRoot === 'sources') state.paths.zipRoot = 'both';
+        logImport('autounattend.xml übernommen: ' + name + ' – ' + info.commandCount +
+          ' vorhandene Befehle, UseConfigurationSet=' + (info.useConfigurationSet ? 'true' : 'false'));
+        if (info.useConfigurationSet) {
+          logImport('UseConfigurationSet=true erkannt: $OEM$ gehört ins Wurzelverzeichnis des Mediums – Ablage auf „beide Orte“ gestellt.', 'warnl');
+        }
+        toast('autounattend.xml wird ergänzt statt ersetzt.', 'ok');
+        renderAll();
         return;
       }
       default: {
@@ -730,6 +789,7 @@
     };
     state = merge(base, obj);
     state.apps.items = (state.apps.items || []).map((p) => Importers.mkPkg(p));
+    if (!state.unattend) state.unattend = { xml: null, name: '', info: null };
     state.files.items = (state.files.items || []).map((f) => ({
       name: f.name, target: f.target || f.name, run: f.run || '',
       phase: f.phase || 'firstlogon', dest: f.dest || 'files',
@@ -898,6 +958,19 @@
       const cur = previewFiles.find((f) => f.path === previewActive);
       if (!cur) return;
       download(new Blob([cur.data]), cur.path.split('/').pop());
+    });
+
+    /* Auslöser */
+    $('#setTrigger').addEventListener('change', renderUnattend);
+    $('#btnUnattendImport').addEventListener('click', () => $('#unattendInput').click());
+    $('#unattendInput').addEventListener('change', async (e) => {
+      if (e.target.files[0]) await importFile(e.target.files[0], { forceType: 'unattend' });
+      e.target.value = '';
+    });
+    $('#btnUnattendDrop').addEventListener('click', () => {
+      state.unattend = { xml: null, name: '', info: null };
+      renderUnattend(); refresh();
+      toast('Importierte autounattend.xml verworfen.', 'ok');
     });
 
     /* Einstellungen */

@@ -73,7 +73,7 @@
         <div class="dz-inner">
           <div class="dz-ico">↧</div>
           <div><b>Dateien hierher ziehen</b> oder <button class="btn small" id="btnPickFiles">auswählen</button></div>
-          <div class="dz-types">.ubundle · .json · .cmd/.bat · .ps1 · .xml · .exe/.msi</div>
+          <div class="dz-types">.ubundle · .json · .cmd/.bat · .ps1 · autounattend.xml · .exe/.msi</div>
         </div>
         <input type="file" id="fileInput" multiple hidden>
       </div>
@@ -324,14 +324,40 @@
             <input type="text" id="setInstallRoot" value="C:\Install">
           </label>
           <label class="field">
-            <span>ZIP-Wurzel</span>
+            <span>Ablage von <code>$OEM$</code> auf dem Medium</span>
             <select id="setZipRoot">
-              <option value="sources">sources\$OEM$\… (direkt in die ISO)</option>
-              <option value="oem">$OEM$\… (nur der Ordner)</option>
+              <option value="both">beide Orte – sicherste Variante (empfohlen)</option>
+              <option value="sources">sources\$OEM$\… – ohne Konfigurationssatz</option>
+              <option value="oem">$OEM$\… im Wurzelverzeichnis – bei UseConfigurationSet</option>
             </select>
           </label>
         </div>
       </div>
+      <div class="panel">
+        <h3>Auslöser</h3>
+        <div class="row wrap">
+          <label class="field grow">
+            <span>Wodurch wird Install.ps1 gestartet?</span>
+            <select id="setTrigger">
+              <option value="both">SetupComplete.cmd und autounattend.xml (empfohlen)</option>
+              <option value="setupcomplete">nur SetupComplete.cmd</option>
+              <option value="unattend">nur autounattend.xml</option>
+            </select>
+          </label>
+        </div>
+        <p class="hint">Windows Setup führt <code>SetupComplete.cmd</code> <b>nicht</b> aus, wenn die Installation
+        einen Produktschlüssel aus dem OEM-Kanal verwendet – etwa den im BIOS/UEFI hinterlegten Schlüssel eines
+        Markengeräts. Betroffen sind Home und Pro, ausgenommen sind Enterprise und Windows Server. Die
+        <code>autounattend.xml</code> ist davon unabhängig und startet Phase 1 im <code>specialize</code>-Pass sowie
+        Phase 2 über <code>FirstLogonCommands</code>.</p>
+        <div id="unattendBox" class="summary"></div>
+        <div class="row">
+          <button class="btn small" id="btnUnattendImport">Vorhandene autounattend.xml importieren</button>
+          <button class="btn small" id="btnUnattendDrop" hidden>Importierte Datei verwerfen</button>
+          <input type="file" id="unattendInput" accept=".xml" hidden>
+        </div>
+      </div>
+
       <div class="panel">
         <h3>Ablauf</h3>
         <div class="row wrap">
@@ -353,7 +379,7 @@
         </div>
         <div class="row wrap">
           <label class="chk"><input type="checkbox" id="setTranscript" checked> PowerShell-Transcript mitschreiben</label>
-          <label class="chk"><input type="checkbox" id="setSelfDelete" checked> <code>%WINDIR%\Setup\Scripts</code> nach Abschluss löschen</label>
+          <label class="chk"><input type="checkbox" id="setSelfDelete"> <code>%WINDIR%\Setup\Scripts</code> nach Abschluss löschen <span class="muted">(erschwert die Fehlersuche)</span></label>
           <label class="chk"><input type="checkbox" id="setKeepInstall"> <span class="mono-inline" id="setKeepInstallLabel">C:\Install</span> nach Abschluss löschen</label>
           <label class="chk"><input type="checkbox" id="setToastOnFinish"> Abschlussmeldung im Explorer anzeigen</label>
         </div>

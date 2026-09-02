@@ -26,6 +26,11 @@ Build-Schritt. `index.html` im Browser öffnen genügt (auch per `file://`).
 * **Eigene Dateien** – Installer und Skripte mitliefern, wahlweise nach
   `Install\Files` (wird ausgeführt) oder neben `SetupComplete.cmd` in
   `Setup\Scripts` (über `%~dp0` erreichbar).
+* **autounattend.xml** – wird als Auslöser erzeugt oder, wenn Sie bereits eine
+  Antwortdatei verwenden, importiert und **ergänzt statt ersetzt**: die Aufrufe
+  werden mit fortlaufender `<Order>` in die vorhandenen Blöcke eingefügt.
+* **Diagnose.ps1** – liegt im erzeugten Paket und beantwortet nach der
+  Installation, warum nichts gelaufen ist.
 * **Vorschau** aller erzeugten Dateien, **Projektdatei** zum Speichern und
   Weiterarbeiten, ZIP-Export.
 
@@ -36,7 +41,46 @@ Build-Schritt. `index.html` im Browser öffnen genügt (auch per `file://`).
 | 1 | `SetupComplete.cmd` am Ende des Setups | SYSTEM, vor der ersten Anmeldung | Registry, Bloatware, Office (ODT) |
 | 2 | Geplante Aufgabe oder `RunOnce` bei der ersten Anmeldung | SYSTEM bzw. erster Benutzer | winget-Pakete, alles mit Netzwerkbedarf |
 
-Hintergrund: In Phase 1 ist `winget` nur eingeschränkt nutzbar – der App Installer ist
+## Auslöser – warum `SetupComplete.cmd` allein nicht reicht
+
+Windows Setup führt `SetupComplete.cmd` **nicht** aus, wenn die Installation einen
+Produktschlüssel aus dem OEM-Kanal verwendet – etwa den im BIOS/UEFI hinterlegten
+Schlüssel eines Markengeräts. Betroffen sind die Client-Editionen (Home, Pro);
+Enterprise und Windows Server sind ausgenommen. Im Setup-Protokoll
+`C:\Windows\Panther\setupact.log` steht dann sinngemäß:
+
+```
+Client OS edition and OEM license detected and no enterprise edition detected,
+will not run SetupComplete.cmd
+```
+
+Der Generator bietet deshalb drei Auslöser an, standardmäßig beide gemeinsam:
+
+| Auslöser | Phase 1 | Phase 2 | von der OEM-Sperre betroffen |
+|---|---|---|---|
+| `SetupComplete.cmd` | am Ende des Setups | geplante Aufgabe / RunOnce | **ja** |
+| `autounattend.xml` | `specialize`-Pass | `FirstLogonCommands` | nein |
+
+Mehrfachausführung ist unschädlich: `Install.ps1` vermerkt jede abgeschlossene
+Phase unter `HKLM\SOFTWARE\OEM-Setup` und überspringt sie beim nächsten Aufruf;
+`-Force` erzwingt die Wiederholung.
+
+## Wo gehört `$OEM$` hin?
+
+Das hängt von der Antwortdatei ab – eine falsche Ablage ist die häufigste Ursache
+dafür, dass gar nichts kopiert wird:
+
+| Antwortdatei | Ablageort |
+|---|---|
+| keine, oder `UseConfigurationSet` nicht gesetzt | `<Medium>\sources\$OEM$\…` |
+| `<UseConfigurationSet>true</UseConfigurationSet>` | `<Medium>\$OEM$\…` (Wurzelverzeichnis) |
+
+Bei `UseConfigurationSet=true` sucht Setup den Konfigurationssatz **neben der
+Antwortdatei**. Der Generator erkennt das beim Import und stellt die Ablage auf
+„beide Orte“ – Setup wertet nur den passenden aus, der andere Ordner wird
+ignoriert. Das ist die Voreinstellung.
+
+Hintergrund zu den Phasen: In Phase 1 ist `winget` nur eingeschränkt nutzbar – der App Installer ist
 ein MSIX-Paket, das unter SYSTEM nicht im Suchpfad liegt (der Generator löst den Pfad
 unter `Program Files\WindowsApps` selbst auf), und Pakete, die ausschließlich
 benutzerbezogen installieren, schlagen ohne Benutzerprofil fehl. Deshalb ist für
@@ -45,10 +89,12 @@ Anwendungen standardmäßig Phase 2 vorgewählt.
 ## Erzeugte Struktur
 
 ```
-sources/$OEM$/
+autounattend.xml                            → Wurzelverzeichnis des Mediums
+sources/$OEM$/  bzw.  $OEM$/
 ├── $$/Setup/Scripts/SetupComplete.cmd     → %WINDIR%\Setup\Scripts
 └── $1/Install/                            → C:\Install
     ├── Install.ps1                        Steuerskript (-Phase Setup|FirstLogon|Manual)
+    ├── Diagnose.ps1                       Fehlersuche nach der Installation
     ├── Lib/OEM-Common.ps1                 Logging, Registry-Helfer, winget-Auflösung
     ├── Modules/                            Set-Tweaks, Remove-Bloatware,
     │                                       Install-Office, Install-Apps,
@@ -67,6 +113,18 @@ sources/$OEM$/
    `<Medium>\sources\$OEM$\...` entsteht. Der im ZIP enthaltene `LIESMICH.txt` listet
    auf, was noch fehlt (z. B. `setup.exe` des Office Deployment Tools).
 
+### Wenn nichts passiert ist
+
+Auf dem installierten System in einer administrativen PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File C:\Install\Diagnose.ps1
+```
+
+Das Skript prüft Dateien, Ausführungsmarker, geplante Aufgabe und Protokolle,
+wertet `setupact.log` aus und meldet ausdrücklich, wenn Setup `SetupComplete.cmd`
+wegen des OEM-Lizenzkanals verweigert hat oder wenn `$OEM$` am falschen Ort lag.
+
 ### Test ohne Neuinstallation
 
 Auf einem Testsystem in einer administrativen PowerShell:
@@ -81,8 +139,9 @@ powershell -ExecutionPolicy Bypass -File C:\Install\Install.ps1 -Phase Manual -O
 * Die erzeugten `.ps1`-Dateien werden mit UTF-8-BOM geschrieben, damit Windows
   PowerShell 5.1 Umlaute korrekt liest.
 * `$OEM$` wird nur ausgewertet, wenn das Setup von diesem Medium gestartet wird.
-  Eine parallel verwendete `autounattend.xml` bleibt unberührt und gehört weiterhin
-  in das Wurzelverzeichnis des Mediums.
+* Läuft Phase 1 über den `specialize`-Pass, verzögert jedes Modul das Setup, weil
+  Windows auf das Ende des Befehls wartet. Langläufer wie die Office-Installation
+  gehören deshalb besser in Phase 2.
 * Beim Speichern eines Projekts werden mitgelieferte Binärdateien **nicht** in die
   Projektdatei aufgenommen – sie müssen nach dem Laden erneut hinzugefügt werden.
 

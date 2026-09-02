@@ -347,7 +347,8 @@ function Invoke-OemProcess {
 param(
     [ValidateSet('Setup','FirstLogon','Manual')]
     [string]$Phase = 'Manual',
-    [string[]]$Only
+    [string[]]$Only,
+    [switch]$Force
 )
 
 $ErrorActionPreference = 'Continue'
@@ -373,6 +374,37 @@ Write-Log ('Computer    : ' + $env:COMPUTERNAME)
 Write-Log ('Kontext     : ' + [Security.Principal.WindowsIdentity]::GetCurrent().Name)
 Write-Log ('Administrator: ' + (Test-OemAdmin))
 Write-Log ('==================================================================')
+
+<#  Mehrfachausfuehrung verhindern: die Phasen koennen ueber mehrere Ausloeser
+    angestossen werden (SetupComplete.cmd, autounattend.xml, geplante Aufgabe).
+    Der Mutex serialisiert parallele Starts, die Registry-Markierung verhindert
+    die inhaltliche Wiederholung. #>
+$markerKey = 'HKLM:\\SOFTWARE\\OEM-Setup'
+$markerName = 'Phase_' + $Phase
+
+$mutex = $null
+$hasLock = $false
+try {
+    $mutex = New-Object System.Threading.Mutex($false, 'Global\\OEM-Setup-Install')
+    Write-Log 'Warte auf exklusiven Zugriff ...' -Level Debug
+    $hasLock = $mutex.WaitOne([TimeSpan]::FromMinutes(120))
+    if (-not $hasLock) { Write-Log 'Zeitueberschreitung beim Warten auf einen parallelen Lauf.' -Level Warn }
+} catch [System.Threading.AbandonedMutexException] {
+    $hasLock = $true
+    Write-Log 'Vorheriger Lauf wurde abgebrochen - uebernehme die Sperre.' -Level Warn
+} catch {
+    Write-Log ('Sperre nicht verfuegbar: ' + $_.Exception.Message) -Level Warn
+}
+
+if ($Phase -ne 'Manual' -and -not $Force) {
+    $done = $null
+    try { $done = (Get-ItemProperty -Path $markerKey -Name $markerName -ErrorAction Stop).$markerName } catch { }
+    if ($done) {
+        Write-Log ('Phase ' + $Phase + ' lief bereits am ' + $done + ' - wird uebersprungen (-Force erzwingt die Wiederholung).') -Level Warn
+        if ($hasLock -and $mutex) { $mutex.ReleaseMutex() }
+        exit 0
+    }
+}
 
 $setupSteps = @(
 ${fmt(setupMods)}
@@ -403,6 +435,15 @@ foreach ($step in $steps) {
 Write-Log '--- Zusammenfassung'
 foreach ($r in $results) {
     Write-Log ('{0,-32} {1}' -f $r.Modul, $(if ($r.Erfolg) { 'OK' } else { 'FEHLER' }))
+}
+
+try {
+    if (-not (Test-Path -LiteralPath $markerKey)) { New-Item -Path $markerKey -Force | Out-Null }
+    $stamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
+    New-ItemProperty -Path $markerKey -Name $markerName -PropertyType String -Force -Value $stamp | Out-Null
+    New-ItemProperty -Path $markerKey -Name 'Projekt' -PropertyType String -Force -Value ${psq(st.meta.name)} | Out-Null
+} catch {
+    Write-Log ('Statusmarkierung nicht gesetzt: ' + $_.Exception.Message) -Level Warn
 }
 `);
 
@@ -467,6 +508,10 @@ if ($Phase -eq 'FirstLogon' -or $Phase -eq 'Manual') {
 `);
     }
     s += toCRLF(`}
+
+if ($hasLock -and $mutex) {
+    try { $mutex.ReleaseMutex() } catch { }
+}
 
 Write-Log ('OEM Setup Phase ' + $Phase + ' beendet.')
 `);
@@ -816,6 +861,239 @@ foreach ($item in $items) {
     return s;
   }
 
+  /* ---------- autounattend.xml (Ausloeser unabhaengig von SetupComplete.cmd) ---------- */
+
+  function unattendCommands(st) {
+    const root = st.paths.installRoot.replace(/\\+$/, '');
+    const ps = (phase) => 'powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' +
+      root + '\\Install.ps1" -Phase ' + phase;
+    return {
+      setup: moduleList(st, 'setup').length ? ps('Setup') : null,
+      logon: moduleList(st, 'firstlogon').length ? ps('FirstLogon') : null
+    };
+  }
+
+  function unattendBlocks(st, indent) {
+    const pad = ' '.repeat(indent);
+    const cmd = unattendCommands(st);
+    const out = [];
+
+    if (cmd.setup) {
+      out.push([
+        '<settings pass="specialize">',
+        '  <component name="Microsoft-Windows-Deployment" processorArchitecture="amd64"',
+        '             publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS"',
+        '             xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">',
+        '    <RunSynchronous>',
+        '      <RunSynchronousCommand wcm:action="add">',
+        '        <Order>1</Order>',
+        '        <Description>OEM Setup Phase 1</Description>',
+        '        <Path>' + xmlEsc(cmd.setup) + '</Path>',
+        '      </RunSynchronousCommand>',
+        '    </RunSynchronous>',
+        '  </component>',
+        '</settings>'
+      ].map((l) => pad + l).join('\n'));
+    }
+
+    if (cmd.logon) {
+      out.push([
+        '<settings pass="oobeSystem">',
+        '  <component name="Microsoft-Windows-Shell-Setup" processorArchitecture="amd64"',
+        '             publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS"',
+        '             xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">',
+        '    <FirstLogonCommands>',
+        '      <SynchronousCommand wcm:action="add">',
+        '        <Order>1</Order>',
+        '        <Description>OEM Setup Phase 2</Description>',
+        '        <CommandLine>' + xmlEsc(cmd.logon) + '</CommandLine>',
+        '        <RequiresUserInput>false</RequiresUserInput>',
+        '      </SynchronousCommand>',
+        '    </FirstLogonCommands>',
+        '  </component>',
+        '</settings>'
+      ].map((l) => pad + l).join('\n'));
+    }
+    return out;
+  }
+
+  function xmlEsc(s) {
+    return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  }
+
+  function unattendXml(st) {
+    const blocks = unattendBlocks(st, 2);
+    return toCRLF([
+      '<?xml version="1.0" encoding="utf-8"?>',
+      '<!--',
+      '    autounattend.xml - erzeugt vom OEM Script Generator, Projekt ' + st.meta.name,
+      '',
+      '    Diese Datei startet ausschliesslich die Installationsskripte. Sie',
+      '    automatisiert das Setup NICHT (keine Partitionierung, kein Ueberspringen',
+      '    von OOBE) und kann deshalb gefahrlos zusaetzlich verwendet werden.',
+      '',
+      '    Ablage: im Wurzelverzeichnis des Installationsmediums als autounattend.xml',
+      '',
+      '    Hintergrund: Windows Setup fuehrt SetupComplete.cmd NICHT aus, wenn die',
+      '    Installation einen Produktschluessel aus dem OEM-Kanal verwendet - etwa den',
+      '    im BIOS/UEFI hinterlegten Schluessel eines Markengeraets. Betroffen sind',
+      '    Home und Pro; Enterprise und Server sind ausgenommen. Die hier verwendeten',
+      '    Ausloeser (specialize und FirstLogonCommands) sind davon unabhaengig.',
+      '-->',
+      '<unattend xmlns="urn:schemas-microsoft-com:unattend">',
+      blocks.join('\n'),
+      '</unattend>'
+    ].join('\n') + '\n');
+  }
+
+  function unattendSnippet(st) {
+    return toCRLF([
+      'Zum Einfuegen in eine bereits vorhandene autounattend.xml.',
+      '',
+      'Die folgenden <settings>-Bloecke direkt unterhalb von <unattend ...> einfuegen.',
+      'Existiert der jeweilige Pass bereits, nur den <component>-Teil uebernehmen bzw.',
+      'die Befehle mit fortlaufender <Order> in den vorhandenen Block ergaenzen.',
+      '',
+      '--------------------------------------------------------------------------',
+      ''
+    ].join('\n') + unattendBlocks(st, 0).join('\n\n') + '\n');
+  }
+
+  /* ---------- Diagnose.ps1 ---------- */
+
+  function diagnoseScript(st) {
+    const root = st.paths.installRoot.replace(/\\+$/, '');
+    return banner('Prueft nach der Installation, warum die Skripte nicht gelaufen sind.', st.meta.name) + toCRLF(`
+$ErrorActionPreference = 'SilentlyContinue'
+
+function Show-Head { param([string]$Text) Write-Host ''; Write-Host ('=== ' + $Text) -ForegroundColor Cyan }
+function Join-OemPath {
+    # providerunabhaengig: scheitert nicht, wenn das Laufwerk nicht existiert
+    param([string]$Base, [string]$Leaf)
+    return [IO.Path]::Combine($Base, $Leaf)
+}
+
+function Show-Item {
+    param([string]$Label, $Ok, [string]$Info)
+    $Ok = [bool]$Ok
+    $mark = if ($Ok) { '[ ok ]' } else { '[fehlt]' }
+    $color = if ($Ok) { 'Green' } else { 'Red' }
+    Write-Host ($mark.PadRight(8)) -ForegroundColor $color -NoNewline
+    Write-Host ($Label.PadRight(46)) -NoNewline
+    Write-Host $Info -ForegroundColor DarkGray
+}
+
+$root = ${psq(root)}
+Write-Host ('OEM Setup - Diagnose   (' + (Get-Date -Format 'yyyy-MM-dd HH:mm') + ')') -ForegroundColor White
+
+Show-Head 'Dateien auf dem Zielsystem'
+Show-Item 'Installationsordner' (Test-Path $root) $root
+Show-Item 'Install.ps1' (Test-Path (Join-OemPath $root 'Install.ps1')) (Join-OemPath $root 'Install.ps1')
+$modCount = @(Get-ChildItem (Join-OemPath $root 'Modules') -Filter *.ps1 -ErrorAction SilentlyContinue).Count
+Show-Item 'Modules-Ordner' (Test-Path (Join-OemPath $root 'Modules')) ("$modCount Module")
+$sc = Join-OemPath $env:SystemRoot 'Setup\\Scripts\\SetupComplete.cmd'
+Show-Item 'SetupComplete.cmd' (Test-Path $sc) $sc
+if (-not (Test-Path $sc)) {
+    Write-Host '         Hinweis: die Datei loescht sich nach erfolgreichem Lauf selbst,' -ForegroundColor DarkGray
+    Write-Host '         sofern diese Option aktiv war.' -ForegroundColor DarkGray
+}
+
+Show-Head 'Ausfuehrungsstatus (Registry-Marker)'
+$marker = Get-ItemProperty 'HKLM:\\SOFTWARE\\OEM-Setup' -ErrorAction SilentlyContinue
+if ($marker) {
+    foreach ($n in @('Phase_Setup','Phase_FirstLogon','Phase_Manual','Projekt')) {
+        if ($marker.PSObject.Properties.Name -contains $n) {
+            Show-Item $n $true $marker.$n
+        } else {
+            Show-Item $n $false 'nie gelaufen'
+        }
+    }
+} else {
+    Write-Host '  Kein Marker vorhanden - Install.ps1 wurde noch nie ausgefuehrt.' -ForegroundColor Yellow
+}
+
+Show-Head 'Protokolle'
+$logDir = Join-OemPath $root 'Logs'
+if (Test-Path $logDir) {
+    Get-ChildItem $logDir -File | Sort-Object LastWriteTime -Descending |
+        ForEach-Object { Write-Host ('  {0,-34} {1,9:n0} Bytes   {2}' -f $_.Name, $_.Length, $_.LastWriteTime) }
+} else {
+    Write-Host '  Kein Logverzeichnis - es lief nichts.' -ForegroundColor Yellow
+}
+
+Show-Head 'Phase 2 (geplante Aufgabe / RunOnce)'
+$task = Get-ScheduledTask -TaskName 'OEM-Setup-Phase2' -ErrorAction SilentlyContinue
+if ($task) {
+    $info = Get-ScheduledTaskInfo -TaskName 'OEM-Setup-Phase2' -ErrorAction SilentlyContinue
+    Show-Item 'Geplante Aufgabe' $true ($task.State.ToString() + ', letzter Lauf: ' + $info.LastRunTime + ', Ergebnis: ' + $info.LastTaskResult)
+} else {
+    Show-Item 'Geplante Aufgabe' $false 'nicht registriert'
+}
+$ro = Get-ItemProperty 'HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\RunOnce' -Name 'OEMSetupPhase2' -ErrorAction SilentlyContinue
+Show-Item 'RunOnce-Eintrag' ($null -ne $ro) $(if ($ro) { $ro.OEMSetupPhase2 } else { 'nicht vorhanden (nach dem Lauf normal)' })
+
+Show-Head 'Wurde SetupComplete.cmd von Windows Setup blockiert?'
+$panther = @(
+    (Join-OemPath $env:SystemRoot 'Panther\\setupact.log'),
+    (Join-OemPath $env:SystemRoot 'Panther\\UnattendGC\\setupact.log')
+)
+$hits = @()
+foreach ($log in $panther) {
+    if (Test-Path $log) {
+        $hits += Select-String -Path $log -Pattern 'SetupComplete' -SimpleMatch -ErrorAction SilentlyContinue
+    }
+}
+if ($hits.Count -eq 0) {
+    Write-Host '  Keine Eintraege zu SetupComplete in den Setup-Protokollen gefunden.' -ForegroundColor Yellow
+} else {
+    $hits | Select-Object -Last 12 | ForEach-Object { Write-Host ('  ' + $_.Line.Trim()) -ForegroundColor DarkGray }
+    if ($hits | Where-Object { $_.Line -match 'will not run SetupComplete' }) {
+        Write-Host ''
+        Write-Host '  >>> Windows Setup hat SetupComplete.cmd bewusst uebersprungen.' -ForegroundColor Red
+        Write-Host '      Ursache: Produktschluessel aus dem OEM-Kanal bei einer Client-Edition.' -ForegroundColor Red
+        Write-Host '      Loesung: die mitgelieferte autounattend.xml als Ausloeser verwenden.' -ForegroundColor Yellow
+    }
+}
+
+Show-Head 'Konfigurationssatz / $OEM$'
+$panth = Join-OemPath $env:SystemRoot 'Panther\\unattend.xml'
+if (Test-Path $panth) {
+    $ua = Get-Content $panth -Raw
+    $ucs = $ua -match '<UseConfigurationSet>\\s*true\\s*</UseConfigurationSet>'
+    Show-Item 'Antwortdatei verwendet' $true $panth
+    Show-Item 'UseConfigurationSet = true' $ucs $(if ($ucs) { '$OEM$ gehoert ins WURZELVERZEICHNIS des Mediums' } else { '$OEM$ gehoert nach sources\\' })
+} else {
+    Write-Host '  C:\\Windows\\Panther\\unattend.xml nicht vorhanden.' -ForegroundColor DarkGray
+    Write-Host '  (Manche Antwortdateien loeschen sie am Ende selbst.)' -ForegroundColor DarkGray
+}
+$oemHits = @()
+foreach ($log in $panther) {
+    if (Test-Path $log) { $oemHits += Select-String -Path $log -Pattern 'OEM\\$|configuration set' -ErrorAction SilentlyContinue }
+}
+if ($oemHits.Count -gt 0) {
+    $oemHits | Select-Object -Last 6 | ForEach-Object { Write-Host ('  ' + $_.Line.Trim()) -ForegroundColor DarkGray }
+}
+
+Show-Head 'Lizenzkanal (entscheidet ueber die Sperre)'
+Write-Host ('  Edition: ' + (Get-CimInstance Win32_OperatingSystem).Caption)
+Get-CimInstance SoftwareLicensingProduct -Filter "PartialProductKey IS NOT NULL" -ErrorAction SilentlyContinue |
+    Where-Object { $_.Name -like 'Windows*' } |
+    ForEach-Object {
+        $channel = $_.ProductKeyChannel
+        if (-not $channel) { $channel = $_.Description }
+        Write-Host ('  Kanal  : ' + $channel)
+        if ($channel -match 'OEM') {
+            Write-Host '  >>> OEM-Kanal erkannt: SetupComplete.cmd wird bei Home/Pro nicht ausgefuehrt.' -ForegroundColor Red
+        }
+    }
+
+Show-Head 'Naechster Schritt'
+Write-Host ('  Manuell nachholen:  powershell -ExecutionPolicy Bypass -File "' + (Join-OemPath $root 'Install.ps1') + '" -Phase Manual -Force')
+Write-Host ('  Nur Phase 1:        powershell -ExecutionPolicy Bypass -File "' + (Join-OemPath $root 'Install.ps1') + '" -Phase Setup -Force')
+Write-Host ''
+`);
+  }
+
   /* ---------- Paketlisten ---------- */
 
   function wingetImportJson(st) {
@@ -867,7 +1145,8 @@ foreach ($item in $items) {
   /* ---------- LIESMICH ---------- */
 
   function readme(st, files) {
-    const zipRoot = st.paths.zipRoot === 'sources' ? 'sources\\$OEM$' : '$OEM$';
+    const zipRoot = st.paths.zipRoot === 'oem' ? '$OEM$'
+      : st.paths.zipRoot === 'both' ? 'sources\\$OEM$ UND $OEM$' : 'sources\\$OEM$';
     const setupMods = moduleList(st, 'setup').map((m) => m[1]);
     const logonMods = moduleList(st, 'firstlogon').map((m) => m[1]);
     const lines = [
@@ -879,7 +1158,12 @@ foreach ($item in $items) {
       'VERWENDUNG',
       '----------',
       '1. Windows-11-ISO entpacken bzw. USB-Stick mit dem Installationsmedium erstellen.',
-      '2. Den Ordner "' + zipRoot + '" aus diesem Archiv in das Wurzelverzeichnis des',
+      (st.options.trigger !== 'setupcomplete'
+        ? '2. autounattend.xml aus diesem Archiv in das WURZELVERZEICHNIS des Mediums legen\n' +
+          '   (neben sources\\ und boot\\). Existiert dort bereits eine autounattend.xml,\n' +
+          '   die Bloecke aus autounattend-Einfuegen.txt in die vorhandene Datei uebernehmen.\n' +
+          '2b. Den Ordner "' + zipRoot + '" ebenfalls in das Wurzelverzeichnis kopieren,'
+        : '2. Den Ordner "' + zipRoot + '" aus diesem Archiv in das Wurzelverzeichnis des'),
       '   Mediums kopieren, so dass folgender Pfad existiert:',
       '      <Medium>\\sources\\$OEM$\\$$\\Setup\\Scripts\\SetupComplete.cmd',
       '      <Medium>\\sources\\$OEM$\\$1\\' + relFromRoot(st.paths.installRoot) + '\\Install.ps1',
@@ -887,15 +1171,44 @@ foreach ($item in $items) {
       '4. Installation wie gewohnt starten. Windows kopiert $1 nach ' +
       st.paths.installRoot.replace(/\\+$/, '') + ' und $$ nach %WINDIR%.',
       '',
-      'WICHTIG: $OEM$ wird nur ausgewertet, wenn die Installation von diesem Medium',
-      'gestartet wird und keine autounattend.xml die Datentraegerkonfiguration so',
-      'veraendert, dass die Setup-Quelle wechselt. Bei Verwendung einer autounattend.xml',
-      'muss in der Komponente Microsoft-Windows-Setup\\UserData ggf. nichts geaendert',
-      'werden - $OEM$ funktioniert parallel.',
+      'WO GEHOERT $OEM$ HIN?',
+      '---------------------',
+      'Das haengt von der Antwortdatei ab:',
+      '',
+      ' * ohne autounattend.xml oder mit UseConfigurationSet = false:',
+      '     <Medium>\\sources\\$OEM$\\...',
+      ' * mit <UseConfigurationSet>true</UseConfigurationSet> in der autounattend.xml:',
+      '     Setup sucht den Konfigurationssatz NEBEN der Antwortdatei, also',
+      '     <Medium>\\$OEM$\\...   (Wurzelverzeichnis, nicht sources\\)',
+      '',
+      'Wer beides bestueckt, ist auf der sicheren Seite - Setup wertet nur den',
+      'passenden Ort aus, der andere Ordner wird ignoriert. Genau dafuer gibt es im',
+      'Generator die ZIP-Wurzel-Einstellung "beide Orte".',
+      '',
+      'In jedem Fall gilt: $OEM$ wird nur ausgewertet, wenn die Installation von',
+      'diesem Medium gestartet wird.',
+      '',
+      'AUSLOESER',
+      '---------',
+      (st.options.trigger === 'setupcomplete'
+        ? 'Nur SetupComplete.cmd.'
+        : st.options.trigger === 'unattend'
+          ? 'Nur autounattend.xml (specialize und FirstLogonCommands).'
+          : 'SetupComplete.cmd UND autounattend.xml - doppelt abgesichert.'),
+      '',
+      'Wichtig: Windows Setup fuehrt SetupComplete.cmd NICHT aus, wenn die Installation',
+      'einen Produktschluessel aus dem OEM-Kanal verwendet - zum Beispiel den im',
+      'BIOS/UEFI hinterlegten Schluessel eines Markengeraets. Betroffen sind die',
+      'Client-Editionen (Home, Pro); Enterprise und Windows Server sind ausgenommen.',
+      'Auf solchen Geraeten laeuft nur die autounattend.xml zuverlaessig.',
+      '',
+      'Mehrfachausfuehrung ist unschaedlich: Install.ps1 vermerkt jede abgeschlossene',
+      'Phase unter HKLM\\SOFTWARE\\OEM-Setup und ueberspringt sie beim naechsten Aufruf.',
+      'Mit -Force laesst sich eine Phase erneut ausfuehren.',
       '',
       'ABLAUF',
       '------',
-      'Phase 1 (SetupComplete.cmd, Kontext SYSTEM, vor der ersten Anmeldung):',
+      'Phase 1 (' + (st.options.trigger === 'unattend' ? 'autounattend.xml, specialize-Pass' : 'SetupComplete.cmd') + ', Kontext SYSTEM, vor der ersten Anmeldung):',
       setupMods.length ? setupMods.map((m) => '   - ' + m).join('\n') : '   - keine Module',
       '',
       'Phase 2 (' + (st.options.phase2Runner === 'task' ? 'geplante Aufgabe als SYSTEM' : 'RunOnce im Benutzerkontext') + ', nach der ersten Anmeldung):',
@@ -903,12 +1216,21 @@ foreach ($item in $items) {
       '',
       'Protokolle: ' + st.paths.installRoot.replace(/\\+$/, '') + '\\Logs',
       '',
+      'FEHLERSUCHE',
+      '-----------',
+      'Auf dem installierten System in einer administrativen PowerShell:',
+      '   powershell -ExecutionPolicy Bypass -File ' + st.paths.installRoot + '\\Diagnose.ps1',
+      'Das Skript prueft die Dateien, den Ausfuehrungsstatus, die geplante Aufgabe und',
+      'wertet die Windows-Setup-Protokolle aus - inklusive der Frage, ob Setup die',
+      'Ausfuehrung von SetupComplete.cmd wegen des OEM-Lizenzkanals verweigert hat.',
+      '',
       'MANUELLER TEST',
       '--------------',
       'Auf einem Testsystem in einer administrativen PowerShell:',
       '   powershell -ExecutionPolicy Bypass -File ' + st.paths.installRoot + '\\Install.ps1 -Phase Manual',
       'Einzelnes Modul:',
       '   powershell -ExecutionPolicy Bypass -File ' + st.paths.installRoot + '\\Install.ps1 -Phase Manual -Only Set-Tweaks.ps1',
+      'Bereits gelaufene Phase wiederholen:  ... -Phase Setup -Force',
       '',
       'NOCH ZU ERGAENZEN',
       '-----------------'
@@ -936,7 +1258,8 @@ foreach ($item in $items) {
 
   function build(st) {
     const rel = relFromRoot(st.paths.installRoot);
-    const base = st.paths.zipRoot === 'sources' ? 'sources/$OEM$' : '$OEM$';
+    const base = st.paths.zipRoot === 'oem' ? '$OEM$' : 'sources/$OEM$';
+    const mirror = st.paths.zipRoot === 'both' ? '$OEM$' : null;
     const inst = base + '/$1/' + rel;
     const files = [];
     const add = (path, data, binary) => {
@@ -944,9 +1267,27 @@ foreach ($item in $items) {
       files.push({ path, data, binary: !!binary });
     };
 
-    add(base + '/$$/Setup/Scripts/SetupComplete.cmd', setupComplete(st));
+    const trigger = st.options.trigger || 'both';
+    if (trigger !== 'unattend') add(base + '/$$/Setup/Scripts/SetupComplete.cmd', setupComplete(st));
+    if (trigger !== 'setupcomplete') {
+      const imported = st.unattend && st.unattend.xml;
+      if (imported) {
+        try {
+          const res = Importers.patchUnattend(imported, unattendCommands(st));
+          add('autounattend.xml', res.xml);
+        } catch (e) {
+          add('autounattend-FEHLER.txt', toCRLF(
+            'Die importierte autounattend.xml konnte nicht ergaenzt werden:\n' + e.message +
+            '\n\nBitte die Bloecke aus autounattend-Einfuegen.txt von Hand uebernehmen.\n'));
+        }
+      } else {
+        add('autounattend.xml', unattendXml(st));
+      }
+      add('autounattend-Einfuegen.txt', unattendSnippet(st));
+    }
     add(inst + '/Install.ps1', installMain(st));
     add(inst + '/Lib/OEM-Common.ps1', libCommon(st));
+    add(inst + '/Diagnose.ps1', diagnoseScript(st));
 
     const setupMods = moduleList(st, 'setup').map((m) => m[0]);
     const logonMods = moduleList(st, 'firstlogon').map((m) => m[0]);
@@ -984,6 +1325,14 @@ foreach ($item in $items) {
       const dir = f.dest === 'scripts' ? base + '/$$/Setup/Scripts/' : inst + '/Files/';
       add(dir + f.target, f.blob, true);
     });
+
+    if (mirror) {
+      files.slice().forEach((f) => {
+        if (f.path.indexOf(base + '/') === 0) {
+          files.push({ path: mirror + f.path.slice(base.length), data: f.data, binary: f.binary });
+        }
+      });
+    }
 
     files.push({ path: 'LIESMICH.txt', data: readme(st, files.slice()), binary: false });
     return files;

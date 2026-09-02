@@ -236,6 +236,169 @@
     return text.replace(/<\/Configuration>/i, '  <Display Level="None" AcceptEULA="TRUE" />\n</Configuration>');
   }
 
+  /* ---------- autounattend.xml ---------- */
+
+  const UNS = 'urn:schemas-microsoft-com:unattend';
+  const WCM = 'http://schemas.microsoft.com/WMIConfig/2002/State';
+
+  function parseUnattend(text) {
+    const doc = new DOMParser().parseFromString(text, 'application/xml');
+    if (doc.querySelector('parsererror')) throw new Error('XML nicht lesbar');
+    const root = doc.documentElement;
+    if (!root || root.localName !== 'unattend') throw new Error('Kein <unattend>-Element');
+
+    const el = (sel) => root.getElementsByTagName(sel);
+    const first = (sel) => (el(sel).length ? el(sel)[0] : null);
+    const ucs = first('UseConfigurationSet');
+    const passes = Array.from(root.children)
+      .filter((e) => e.localName === 'settings')
+      .map((e) => e.getAttribute('pass'));
+
+    const key = first('Key');
+    return {
+      useConfigurationSet: !!(ucs && /true/i.test(ucs.textContent)),
+      passes,
+      productKey: key ? key.textContent.trim() : '',
+      hasSpecializeRunSync: !!root.querySelector('settings[pass="specialize"] RunSynchronous'),
+      hasFirstLogon: !!root.querySelector('settings[pass="oobeSystem"] FirstLogonCommands'),
+      generator: (function () {
+        const m = text.match(/schneegans\.de|unattend-generator|UnattendedWinstall/i);
+        return m ? m[0] : '';
+      })(),
+      commandCount: root.getElementsByTagName('RunSynchronousCommand').length +
+        root.getElementsByTagName('SynchronousCommand').length
+    };
+  }
+
+  /* Fuegt die Aufrufe von Install.ps1 in eine bestehende autounattend.xml ein.
+     Idempotent: eigene Eintraege werden zuvor entfernt, die Order neu vergeben. */
+  function patchUnattend(text, commands) {
+    const doc = new DOMParser().parseFromString(text, 'application/xml');
+    if (doc.querySelector('parsererror')) throw new Error('XML nicht lesbar');
+    const root = doc.documentElement;
+    if (!root || root.localName !== 'unattend') throw new Error('Kein <unattend>-Element');
+
+    const MARK = 'OEM Setup Phase';
+
+    const child = (parent, localName) =>
+      Array.from(parent.children).find((e) => e.localName === localName) || null;
+
+    const indentOf = (node) => {
+      const prev = node.previousSibling;
+      return prev && prev.nodeType === 3 && /\n[ \t]*$/.test(prev.nodeValue)
+        ? prev.nodeValue.match(/\n([ \t]*)$/)[1] : '\t';
+    };
+
+    function make(localName, attrs) {
+      const e = doc.createElementNS(UNS, localName);
+      for (const k of Object.keys(attrs || {})) e.setAttribute(k, attrs[k]);
+      return e;
+    }
+
+    function getSettings(pass) {
+      let s = Array.from(root.children).find(
+        (e) => e.localName === 'settings' && e.getAttribute('pass') === pass);
+      if (!s) {
+        s = make('settings', { pass: pass });
+        root.appendChild(doc.createTextNode('\n\t'));
+        root.appendChild(s);
+      }
+      return s;
+    }
+
+    function getComponent(settings, name) {
+      let c = Array.from(settings.children).find(
+        (e) => e.localName === 'component' && e.getAttribute('name') === name);
+      if (!c) {
+        c = make('component', {
+          name: name, processorArchitecture: 'amd64',
+          publicKeyToken: '31bf3856ad364e35', language: 'neutral', versionScope: 'nonSxS'
+        });
+        settings.appendChild(doc.createTextNode('\n\t\t'));
+        settings.appendChild(c);
+      }
+      return c;
+    }
+
+    function getContainer(component, localName) {
+      let c = child(component, localName);
+      if (!c) {
+        c = make(localName, {});
+        component.appendChild(doc.createTextNode('\n\t\t\t'));
+        component.appendChild(c);
+      }
+      return c;
+    }
+
+    /* eigene Alteintraege entfernen */
+    function purge(container, itemName) {
+      Array.from(container.children)
+        .filter((e) => e.localName === itemName)
+        .forEach((e) => {
+          const d = child(e, 'Description');
+          if (d && d.textContent.indexOf(MARK) === 0) {
+            const prev = e.previousSibling;
+            if (prev && prev.nodeType === 3 && !prev.nodeValue.trim()) prev.remove();
+            e.remove();
+          }
+        });
+    }
+
+    function nextOrder(container, itemName) {
+      let max = 0;
+      Array.from(container.children).filter((e) => e.localName === itemName).forEach((e) => {
+        const o = child(e, 'Order');
+        const v = o ? parseInt(o.textContent, 10) : 0;
+        if (v > max) max = v;
+      });
+      return max + 1;
+    }
+
+    function append(container, itemName, order, description, valueTag, value) {
+      const pad = indentOf(container.firstElementChild || container);
+      const item = make(itemName, {});
+      item.setAttributeNS(WCM, 'wcm:action', 'add');
+      const add = (tag, txt) => {
+        const e = make(tag, {});
+        e.textContent = txt;
+        item.appendChild(doc.createTextNode('\n' + pad + '\t'));
+        item.appendChild(e);
+      };
+      add('Order', String(order));
+      add('Description', description);
+      add(valueTag, value);
+      if (itemName === 'SynchronousCommand') add('RequiresUserInput', 'false');
+      item.appendChild(doc.createTextNode('\n' + pad));
+      container.appendChild(doc.createTextNode('\n' + pad));
+      container.appendChild(item);
+      return item;
+    }
+
+    const applied = [];
+
+    if (commands.setup) {
+      const comp = getComponent(getSettings('specialize'), 'Microsoft-Windows-Deployment');
+      const cont = getContainer(comp, 'RunSynchronous');
+      purge(cont, 'RunSynchronousCommand');
+      const order = nextOrder(cont, 'RunSynchronousCommand');
+      append(cont, 'RunSynchronousCommand', order, MARK + ' 1', 'Path', commands.setup);
+      applied.push('specialize / RunSynchronousCommand Order ' + order);
+    }
+
+    if (commands.logon) {
+      const comp = getComponent(getSettings('oobeSystem'), 'Microsoft-Windows-Shell-Setup');
+      const cont = getContainer(comp, 'FirstLogonCommands');
+      purge(cont, 'SynchronousCommand');
+      const order = nextOrder(cont, 'SynchronousCommand');
+      append(cont, 'SynchronousCommand', order, MARK + ' 2', 'CommandLine', commands.logon);
+      applied.push('oobeSystem / SynchronousCommand Order ' + order);
+    }
+
+    let out = new XMLSerializer().serializeToString(doc);
+    if (!/^\s*<\?xml/.test(out)) out = '<?xml version="1.0" encoding="utf-8"?>\n' + out;
+    return { xml: out.replace(/\r?\n/g, '\r\n'), applied: applied };
+  }
+
   /* ---------- Typerkennung ---------- */
 
   function detectType(filename, text) {
@@ -261,7 +424,7 @@
   }
 
   global.Importers = {
-    parseBundle, parseSetupComplete, parseOfficeConfig,
+    parseBundle, parseSetupComplete, parseOfficeConfig, parseUnattend, patchUnattend,
     ensureSilentDisplay, detectType, normManager, mkPkg, dedupe
   };
 })(window);
