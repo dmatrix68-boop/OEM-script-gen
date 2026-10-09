@@ -253,6 +253,10 @@ function Invoke-OemProcess {
     $startArgs = @{ FilePath = $FilePath; PassThru = $true; WindowStyle = 'Hidden'; ErrorAction = 'Stop' }
     if ($Arguments -and $Arguments.Count -gt 0) { $startArgs['ArgumentList'] = $Arguments }
     $p = Start-Process @startArgs
+    if (-not $p) {
+        Write-Log ('Prozess konnte nicht gestartet werden: ' + $FilePath) -Level Error
+        return [pscustomobject]@{ ExitCode = -1; Success = $false }
+    }
     if (-not $p.WaitForExit($TimeoutSeconds * 1000)) {
         Write-Log ('Zeitueberschreitung nach {0} s - Prozess wird beendet.' -f $TimeoutSeconds) -Level Error
         try { $p.Kill() } catch { }
@@ -677,6 +681,23 @@ if ($failed.Count -gt 0) {
 $officeDir = Join-Path $Global:OemRoot 'Office'
 $setupExe  = Join-Path $officeDir 'setup.exe'
 $configXml = Join-Path $officeDir 'Configuration.xml'
+
+<#  Haeufiger Ablagefehler: die setup.exe des Office Deployment Tools landet
+    unter Files\\ oder direkt im Installationsordner statt in Office\\. #>
+if (-not (Test-Path -LiteralPath $setupExe)) {
+    $alt = @(
+        (Join-Path $Global:OemRoot 'Files\\setup.exe'),
+        (Join-Path $Global:OemRoot 'Files\\Setup.exe'),
+        (Join-Path $Global:OemRoot 'setup.exe')
+    ) | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+    if ($alt) {
+        Write-Log ('setup.exe liegt nicht in Office\, verwende stattdessen: ' + $alt) -Level Warn
+        $setupExe = $alt
+    }
+}
+if (Test-Path -LiteralPath (Join-Path $officeDir 'HIER-setup.exe-ABLEGEN.txt')) {
+    Write-Log 'Die Platzhalterdatei im Office-Ordner ist noch vorhanden - wurde die ODT-setup.exe abgelegt?' -Level Warn
+}
 
 if (-not (Test-Path -LiteralPath $configXml)) {
     Write-Log 'Configuration.xml fehlt - Office wird uebersprungen.' -Level Error
