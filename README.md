@@ -267,6 +267,20 @@ powershell -ExecutionPolicy Bypass -File C:\Install\Install.ps1 -Phase Manual -O
 * Beim Speichern eines Projekts werden mitgelieferte Binärdateien **nicht** in die
   Projektdatei aufgenommen – sie müssen nach dem Laden erneut hinzugefügt werden.
 
+## Entwicklung
+
+Die PowerShell-Skripte entstehen in JavaScript-Template-Literalen. Dort
+verschluckt JavaScript Backslash-Folgen, die es nicht als Escape kennt: aus
+`'\s+'` wird `'s+'`, aus `'\|'` wird `'|'` — der erzeugte Code enthält dann
+stillschweigend ein anderes Muster. So entstand unter anderem ein `-split`, das
+nie etwas trennte, und ein `-replace`, das jedes „s" durch ein Leerzeichen
+ersetzte. Im Template-Literal gehören solche Folgen deshalb verdoppelt
+(`\\s+`). Dagegen prüft:
+
+```bash
+node tools/check-escapes.js
+```
+
 ## Projektaufbau
 
 ```
@@ -278,4 +292,5 @@ js/importers.js   Parser für Bundles, SetupComplete.cmd und ODT-XML
 js/templates.js   Erzeugung sämtlicher Skripte
 js/app.js         Zustand, Oberfläche, Import/Export
 samples/          Beispieldateien zum Testen der Importfunktion
+tools/            check-escapes.js – prüft die Template-Literale auf verschluckte Escapes
 ```

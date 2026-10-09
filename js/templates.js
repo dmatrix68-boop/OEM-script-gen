@@ -274,7 +274,7 @@ function Wait-OemNetwork {
 }
 
 <#  Prueft, ob diese winget.exe wirklich startet. Der direkte Aufruf aus
-    Program Files\WindowsApps bricht mit 0xC0000135 (-1073741515) ab, weil die
+    Program Files\\WindowsApps bricht mit 0xC0000135 (-1073741515) ab, weil die
     MSIX-Abhaengigkeiten nur ueber den App-Execution-Alias aufgeloest werden.
     Ohne diese Pruefung scheitert anschliessend jedes einzelne Paket. #>
 function Test-WingetUsable {
@@ -369,29 +369,9 @@ function Test-OemRunActive {
     try { $val = (Get-ItemProperty -Path $Key -Name $Name -ErrorAction Stop).$Name } catch { return $false }
     if (-not $val) { return $false }
     $otherPid = 0
-    if (-not [int]::TryParse(($val -split '\|')[0], [ref]$otherPid)) { return $false }
+    if (-not [int]::TryParse(($val -split '\\|')[0], [ref]$otherPid)) { return $false }
     if ($otherPid -eq $PID) { return $false }
     return [bool](Get-Process -Id $otherPid -ErrorAction SilentlyContinue)
-}
-
-function Wait-OemOtherRun {
-    param(
-        [Parameter(Mandatory)][string]$Key,
-        [Parameter(Mandatory)][string]$Name,
-        [int]$TimeoutMinutes = 120
-    )
-    if (-not (Test-OemRunActive -Key $Key -Name $Name)) { return $true }
-    Write-Log 'Ein anderer Lauf dieser Phase ist aktiv - warte auf dessen Ende.' -Level Warn
-    $sw = [Diagnostics.Stopwatch]::StartNew()
-    while ($sw.Elapsed.TotalMinutes -lt $TimeoutMinutes) {
-        Start-Sleep -Seconds 10
-        if (-not (Test-OemRunActive -Key $Key -Name $Name)) {
-            Write-Log ('Anderer Lauf beendet nach {0:n0} s.' -f $sw.Elapsed.TotalSeconds)
-            return $true
-        }
-    }
-    Write-Log 'Anderer Lauf haelt die Phase laenger als erlaubt belegt.' -Level Error
-    return $false
 }
 
 function Set-OemRunning {
@@ -413,25 +393,47 @@ function Invoke-OemProcess {
         [Parameter(Mandatory)][string]$FilePath,
         [string[]]$Arguments = @(),
         [int[]]$SuccessCodes = @(0),
-        [int]$TimeoutSeconds = 3600
+        [int]$TimeoutSeconds = 3600,
+        # Schneidet stdout/stderr mit, damit eine Fehlermeldung ins Protokoll kann
+        [switch]$CaptureOutput
     )
     Write-Log ('Starte: "{0}" {1}' -f $FilePath, ($Arguments -join ' ')) -Level Debug
     $startArgs = @{ FilePath = $FilePath; PassThru = $true; WindowStyle = 'Hidden'; ErrorAction = 'Stop' }
     if ($Arguments -and $Arguments.Count -gt 0) { $startArgs['ArgumentList'] = $Arguments }
+    $outFile = $null
+    $errFile = $null
+    if ($CaptureOutput) {
+        $outFile = [IO.Path]::GetTempFileName()
+        $errFile = [IO.Path]::GetTempFileName()
+        $startArgs['RedirectStandardOutput'] = $outFile
+        $startArgs['RedirectStandardError'] = $errFile
+    }
     $p = Start-Process @startArgs
+    $readOutput = {
+        $text = ''
+        foreach ($f in @($outFile, $errFile)) {
+            if ($f -and (Test-Path -LiteralPath $f)) {
+                $text += (Get-Content -LiteralPath $f -Raw -ErrorAction SilentlyContinue)
+                Remove-Item -LiteralPath $f -Force -ErrorAction SilentlyContinue
+            }
+        }
+        return ($text -replace '\\s+', ' ').Trim()
+    }
+
     if (-not $p) {
         Write-Log ('Prozess konnte nicht gestartet werden: ' + $FilePath) -Level Error
-        return [pscustomobject]@{ ExitCode = -1; Success = $false }
+        return [pscustomobject]@{ ExitCode = -1; Success = $false; TimedOut = $false; Output = (& $readOutput) }
     }
     if (-not $p.WaitForExit($TimeoutSeconds * 1000)) {
         Write-Log ('Zeitueberschreitung nach {0} s - Prozess wird beendet.' -f $TimeoutSeconds) -Level Error
         try { $p.Kill() } catch { }
-        return [pscustomobject]@{ ExitCode = -1; Success = $false }
+        try { $p.WaitForExit(5000) | Out-Null } catch { }
+        return [pscustomobject]@{ ExitCode = -1; Success = $false; TimedOut = $true; Output = (& $readOutput) }
     }
     $code = $p.ExitCode
     $ok = $SuccessCodes -contains $code
     if (-not $ok) { Write-Log ('Exitcode {0} von {1}' -f $code, (Split-Path -Leaf $FilePath)) -Level Warn }
-    return [pscustomobject]@{ ExitCode = $code; Success = $ok }
+    return [pscustomobject]@{ ExitCode = $code; Success = $ok; TimedOut = $false; Output = (& $readOutput) }
 }
 `);
   }
@@ -560,8 +562,8 @@ try {
     $mutex = New-OemMutex -Name 'Global\\OEM-Setup-Install'
     if ($mutex) {
         Write-Log 'Warte auf exklusiven Zugriff ...' -Level Debug
-        $hasLock = $mutex.WaitOne([TimeSpan]::FromMinutes(120))
-        if (-not $hasLock) { Write-Log 'Zeitueberschreitung beim Warten auf einen parallelen Lauf.' -Level Warn }
+        $hasLock = $mutex.WaitOne([TimeSpan]::FromSeconds(60))
+        if (-not $hasLock) { Write-Log 'Ein anderer Lauf haelt die Sperre.' -Level Warn }
     }
 } catch [System.Threading.AbandonedMutexException] {
     $hasLock = $true
@@ -571,8 +573,11 @@ try {
 }
 
 <#  Zweite Absicherung, falls der Mutex ueber die Kontextgrenze hinweg nicht
-    greift: die Laufmarkierung ist fuer SYSTEM und Benutzer gleichermassen lesbar. #>
-if (-not (Wait-OemOtherRun -Key $markerKey -Name $runningName)) {
+    greift: die Laufmarkierung ist fuer SYSTEM und Benutzer gleichermassen lesbar.
+    Laeuft dieselbe Phase bereits, ist dieser Lauf ueberfluessig - er weicht,
+    statt auf ein Ende zu warten, das Stunden entfernt sein kann. #>
+if ((Test-OemRunActive -Key $markerKey -Name $runningName) -and -not $Force) {
+    Write-Log ('Phase ' + $Phase + ' laeuft bereits in einem anderen Prozess - dieser Lauf endet hier.') -Level Warn
     if ($hasLock -and $mutex) { $mutex.ReleaseMutex() }
     exit 0
 }
@@ -733,8 +738,9 @@ if (-not (Get-Command Write-Log -ErrorAction SilentlyContinue)) {
     s += bootstrapHeader('Install-Apps');
 
     s += toCRLF(`
-$SuccessCodes = @(0, 3010, 1641, -1978335135, -1978335189, -1978335212)
-$MaxRetries   = ${opts.retries}
+$SuccessCodes   = @(0, 3010, 1641, -1978335135, -1978335189, -1978335212)
+$MaxRetries     = ${opts.retries}
+$PackageTimeout = ${Math.max(60, (opts.packageTimeoutMin || 15) * 60)}   # Sekunden je Paket
 `);
 
     if (opts.waitNetwork) s += toCRLF(`
@@ -829,24 +835,39 @@ foreach ($pkg in $packages) {
 
     Write-Log ('[{0}/{1}] {2} ({3})' -f $index, $packages.Count, $pkg.Name, $pkg.Id) -Level Step
     $ok = $false
-    for ($try = 0; $try -le $MaxRetries -and -not $ok; $try++) {
+    $timedOut = $false
+    for ($try = 0; $try -le $MaxRetries -and -not $ok -and -not $timedOut; $try++) {
         if ($try -gt 0) {
             Write-Log ('Wiederholung {0} fuer {1}' -f $try, $pkg.Name) -Level Warn
             Start-Sleep -Seconds (5 * $try)
         }
         try {
-            $output = & $exe $pkg.Arguments 2>&1
-            $code = $LASTEXITCODE
-            if ($null -eq $code) { $code = 0 }
-            $ok = $SuccessCodes -contains $code
-            if (-not $ok) {
-                Write-Log ('Exitcode {0}: {1}' -f $code, (($output | Select-Object -Last 3) -join ' | ')) -Level Warn
+            <#  Mit Zeitgrenze: ein Installer, der auf eine Eingabe wartet, haelt
+                sonst die ganze Liste auf - die folgenden Pakete kaemen nie dran. #>
+            $callArgs = @{
+                FilePath = $exe; Arguments = $pkg.Arguments; SuccessCodes = $SuccessCodes
+                TimeoutSeconds = $PackageTimeout; CaptureOutput = $true
+            }
+            $res = Invoke-OemProcess @callArgs
+            $ok = $res.Success
+            $timedOut = $res.TimedOut
+            if ($timedOut) {
+                Write-Log ('{0} hat das Zeitlimit von {1} s ueberschritten und wurde abgebrochen.' -f $pkg.Name, $PackageTimeout) -Level Error
+            } elseif (-not $ok) {
+                $hint = $res.Output
+                if ($hint.Length -gt 300) { $hint = $hint.Substring(0, 300) }
+                Write-Log ('Exitcode {0}: {1}' -f $res.ExitCode, $hint) -Level Warn
             }
         } catch {
             Write-Log ('Fehler bei {0}: {1}' -f $pkg.Name, $_.Exception.Message) -Level Warn
         }
     }
-    if ($ok) { Write-Log ('OK: ' + $pkg.Name) } else { Write-Log ('FEHLGESCHLAGEN: ' + $pkg.Name) -Level Error; $failed += $pkg.Name }
+    if ($ok) {
+        Write-Log ('OK: ' + $pkg.Name)
+    } else {
+        Write-Log ('FEHLGESCHLAGEN: ' + $pkg.Name) -Level Error
+        $failed += $pkg.Name + $(if ($timedOut) { ' (Zeitlimit)' } else { '' })
+    }
 }
 
 if ($failed.Count -gt 0) {
@@ -879,7 +900,7 @@ if (-not (Test-Path -LiteralPath $setupExe)) {
         (Join-Path $Global:OemRoot 'setup.exe')
     ) | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
     if ($alt) {
-        Write-Log ('setup.exe liegt nicht in Office\, verwende stattdessen: ' + $alt) -Level Warn
+        Write-Log ('setup.exe liegt nicht in Office\\, verwende stattdessen: ' + $alt) -Level Warn
         $setupExe = $alt
     }
 }

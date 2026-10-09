@@ -128,6 +128,10 @@
             <span>Wiederholversuche</span>
             <input type="number" id="appsRetries" min="0" max="5" value="2">
           </label>
+          <label class="field">
+            <span>Zeitlimit je Paket (Minuten)</span>
+            <input type="number" id="appsPackageTimeout" min="1" max="120" value="15">
+          </label>
         </div>
         <div class="row wrap">
           <label class="chk"><input type="checkbox" id="appsWaitNetwork" checked> Auf Netzwerkverbindung warten</label>

@@ -32,7 +32,7 @@
       },
       unattend: { xml: null, name: '', info: null },
       apps: {
-        enabled: true, phase: 'firstlogon', method: 'individual', retries: 2,
+        enabled: true, phase: 'firstlogon', method: 'individual', retries: 2, packageTimeoutMin: 15,
         waitNetwork: true, sourceUpdate: true, bootstrap: true,
         pinVersions: false, machineScope: false, items: []
       },
@@ -90,6 +90,7 @@
     ['appsPhase', 'apps.phase', 'text'],
     ['appsMethod', 'apps.method', 'text'],
     ['appsRetries', 'apps.retries', 'num'],
+    ['appsPackageTimeout', 'apps.packageTimeoutMin', 'num'],
     ['appsWaitNetwork', 'apps.waitNetwork', 'bool'],
     ['appsSourceUpdate', 'apps.sourceUpdate', 'bool'],
     ['appsBootstrap', 'apps.bootstrap', 'bool'],
