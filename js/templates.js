@@ -738,7 +738,12 @@ if (-not (Get-Command Write-Log -ErrorAction SilentlyContinue)) {
     s += bootstrapHeader('Install-Apps');
 
     s += toCRLF(`
-$SuccessCodes   = @(0, 3010, 1641, -1978335135, -1978335189, -1978335212)
+<#  Erfolgscodes laut winget-cli/src/AppInstallerSharedLib/Public/AppInstallerErrors.h:
+    0 Installation ok, 3010/1641 Neustart noetig bzw. eingeleitet,
+    0x8A150061 Paket bereits installiert, 0x8A15002B kein Upgrade anwendbar.
+    0x8A150014 (kein Paket gefunden) gehoert ausdruecklich NICHT hierher - sonst
+    gilt eine falsch geschriebene Paket-ID als erfolgreich installiert. #>
+$SuccessCodes   = @(0, 3010, 1641, -1978335135, -1978335189)
 $MaxRetries     = ${opts.retries}
 $PackageTimeout = ${Math.max(60, (opts.packageTimeoutMin || 15) * 60)}   # Sekunden je Paket
 `);
@@ -811,6 +816,17 @@ $packages = @(
 ${rows.join(NL)}
 )
 
+function Get-WingetFehlertext {
+    param([int]$Code)
+    switch ($Code) {
+        -1978335215 { 'Pruefsumme des Installers weicht vom Manifest ab - der Hersteller hat die Datei ausgetauscht. Mit --ignore-security-hash als Zusatzargument liesse sich die Pruefung uebergehen.' }
+        -1978335212 { 'Kein passendes Paket gefunden - Paket-ID und Quelle pruefen.' }
+        -1978335189 { 'Kein Upgrade anwendbar.' }
+        -1978335135 { 'Paket ist bereits installiert.' }
+        default      { '' }
+    }
+}
+
 Write-Log ('Zu installierende Pakete: ' + $packages.Count)
 $failed = @()
 $index  = 0
@@ -865,6 +881,8 @@ foreach ($pkg in $packages) {
                 if ($null -ne $r -and $null -ne $r.Code) { $code = [int]$r.Code }
                 $ok = $SuccessCodes -contains $code
                 if (-not $ok) {
+                    $klartext = Get-WingetFehlertext -Code $code
+                    if ($klartext) { Write-Log ('{0}: {1}' -f $pkg.Name, $klartext) -Level Warn }
                     $hint = ''
                     if ($r) { $hint = ($r.Output -replace '\\s+', ' ').Trim() }
                     if ($hint.Length -gt 300) { $hint = $hint.Substring(0, 300) }

@@ -179,6 +179,14 @@ MSIX-Abhängigkeiten nicht aufgelöst werden.
 Gemessen an einem Durchlauf mit 33 Paketen: als SYSTEM 3 erfolgreich, im
 Benutzerkontext 33.
 
+Welche winget-Exitcodes als Erfolg zählen, richtet sich nach
+`AppInstallerErrors.h` aus winget-cli: neben `0` und den Neustart-Codes `3010`
+und `1641` sind das `0x8A150061` (Paket bereits installiert) und `0x8A15002B`
+(kein Upgrade anwendbar). `0x8A150014` steht für *kein Paket gefunden* und zählt
+ausdrücklich **nicht** dazu — sonst gälte eine falsch geschriebene Paket-ID als
+erfolgreich installiert. Zu den häufigsten Fehlercodes schreibt das Modul eine
+Klartextzeile ins Protokoll.
+
 Aus demselben Grund ruft `Install-Apps.ps1` die Paketmanager **direkt** auf
 (`& $exe $args`) und nicht über `Start-Process`: Der Alias stößt den
 eigentlichen Vorgang an und beendet sich sofort, `Start-Process`/`WaitForExit`
