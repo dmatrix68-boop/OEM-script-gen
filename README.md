@@ -113,6 +113,14 @@ sources/$OEM$/  bzw.  $OEM$/
    `<Medium>\sources\$OEM$\...` entsteht. Der im ZIP enthaltene `LIESMICH.txt` listet
    auf, was noch fehlt (z. B. `setup.exe` des Office Deployment Tools).
 
+### Die Installation muss vom Medium gebootet werden
+
+`$OEM$` und `autounattend.xml` wertet Windows Setup nur aus, wenn vom
+Installationsmedium **gebootet** wird. Startet man `setup.exe` aus einem
+laufenden Windows heraus, läuft Setup in der Downlevel-Phase (Arbeitsordner
+`C:\$WINDOWS.~BT`) und ignoriert beides. Die Setup-Protokolle dieser Phase liegen
+unter `C:\$WINDOWS.~BT\Sources\Panther\` – `Diagnose.ps1` durchsucht sie mit.
+
 ### Wenn nichts passiert ist
 
 Auf dem installierten System in einer administrativen PowerShell:
@@ -124,6 +132,15 @@ powershell -ExecutionPolicy Bypass -File C:\Install\Diagnose.ps1
 Das Skript prüft Dateien, Ausführungsmarker, geplante Aufgabe und Protokolle,
 wertet `setupact.log` aus und meldet ausdrücklich, wenn Setup `SetupComplete.cmd`
 wegen des OEM-Lizenzkanals verweigert hat oder wenn `$OEM$` am falschen Ort lag.
+
+Mit `-Export` packt es die relevanten Stellen in ein ZIP von typischerweise
+wenigen Kilobyte – die passenden Zeilen aus allen `setupact.log`-Fundorten, die
+eigenen Protokolle und den Systemzustand. Das ist das, was man zum Weitergeben
+braucht; ganze Setup-Ordner sind dafür nicht nötig:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File C:\Install\Diagnose.ps1 -Export
+```
 
 ### Test ohne Neuinstallation
 

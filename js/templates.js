@@ -964,6 +964,12 @@ foreach ($item in $items) {
   function diagnoseScript(st) {
     const root = st.paths.installRoot.replace(/\\+$/, '');
     return banner('Prueft nach der Installation, warum die Skripte nicht gelaufen sind.', st.meta.name) + toCRLF(`
+[CmdletBinding()]
+param(
+    # Sammelt alle relevanten Protokolle in einem kleinen ZIP zum Weitergeben
+    [switch]$Export
+)
+
 $ErrorActionPreference = 'SilentlyContinue'
 
 function Show-Head { param([string]$Text) Write-Host ''; Write-Host ('=== ' + $Text) -ForegroundColor Cyan }
@@ -1035,8 +1041,11 @@ Show-Item 'RunOnce-Eintrag' ($null -ne $ro) $(if ($ro) { $ro.OEMSetupPhase2 } el
 Show-Head 'Wurde SetupComplete.cmd von Windows Setup blockiert?'
 $panther = @(
     (Join-OemPath $env:SystemRoot 'Panther\\setupact.log'),
-    (Join-OemPath $env:SystemRoot 'Panther\\UnattendGC\\setupact.log')
-)
+    (Join-OemPath $env:SystemRoot 'Panther\\UnattendGC\\setupact.log'),
+    (Join-OemPath $env:SystemRoot 'Panther\\NewOS\\setupact.log'),
+    (Join-OemPath $env:SystemDrive '$WINDOWS.~BT\\Sources\\Panther\\setupact.log'),
+    (Join-OemPath $env:SystemDrive '$WINDOWS.~BT\\Sources\\Rollback\\setupact.log')
+) | Where-Object { $_ }
 $hits = @()
 foreach ($log in $panther) {
     if (Test-Path $log) {
@@ -1087,9 +1096,73 @@ Get-CimInstance SoftwareLicensingProduct -Filter "PartialProductKey IS NOT NULL"
         }
     }
 
+Show-Head 'Art der Installation'
+$bt = Join-OemPath $env:SystemDrive '$WINDOWS.~BT'
+if (Test-Path $bt) {
+    Write-Host '  $WINDOWS.~BT ist vorhanden - Arbeitsbereich der Setup-Downlevel-Phase.' -ForegroundColor Yellow
+    Write-Host '  Der Ordner kann von einem frueheren Setup-Lauf stammen, entsteht aber' -ForegroundColor DarkGray
+    Write-Host '  typischerweise, wenn setup.exe aus einem laufenden Windows gestartet wird.' -ForegroundColor DarkGray
+    Write-Host '  Pruefen Sie das: wurde diese Installation aus Windows heraus gestartet,' -ForegroundColor Yellow
+    Write-Host '  wertet Setup weder $OEM$ noch eine autounattend.xml auf dem Medium aus -' -ForegroundColor Yellow
+    Write-Host '  dann muss vom Medium gebootet werden.' -ForegroundColor Yellow
+} else {
+    Show-Item 'Kein $WINDOWS.~BT vorhanden' $true 'spricht fuer eine Installation vom gebooteten Medium'
+}
+
+if ($Export) {
+    Show-Head 'Export'
+    $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+    $tmp = Join-OemPath $env:TEMP ('OEM-Diagnose-' + $stamp)
+    New-Item -Path $tmp -ItemType Directory -Force | Out-Null
+
+    # eigene Protokolle vollstaendig
+    if (Test-Path $logDir) { Copy-Item -Path (Join-OemPath $logDir '*') -Destination $tmp -Recurse -Force }
+
+    # Setup-Protokolle: nur die relevanten Zeilen und das Ende, sonst wird es zu gross
+    $i = 0
+    foreach ($log in $panther) {
+        if (-not (Test-Path $log)) { continue }
+        $i++
+        # Nur ein kurzer, garantiert relativer Dateiname - der Pfad selbst taugt nicht dafuer
+        $parent = [IO.Path]::GetFileName([IO.Path]::GetDirectoryName($log))
+        $tag = '{0:00}_{1}' -f $i, ($parent -replace '[^A-Za-z0-9.~-]', '_')
+        Select-String -Path $log -Pattern 'SetupComplete|OEM\\$|configuration set|unattend|FirstLogon|RunSynchronous' -ErrorAction SilentlyContinue |
+            ForEach-Object { $_.Line.Trim() } |
+            Set-Content -LiteralPath (Join-OemPath $tmp ('TREFFER_' + $tag + '.txt')) -Encoding UTF8
+        Get-Content -LiteralPath $log -Tail 3000 -ErrorAction SilentlyContinue |
+            Set-Content -LiteralPath (Join-OemPath $tmp ('ENDE_' + $tag + '.txt')) -Encoding UTF8
+        Add-Content -LiteralPath (Join-OemPath $tmp 'Quellen.txt') -Value ($tag + ' = ' + $log) -Encoding UTF8
+    }
+
+    # Systemzustand
+    $state = @()
+    $state += 'Edition : ' + (Get-CimInstance Win32_OperatingSystem).Caption
+    $state += 'Build   : ' + (Get-CimInstance Win32_OperatingSystem).BuildNumber
+    $state += 'Marker  : ' + (( Get-ItemProperty 'HKLM:\\SOFTWARE\\OEM-Setup' -ErrorAction SilentlyContinue |
+        Format-List | Out-String ).Trim())
+    $state += 'Aufgabe : ' + ((Get-ScheduledTask -TaskName 'OEM-Setup-Phase2' -ErrorAction SilentlyContinue |
+        Select-Object TaskName, State | Format-List | Out-String).Trim())
+    $state += 'Lizenz  : ' + ((Get-CimInstance SoftwareLicensingProduct -Filter "PartialProductKey IS NOT NULL" -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -like 'Windows*' } |
+        Select-Object Name, Description, ProductKeyChannel, LicenseStatus | Format-List | Out-String).Trim())
+    $state += 'BT-Ordner vorhanden: ' + (Test-Path $bt)
+    $state | Set-Content -LiteralPath (Join-OemPath $tmp 'Systemzustand.txt') -Encoding UTF8
+
+    $zip = Join-OemPath $logDir ('OEM-Diagnose-' + $stamp + '.zip')
+    if (-not (Test-Path $logDir)) { New-Item -Path $logDir -ItemType Directory -Force | Out-Null }
+    Compress-Archive -Path (Join-OemPath $tmp '*') -DestinationPath $zip -Force
+    Remove-Item -LiteralPath $tmp -Recurse -Force
+    $size = [math]::Round((Get-Item $zip).Length / 1KB)
+    Write-Host ('  Erstellt: ' + $zip + '  (' + $size + ' KB)') -ForegroundColor Green
+    Write-Host '  Diese Datei ist klein genug zum Weitergeben.' -ForegroundColor DarkGray
+}
+
 Show-Head 'Naechster Schritt'
 Write-Host ('  Manuell nachholen:  powershell -ExecutionPolicy Bypass -File "' + (Join-OemPath $root 'Install.ps1') + '" -Phase Manual -Force')
 Write-Host ('  Nur Phase 1:        powershell -ExecutionPolicy Bypass -File "' + (Join-OemPath $root 'Install.ps1') + '" -Phase Setup -Force')
+if (-not $Export) {
+    Write-Host ('  Protokolle packen:  powershell -ExecutionPolicy Bypass -File "' + (Join-OemPath $root 'Diagnose.ps1') + '" -Export')
+}
 Write-Host ''
 `);
   }
