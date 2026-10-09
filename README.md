@@ -121,11 +121,40 @@ dann, wenn die `setup.exe` mitgeliefert wird; das Archiv enthält nur das
 Werkzeug, nicht Office selbst. In Phase 1 (`specialize`) steht aber noch keine
 Netzwerkverbindung zur Verfügung, genau wie bei den Netzwerk-Tweaks oben.
 
-Das Office-Modul steht deshalb auf Phase 2. Wer es dennoch in Phase 1 braucht,
-setzt in der `Configuration.xml` ein `SourcePath` auf eine lokal mitgelieferte
-Office-Quelle; `Install-Office.ps1` erkennt das, überspringt das Warten auf das
-Netzwerk und installiert offline. Ohne beides bricht das Modul mit einer
-erklärenden Meldung ab, statt ins Leere zu laufen.
+Das Office-Modul steht deshalb auf Phase 2. Ohne Netzwerk und ohne lokale Quelle
+bricht es mit einer erklärenden Meldung ab, statt ins Leere zu laufen.
+
+#### Offline-Installation aus mitgelieferter Quelle
+
+Für Phase 1 — oder für Rechner ohne Internetzugang — stellt man die
+Installationsquelle unter *Office → Installationsquelle* auf **lokal
+mitgeliefert**. Der Generator trägt dann `SourcePath` in die
+`Configuration.xml` ein und legt im Paket an:
+
+```
+Office/
+├─ setup.exe                      (ODT, selbst ablegen)
+├─ Configuration.xml              SourcePath=C:\Install\Office\Quelle
+├─ Download-Quelle.ps1            erzeugt die Quelle
+└─ Quelle/                        hierhin kommt Office\Data\…
+```
+
+Die Quelle selbst landet **nicht** im ZIP — mehrere Gigabyte durch den Browser
+zu schleusen ist nicht praktikabel. Stattdessen führt man nach dem Entpacken auf
+dem Vorbereitungsrechner einmal aus:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File Office\Download-Quelle.ps1
+```
+
+Das Skript liest die `Configuration.xml`, lädt genau die darin konfigurierten
+Produkte und Sprachen per `setup.exe /download` in den Quellordner und meldet
+am Ende die belegte Größe. Danach kommt der gefüllte Ordner mit aufs Medium.
+
+`Install-Office.ps1` prüft zur Laufzeit, ob unter `SourcePath` tatsächlich
+`Office\Data` liegt. Fehlt die Quelle — etwa weil sie nicht mitkopiert wurde —,
+entfernt es `SourcePath` aus einer Arbeitskopie der Antwortdatei und installiert
+online weiter, statt an einem leeren Ordner zu scheitern.
 
 ### winget braucht einen Benutzerkontext
 

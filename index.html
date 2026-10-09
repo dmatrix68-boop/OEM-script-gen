@@ -187,6 +187,20 @@
           </label>
         </div>
         <div class="row wrap">
+          <label class="field">
+            <span>Installationsquelle</span>
+            <select id="officeSource">
+              <option value="online">online von Microsoft laden</option>
+              <option value="local">lokal mitgelieferte Quelle (offline)</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Ordner der Quelle (unter Office\)</span>
+            <input type="text" id="officeLocalFolder" value="Quelle">
+          </label>
+        </div>
+        <div id="officeSourceBox" class="summary"></div>
+        <div class="row wrap">
           <label class="chk"><input type="checkbox" id="officeCheckInstalled" checked> Überspringen, wenn Office bereits installiert ist</label>
         </div>
         <p class="hint" id="officePhaseHint"></p>

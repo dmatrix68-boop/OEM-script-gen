@@ -38,6 +38,7 @@
       },
       office: {
         enabled: false, phase: 'firstlogon', setupSource: 'bundled',
+        source: 'online', localFolder: 'Quelle',
         odtUrl: 'https://officecdn.microsoft.com/pr/wsus/setup.exe',
         xml: OFFICE_TEMPLATE, checkInstalled: true
       },
@@ -97,6 +98,8 @@
     ['officeEnabled', 'office.enabled', 'bool'],
     ['officePhase', 'office.phase', 'text'],
     ['officeSetupSource', 'office.setupSource', 'text'],
+    ['officeSource', 'office.source', 'text'],
+    ['officeLocalFolder', 'office.localFolder', 'text'],
     ['officeOdtUrl', 'office.odtUrl', 'text'],
     ['officeCheckInstalled', 'office.checkInstalled', 'bool'],
     ['officeXml', 'office.xml', 'text'],
@@ -637,12 +640,37 @@
       $('#appsPhaseHint').textContent = hint;
       $('#appsPhaseHint').style.color = (wingetApps && systemContext) ? 'var(--warn)' : '';
 
+      const sb = $('#officeSourceBox');
+      if (sb) {
+        if (state.office.enabled && state.office.source === 'local') {
+          const rel = Templates.relFromRoot(state.paths.installRoot);
+          const folder = (state.office.localFolder || 'Quelle').replace(/^[\\/]+|[\\/]+$/g, '');
+          sb.innerHTML = '<p class="hint">Der Generator trägt <code>SourcePath</code> automatisch in die ' +
+            'Configuration.xml ein und legt den Ordner sowie das Hilfsskript an:</p>' +
+            '<pre class="tree">' + esc(
+              '$OEM$\\$1\\' + rel + '\\Office\\\n' +
+              '  ├─ setup.exe                   (ODT – selbst ablegen)\n' +
+              '  ├─ Configuration.xml           SourcePath=' + state.paths.installRoot.replace(/\\+$/, '') + '\\Office\\' + folder + '\n' +
+              '  ├─ Download-Quelle.ps1         erzeugt die Quelle auf diesem Rechner\n' +
+              '  └─ ' + folder + '\\                      hierhin kommt Office\\Data\\…'
+            ) + '</pre>' +
+            '<p class="hint">Die Quelle selbst wird <b>nicht</b> ins ZIP gepackt – mehrere Gigabyte ' +
+            'durch den Browser zu schleusen ist nicht praktikabel. Nach dem Entpacken ' +
+            '<code>Download-Quelle.ps1</code> im Office-Ordner ausführen, dann steht die Offline-Installation ' +
+            'auch in Phase 1 zur Verfügung. Fehlt die Quelle, weicht das Modul auf den Online-Bezug aus.</p>';
+        } else {
+          sb.innerHTML = '';
+        }
+      }
+
       const oh = $('#officePhaseHint');
       if (oh) {
-        let localSource = false;
-        try {
-          localSource = !!Importers.parseOfficeConfig(state.office.xml || '').sourcePath;
-        } catch (e) { /* ungültige XML meldet bereits die Zusammenfassung */ }
+        let localSource = state.office.source === 'local';
+        if (!localSource) {
+          try {
+            localSource = !!Importers.parseOfficeConfig(state.office.xml || '').sourcePath;
+          } catch (e) { /* ungültige XML meldet bereits die Zusammenfassung */ }
+        }
         if (state.office.enabled && state.office.phase === 'setup' && !localSource) {
           oh.textContent = 'Achtung: In Phase 1 (specialize) besteht noch keine Netzwerkverbindung. ' +
             'Das Office Deployment Tool lädt die Installationsdateien aber von Microsoft – auch mit ' +

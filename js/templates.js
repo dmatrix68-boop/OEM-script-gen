@@ -918,12 +918,26 @@ if (-not (Test-Path -LiteralPath $setupExe)) {
     sofern die Antwortdatei nicht per SourcePath auf eine lokale Quelle zeigt.
     In Phase 1 (specialize) steht noch kein Netzwerk zur Verfuegung. #>
 $needsNetwork = $true
+$configToUse = $configXml
 try {
     [xml]$odtConfig = Get-Content -LiteralPath $configXml -Raw -ErrorAction Stop
     $sourcePath = $odtConfig.Configuration.Add.SourcePath
-    if ($sourcePath -and (Test-Path -LiteralPath $sourcePath)) {
-        $needsNetwork = $false
-        Write-Log ('Lokale Office-Quelle: ' + $sourcePath)
+    if ($sourcePath) {
+        <#  ODT erwartet unter SourcePath die Struktur Office\\Data\\<Version>.
+            Ein leerer Ordner - etwa weil die Quelle nicht mitkopiert wurde -
+            laesst die Installation scheitern, statt online auszuweichen. #>
+        if (Test-Path -LiteralPath (Join-Path $sourcePath 'Office\\Data')) {
+            $needsNetwork = $false
+            Write-Log ('Lokale Office-Quelle: ' + $sourcePath)
+        } else {
+            Write-Log ('SourcePath verweist auf ' + $sourcePath + ', dort fehlt aber Office\\Data.') -Level Warn
+            Write-Log 'Die Quelle wurde offenbar nicht mitgeliefert - es wird online installiert.' -Level Warn
+            $odtConfig.Configuration.Add.RemoveAttribute('SourcePath')
+            $tempDir = $env:TEMP
+            if (-not $tempDir) { $tempDir = $officeDir }
+            $configToUse = Join-Path $tempDir ('odt-online-' + [guid]::NewGuid().ToString('N') + '.xml')
+            $odtConfig.Save($configToUse)
+        }
     }
 } catch {
     Write-Log ('Configuration.xml nicht auswertbar: ' + $_.Exception.Message) -Level Warn
@@ -946,7 +960,8 @@ if ($installed -and $installed.ProductReleaseIds) {
     }
     s += toCRLF(`
 Write-Log 'Starte Office-Installation (kann einige Minuten dauern) ...'
-$res = Invoke-OemProcess -FilePath $setupExe -Arguments @('/configure', $configXml) -SuccessCodes @(0, 3010, 1641) -TimeoutSeconds 7200
+$res = Invoke-OemProcess -FilePath $setupExe -Arguments @('/configure', $configToUse) -SuccessCodes @(0, 3010, 1641) -TimeoutSeconds 7200
+if ($configToUse -ne $configXml) { Remove-Item -LiteralPath $configToUse -Force -ErrorAction SilentlyContinue }
 if ($res.Success) {
     Write-Log 'Office-Installation abgeschlossen.'
 } else {
@@ -954,6 +969,124 @@ if ($res.Success) {
 }
 `);
     return s;
+  }
+
+  /* ---------- Lokale Office-Quelle ---------- */
+
+  /* Zielpfad der mitgelieferten Quelle auf dem installierten System. ODT erwartet
+     darunter Office\Data\..., deshalb zeigt SourcePath auf den Ordner darueber. */
+  function officeLocalPath(st) {
+    const root = st.paths.installRoot.replace(/\\+$/, '');
+    const folder = (st.office.localFolder || 'Quelle').replace(/^[\\/]+|[\\/]+$/g, '');
+    return root + '\\Office\\' + folder;
+  }
+
+  /* Setzt SourcePath im <Add>-Element, ohne die uebrige Datei anzutasten. */
+  function withSourcePath(xml, path) {
+    if (/<Add\b[^>]*\bSourcePath\s*=/i.test(xml)) {
+      return xml.replace(/(<Add\b[^>]*\bSourcePath\s*=\s*")[^"]*(")/i, '$1' + path + '$2');
+    }
+    return xml.replace(/<Add\b/i, '<Add SourcePath="' + path + '"');
+  }
+
+  function officeSourceReadme(st) {
+    const local = officeLocalPath(st);
+    const folder = (st.office.localFolder || 'Quelle').replace(/^[\\/]+|[\\/]+$/g, '');
+    return toCRLF([
+      '===================================================================',
+      ' Hier gehoert die Office-Installationsquelle hin',
+      '===================================================================',
+      '',
+      'Die Configuration.xml verweist per SourcePath auf diesen Ordner:',
+      '    ' + local,
+      '',
+      'Das Office Deployment Tool erwartet darunter die Struktur',
+      '    ' + folder + '\\Office\\Data\\<Version>\\...',
+      '',
+      'SO ERZEUGEN SIE DIE QUELLE',
+      '--------------------------',
+      '1. setup.exe des Office Deployment Tools in den Ordner Office\\ legen.',
+      '   Download: https://www.microsoft.com/download/details.aspx?id=49117',
+      '2. In diesem Ordner (Office\\) eine administrative PowerShell oeffnen und',
+      '   das beiliegende Skript starten:',
+      '',
+      '       powershell -ExecutionPolicy Bypass -File Download-Quelle.ps1',
+      '',
+      '   Es laedt genau die Produkte und Sprachen, die in der Configuration.xml',
+      '   stehen - je nach Auswahl mehrere Gigabyte.',
+      '3. Diese Hinweisdatei anschliessend loeschen und den gefuellten Ordner',
+      '   ' + folder + '\\ mit auf das Installationsmedium kopieren.',
+      '',
+      'HINWEIS',
+      '-------',
+      'Ohne gefuellte Quelle faellt Install-Office.ps1 auf die Online-Installation',
+      'zurueck und braucht dann eine Netzwerkverbindung. In Phase 1 (specialize)',
+      'besteht noch keine - dort funktioniert nur die lokale Quelle.',
+      ''
+    ].join('\n'));
+  }
+
+  function officeDownloadScript(st) {
+    const folder = (st.office.localFolder || 'Quelle').replace(/^[\\/]+|[\\/]+$/g, '');
+    return banner('Laedt die Office-Installationsdateien fuer die Offline-Installation.', st.meta.name) + toCRLF(`
+<#  Auf dem Vorbereitungsrechner ausfuehren, nicht auf dem Zielsystem.
+    Legt die Quelle neben dieses Skript und richtet sie so ein, wie es
+    Install-Office.ps1 auf dem Zielsystem erwartet. #>
+
+$ErrorActionPreference = 'Stop'
+
+$here    = Split-Path -Parent $MyInvocation.MyCommand.Definition
+$setup   = Join-Path $here 'setup.exe'
+$config  = Join-Path $here 'Configuration.xml'
+$target  = Join-Path $here ${psq(folder)}
+
+if (-not (Test-Path -LiteralPath $setup)) {
+    Write-Host 'setup.exe des Office Deployment Tools fehlt in diesem Ordner.' -ForegroundColor Red
+    Write-Host 'Download: https://www.microsoft.com/download/details.aspx?id=49117'
+    exit 1
+}
+if (-not (Test-Path -LiteralPath $config)) {
+    Write-Host 'Configuration.xml fehlt in diesem Ordner.' -ForegroundColor Red
+    exit 1
+}
+
+New-Item -Path $target -ItemType Directory -Force | Out-Null
+
+<#  Fuer den Download muss SourcePath auf den hiesigen Ordner zeigen, auf dem
+    Zielsystem dagegen auf dessen dortigen Pfad. Deshalb eine Arbeitskopie. #>
+[xml]$cfg = Get-Content -LiteralPath $config -Raw
+$add = $cfg.Configuration.Add
+if (-not $add) {
+    Write-Host 'Die Configuration.xml enthaelt kein <Add>-Element.' -ForegroundColor Red
+    exit 1
+}
+$add.SetAttribute('SourcePath', $target)
+$tempDir = $env:TEMP
+if (-not $tempDir) { $tempDir = $here }
+$work = Join-Path $tempDir ('odt-download-' + [guid]::NewGuid().ToString('N') + '.xml')
+$cfg.Save($work)
+
+Write-Host ('Lade Office nach ' + $target + ' ...') -ForegroundColor Cyan
+Write-Host 'Das dauert je nach Auswahl und Leitung eine Weile.' -ForegroundColor DarkGray
+
+$proc = Start-Process -FilePath $setup -ArgumentList @('/download', $work) -Wait -PassThru -NoNewWindow
+Remove-Item -LiteralPath $work -Force -ErrorAction SilentlyContinue
+
+if ($proc.ExitCode -ne 0) {
+    Write-Host ('Download fehlgeschlagen, Exitcode ' + $proc.ExitCode) -ForegroundColor Red
+    exit $proc.ExitCode
+}
+
+$data = Join-Path $target 'Office\\Data'
+if (Test-Path -LiteralPath $data) {
+    $size = (Get-ChildItem -LiteralPath $target -Recurse -File -ErrorAction SilentlyContinue |
+        Measure-Object -Property Length -Sum).Sum / 1GB
+    Write-Host ('Fertig. Quelle belegt {0:n1} GB.' -f $size) -ForegroundColor Green
+    Write-Host 'Die Hinweisdatei im Quellordner kann jetzt geloescht werden.'
+} else {
+    Write-Host 'Der Download meldete Erfolg, aber Office\\Data fehlt.' -ForegroundColor Yellow
+}
+`);
   }
 
   /* ---------- Modules/Set-Tweaks.ps1 ---------- */
@@ -1592,6 +1725,12 @@ Write-Host ''
       todo.push('setup.exe des Office Deployment Tools nach ' + zipRoot + '\\$1\\' +
         relFromRoot(st.paths.installRoot) + '\\Office\\setup.exe kopieren.');
     }
+    if (st.office.enabled && st.office.source === 'local') {
+      const folder = (st.office.localFolder || 'Quelle').replace(/^[\\/]+|[\\/]+$/g, '');
+      todo.push('Office-Installationsquelle erzeugen und nach Office\\' + folder +
+        '\\ kopieren - dazu Office\\Download-Quelle.ps1 auf dem Vorbereitungsrechner ausfuehren ' +
+        '(mehrere Gigabyte). Ohne sie weicht die Installation auf den Online-Bezug aus.');
+    }
     st.files.items.filter((f) => f.enabled && !f.blobPresent).forEach((f) => {
       todo.push('Datei "' + f.name + '" fehlt im Archiv und muss manuell nach ' +
         (f.dest === 'scripts' ? '$OEM$\\$$\\Setup\\Scripts\\' : 'Files\\') + f.target + ' kopiert werden.');
@@ -1654,7 +1793,16 @@ Write-Host ''
     if (all.has('Invoke-Custom.ps1')) add(inst + '/Modules/Invoke-Custom.ps1', customModule(st));
 
     if (st.office.enabled) {
-      add(inst + '/Office/Configuration.xml', toCRLF(st.office.xml.trim() + '\n'));
+      const useLocal = st.office.source === 'local';
+      const officeXml = useLocal
+        ? withSourcePath(st.office.xml.trim(), officeLocalPath(st))
+        : st.office.xml.trim();
+      add(inst + '/Office/Configuration.xml', toCRLF(officeXml + '\n'));
+      if (useLocal) {
+        const folder = (st.office.localFolder || 'Quelle').replace(/^[\\/]+|[\\/]+$/g, '');
+        add(inst + '/Office/' + folder + '/HIER-OFFICE-QUELLE-ABLEGEN.txt', officeSourceReadme(st));
+        add(inst + '/Office/Download-Quelle.ps1', officeDownloadScript(st));
+      }
       if (st.office.setupSource === 'bundled') {
         add(inst + '/Office/HIER-setup.exe-ABLEGEN.txt', toCRLF([
           'Das Office Deployment Tool (setup.exe) muss in diesem Ordner liegen.',
