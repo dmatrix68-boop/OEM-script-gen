@@ -22,6 +22,8 @@ Build-Schritt. `index.html` im Browser öffnen genügt (auch per `file://`).
 * **System-Tweaks** – rund 35 Einstellungen zu Explorer, Taskleiste, Datenschutz,
   System und Netzwerk. Benutzerbezogene Werte werden in Phase 1 in
   `C:\Users\Default\NTUSER.DAT` geschrieben und gelten damit für neue Konten.
+  Einstellungen, die einen laufenden Netzwerk- oder Dienststack brauchen, werden
+  automatisch in Phase 2 nachgeholt (siehe unten).
 * **Bloatware** – Auswahl vorinstallierter AppX-Pakete inkl. Provisioning-Entfernung.
 * **Eigene Dateien** – Installer und Skripte mitliefern, wahlweise nach
   `Install\Files` (wird ausgeführt) oder neben `SetupComplete.cmd` in
@@ -64,6 +66,27 @@ Der Generator bietet deshalb drei Auslöser an, standardmäßig beide gemeinsam:
 Mehrfachausführung ist unschädlich: `Install.ps1` vermerkt jede abgeschlossene
 Phase unter `HKLM\SOFTWARE\OEM-Setup` und überspringt sie beim nächsten Aufruf;
 `-Force` erzwingt die Wiederholung.
+
+### Warum manche Tweaks erst in Phase 2 laufen
+
+Im `specialize`-Pass ist der Netzwerkstack noch nicht initialisiert. Cmdlets wie
+`Get-NetConnectionProfile`, `Enable-NetFirewallRule` oder
+`Disable-WindowsOptionalFeature` warten dort unter Umständen endlos — und weil
+Windows Setup auf das Ende des Befehls wartet, **bleibt die gesamte Installation
+stehen**. `-ErrorAction SilentlyContinue` hilft dagegen nicht: Es unterdrückt
+Fehler, nicht das Blockieren.
+
+Betroffene Einträge sind im Katalog mit `deferPs` markiert. Steht das Tweak-Modul
+auf Phase 1, erzeugt der Generator daraus ein zweites Modul
+`Set-Tweaks-Spaet.ps1`, das in Phase 2 läuft; die Registry-Anteile desselben
+Tweaks bleiben in Phase 1. Jeder dieser Aufrufe läuft zusätzlich über
+`Invoke-WithTimeout` mit eigener Zeitgrenze, wird nach deren Ablauf abgebrochen
+und protokolliert — ein hängendes Cmdlet kann den Ablauf also nicht mehr
+blockieren.
+
+Der Block läuft dabei in einem eigenen Runspace und kennt die Funktionen aus
+`OEM-Common.ps1` nicht; `deferPs`-Tweaks dürfen deshalb nur native Cmdlets
+verwenden.
 
 ## Wo gehört `$OEM$` hin?
 
@@ -128,6 +151,9 @@ Auf dem installierten System in einer administrativen PowerShell:
 ```powershell
 powershell -ExecutionPolicy Bypass -File C:\Install\Diagnose.ps1
 ```
+
+Liegt das Paket woanders — etwa noch auf dem Medium —, findet das Skript seinen
+eigenen Ordner selbst; mit `-InstallRoot <Pfad>` lässt sich er auch vorgeben.
 
 Das Skript prüft Dateien, Ausführungsmarker, geplante Aufgabe und Protokolle,
 wertet `setupact.log` aus und meldet ausdrücklich, wenn Setup `SetupComplete.cmd`

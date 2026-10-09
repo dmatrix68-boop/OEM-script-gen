@@ -129,6 +129,7 @@
       el.addEventListener(type === 'bool' ? 'change' : 'input', () => {
         set(path, type === 'bool' ? el.checked : type === 'num' ? parseInt(el.value, 10) || 0 : el.value);
         if (id === 'officeXml') renderOfficeSummary();
+        if (id === 'tweaksPhase') renderTweaks();
         refresh();
       });
     }
@@ -266,13 +267,29 @@
         refresh();
       });
       const div = document.createElement('div');
-      div.innerHTML = '<div class="cat">' + t.cat + '</div><div class="t"></div>' +
-        (t.desc ? '<div class="d"></div>' : '');
+      const late = t.deferPs && t.ps && state.tweaks.phase === 'setup';
+      div.innerHTML = '<div class="cat">' + t.cat + (late ? ' · läuft in Phase 2' : '') +
+        '</div><div class="t"></div>' + (t.desc ? '<div class="d"></div>' : '');
       div.querySelector('.t').textContent = t.label;
       if (t.desc) div.querySelector('.d').textContent = t.desc;
       lab.appendChild(cb); lab.appendChild(div);
       box.appendChild(lab);
     }
+    renderTweakDeferHint();
+  }
+
+  function renderTweakDeferHint() {
+    const el = $('#tweaksDeferHint');
+    if (!el) return;
+    const late = Catalog.TWEAKS.filter((t) =>
+      state.tweaks.selected.includes(t.id) && t.deferPs && t.ps);
+    if (!late.length || state.tweaks.phase !== 'setup') { el.textContent = ''; return; }
+    el.innerHTML = '<b>' + late.length + ' Einstellung' + (late.length === 1 ? '' : 'en') +
+      '</b> brauchen einen laufenden Netzwerk- bzw. Dienststack (' +
+      late.map((t) => t.label).join(', ') + '). Im <code>specialize</code>-Pass von Phase 1 ' +
+      'blockieren diese Cmdlets und halten das Setup an – sie werden deshalb automatisch in Phase 2 ' +
+      'nachgeholt, jeweils mit Zeitgrenze. Die Registry-Anteile bleiben in Phase 1.';
+    el.style.color = 'var(--acc2)';
   }
 
   /* ---------------- Bloatware ---------------- */

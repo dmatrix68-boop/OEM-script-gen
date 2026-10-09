@@ -189,6 +189,51 @@ function Invoke-Step {
     }
 }
 
+<#  Fuehrt einen Block mit harter Zeitgrenze aus. Noetig fuer Netzwerk- und
+    Dienst-Cmdlets: im specialize-Pass warten sie unter Umstaenden endlos auf
+    einen Stack, der noch nicht bereit ist, und blockieren damit das gesamte
+    Windows-Setup. Der Block laeuft in einem eigenen Runspace und kennt die
+    Funktionen aus dieser Datei NICHT. #>
+function Invoke-WithTimeout {
+    param(
+        [Parameter(Mandatory)][string]$Name,
+        [Parameter(Mandatory)][scriptblock]$Body,
+        [int]$TimeoutSeconds = 120
+    )
+    $job = $null
+    try {
+        $job = Start-Job -ScriptBlock $Body -ErrorAction Stop
+    } catch {
+        Write-Log ('{0}: Hintergrundauftrag nicht startbar ({1}) - uebersprungen.' -f $Name, $_.Exception.Message) -Level Warn
+        return $false
+    }
+    if (Wait-Job -Job $job -Timeout $TimeoutSeconds) {
+        $failed = ($job.State -eq 'Failed')
+        $reason = $null
+        if ($failed) {
+            $reason = $job.ChildJobs[0].JobStateInfo.Reason.Message
+            if (-not $reason) { $reason = ($job.ChildJobs[0].Error | Select-Object -First 1) }
+        }
+        $out = Receive-Job -Job $job -ErrorAction SilentlyContinue 2>&1
+        $errs = @($out | Where-Object { $_ -is [System.Management.Automation.ErrorRecord] })
+        if ($failed -or $errs.Count -gt 0) {
+            $msg = if ($reason) { $reason } elseif ($errs.Count -gt 0) { $errs[0].ToString() } else { 'unbekannter Fehler' }
+            Write-Log ('{0}: {1}' -f $Name, $msg) -Level Warn
+            Remove-Job -Job $job -Force -ErrorAction SilentlyContinue
+            return $false
+        }
+        if ($out) {
+            Write-Log ('{0}: {1}' -f $Name, (($out | Select-Object -First 3) -join ' | ')) -Level Debug
+        }
+        Remove-Job -Job $job -Force -ErrorAction SilentlyContinue
+        return $true
+    }
+    Write-Log ('{0}: Zeitueberschreitung nach {1} s - abgebrochen.' -f $Name, $TimeoutSeconds) -Level Warn
+    Stop-Job -Job $job -ErrorAction SilentlyContinue
+    Remove-Job -Job $job -Force -ErrorAction SilentlyContinue
+    return $false
+}
+
 function Wait-OemNetwork {
     param([int]$TimeoutSeconds = 300)
     Write-Log 'Warte auf Netzwerkverbindung ...'
@@ -324,6 +369,7 @@ function Invoke-OemProcess {
   function moduleList(st, phase) {
     const mods = [];
     if (st.tweaks.enabled && st.tweaks.phase === phase && st.tweaks.selected.length) mods.push(['Set-Tweaks.ps1', 'System-Tweaks']);
+    if (phase === 'firstlogon' && hasLateTweaks(st)) mods.push(['Set-Tweaks-Spaet.ps1', 'Tweaks mit Netzwerkbedarf']);
     if (st.bloat.enabled && st.bloat.phase === phase && st.bloat.selected.length) mods.push(['Remove-Bloatware.ps1', 'Bloatware entfernen']);
     if (st.office.enabled && st.office.phase === phase) mods.push(['Install-Office.ps1', 'Microsoft Office (ODT)']);
     if (st.apps.enabled && st.apps.phase === phase && st.apps.items.some((p) => p.enabled)) mods.push(['Install-Apps.ps1', 'Anwendungen']);
@@ -749,12 +795,24 @@ if ($res.Success) {
 
   /* ---------- Modules/Set-Tweaks.ps1 ---------- */
 
-  function tweaksModule(st) {
+  /* mode 'main': Registry-Werte und unkritische PowerShell-Teile in der gewaehlten Phase.
+     mode 'late': nur die aufgeschobenen PowerShell-Teile, immer in Phase 2.
+     Aufgeschoben wird, was einen initialisierten Netzwerk- oder Dienststack braucht:
+     im specialize-Pass blockieren solche Cmdlets und halten das Setup an. */
+  function tweaksModule(st, mode) {
     const sel = Catalog.TWEAKS.filter((t) => st.tweaks.selected.includes(t.id));
-    let s = banner('Setzt die ausgewaehlten System- und Benutzereinstellungen.', st.meta.name);
-    s += bootstrapHeader('Set-Tweaks');
+    const deferring = st.tweaks.phase === 'setup';
+    const late = mode === 'late';
 
-    const needsUser = sel.some((t) => (t.reg || []).some((r) => r.scope === 'user'));
+    const list = late ? sel.filter((t) => t.deferPs && t.ps) : sel;
+    const title = late
+      ? 'Holt die Einstellungen nach, die einen laufenden Netzwerkstack brauchen.'
+      : 'Setzt die ausgewaehlten System- und Benutzereinstellungen.';
+
+    let s = banner(title, st.meta.name);
+    s += bootstrapHeader(late ? 'Set-Tweaks-Spaet' : 'Set-Tweaks');
+
+    const needsUser = !late && sel.some((t) => (t.reg || []).some((r) => r.scope === 'user'));
     if (needsUser) {
       s += toCRLF(`
 $roots = Open-UserHives${st.tweaks.allUsers ? ' -IncludeExistingProfiles' : ''}
@@ -766,21 +824,39 @@ try {
 
     const pad = needsUser ? '    ' : '';
     const cats = [];
-    sel.forEach((t) => { if (!cats.includes(t.cat)) cats.push(t.cat); });
+    list.forEach((t) => { if (!cats.includes(t.cat)) cats.push(t.cat); });
 
     for (const cat of cats) {
       s += NL + pad + '# ---------- ' + cat + ' ----------' + NL;
-      for (const t of sel.filter((x) => x.cat === cat)) {
-        s += pad + 'Write-Log ' + psq(t.label) + NL;
-        for (const r of (t.reg || [])) {
-          s += pad + 'Set-RegValue -Scope ' + (r.scope === 'user' ? 'User' : 'Machine') +
-            ' -Path ' + psq(r.path) + ' -Name ' + psq(r.name) +
-            ' -Type ' + r.type + ' -Value ' + (typeof r.value === 'number' ? r.value : psq(r.value)) + NL;
+      for (const t of list.filter((x) => x.cat === cat)) {
+        /* In 'main' wird der aufgeschobene ps-Teil weggelassen, wenn ein spaetes
+           Modul erzeugt wird; sonst laeuft er hier - aber mit Zeitgrenze. */
+        const psHere = t.ps && (late || !(t.deferPs && deferring));
+        if (!psHere && !(t.reg || []).length) continue;
+
+        s += pad + 'Write-Log ' + psq(t.label + (late ? ' (nachgeholt)' : '')) + NL;
+
+        if (!late) {
+          for (const r of (t.reg || [])) {
+            s += pad + 'Set-RegValue -Scope ' + (r.scope === 'user' ? 'User' : 'Machine') +
+              ' -Path ' + psq(r.path) + ' -Name ' + psq(r.name) +
+              ' -Type ' + r.type + ' -Value ' + (typeof r.value === 'number' ? r.value : psq(r.value)) + NL;
+          }
         }
-        if (t.ps) {
-          s += pad + 'try {' + NL;
-          s += toCRLF(t.ps).split(NL).map((l) => pad + '    ' + l).join(NL) + NL;
-          s += pad + '} catch { Write-Log (' + psq(t.label + ' fehlgeschlagen: ') + ' + $_.Exception.Message) -Level Warn }' + NL;
+
+        if (psHere) {
+          const body = toCRLF(t.ps).split(NL);
+          if (t.deferPs) {
+            /* Eigener Runspace: der Block darf keine Funktionen aus OEM-Common.ps1 verwenden. */
+            s += pad + 'Invoke-WithTimeout -Name ' + psq(t.label) +
+              ' -TimeoutSeconds ' + (t.timeout || 120) + ' -Body {' + NL;
+            s += body.map((l) => pad + '    ' + l).join(NL) + NL;
+            s += pad + '} | Out-Null' + NL;
+          } else {
+            s += pad + 'try {' + NL;
+            s += body.map((l) => pad + '    ' + l).join(NL) + NL;
+            s += pad + '} catch { Write-Log (' + psq(t.label + ' fehlgeschlagen: ') + ' + $_.Exception.Message) -Level Warn }' + NL;
+          }
         }
       }
     }
@@ -793,9 +869,15 @@ try {
 `);
     }
     s += toCRLF(`
-Write-Log 'Tweaks angewendet.'
+Write-Log '${late ? 'Nachgeholte Einstellungen abgeschlossen.' : 'Tweaks angewendet.'}'
 `);
     return s;
+  }
+
+  /* Gibt es aufgeschobene PowerShell-Teile, die ein eigenes Phase-2-Modul brauchen? */
+  function hasLateTweaks(st) {
+    return st.tweaks.enabled && st.tweaks.phase === 'setup' &&
+      Catalog.TWEAKS.some((t) => st.tweaks.selected.includes(t.id) && t.deferPs && t.ps);
   }
 
   /* ---------- Modules/Remove-Bloatware.ps1 ---------- */
@@ -988,7 +1070,10 @@ foreach ($item in $items) {
 [CmdletBinding()]
 param(
     # Sammelt alle relevanten Protokolle in einem kleinen ZIP zum Weitergeben
-    [switch]$Export
+    [switch]$Export,
+    # Abweichender Installationsordner, falls die Dateien nicht am erwarteten Ort liegen
+    # (nicht $Root nennen - PowerShell unterscheidet $Root und $root nicht)
+    [string]$InstallRoot
 )
 
 $ErrorActionPreference = 'SilentlyContinue'
@@ -1010,8 +1095,17 @@ function Show-Item {
     Write-Host $Info -ForegroundColor DarkGray
 }
 
+<#  Reihenfolge: ausdruecklich uebergeben, sonst der konfigurierte Ordner,
+    sonst der Ordner, in dem dieses Skript tatsaechlich liegt. Letzteres greift,
+    wenn das Paket von einem anderen Laufwerk aus gestartet wird. #>
 $root = ${psq(root)}
+if ($InstallRoot) {
+    $root = $InstallRoot
+} elseif (-not (Test-Path -LiteralPath $root) -and $PSScriptRoot -and (Test-Path -LiteralPath (Join-Path $PSScriptRoot 'Install.ps1'))) {
+    $root = $PSScriptRoot
+}
 Write-Host ('OEM Setup - Diagnose   (' + (Get-Date -Format 'yyyy-MM-dd HH:mm') + ')') -ForegroundColor White
+Write-Host ('Installationsordner: ' + $root) -ForegroundColor DarkGray
 
 Show-Head 'Dateien auf dem Zielsystem'
 Show-Item 'Installationsordner' (Test-Path $root) $root
@@ -1387,7 +1481,8 @@ Write-Host ''
     const logonMods = moduleList(st, 'firstlogon').map((m) => m[0]);
     const all = new Set(setupMods.concat(logonMods));
 
-    if (all.has('Set-Tweaks.ps1')) add(inst + '/Modules/Set-Tweaks.ps1', tweaksModule(st));
+    if (all.has('Set-Tweaks.ps1')) add(inst + '/Modules/Set-Tweaks.ps1', tweaksModule(st, 'main'));
+    if (all.has('Set-Tweaks-Spaet.ps1')) add(inst + '/Modules/Set-Tweaks-Spaet.ps1', tweaksModule(st, 'late'));
     if (all.has('Remove-Bloatware.ps1')) add(inst + '/Modules/Remove-Bloatware.ps1', bloatModule(st));
     if (all.has('Install-Office.ps1')) add(inst + '/Modules/Install-Office.ps1', officeModule(st));
     if (all.has('Install-Apps.ps1')) add(inst + '/Modules/Install-Apps.ps1', appsModule(st));
@@ -1432,5 +1527,5 @@ Write-Host ''
     return files;
   }
 
-  global.Templates = { build, relFromRoot, moduleList };
+  global.Templates = { build, relFromRoot, moduleList, hasLateTweaks };
 })(window);
