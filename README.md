@@ -177,7 +177,15 @@ mit `0xC0000135` (`-1073741515`, DLL nicht gefunden) ab, weil die
 MSIX-Abhängigkeiten nicht aufgelöst werden.
 
 Gemessen an einem Durchlauf mit 33 Paketen: als SYSTEM 3 erfolgreich, im
-Benutzerkontext 33. Für Anwendungen muss Phase 2 deshalb im Benutzerkontext
+Benutzerkontext 33.
+
+Aus demselben Grund ruft `Install-Apps.ps1` die Paketmanager **direkt** auf
+(`& $exe $args`) und nicht über `Start-Process`: Der Alias stößt den
+eigentlichen Vorgang an und beendet sich sofort, `Start-Process`/`WaitForExit`
+wartet also nur auf den Stub, liefert einen leeren Exitcode und meldet ein
+gerade laufendes Paket als gescheitert. Die nötige Zeitgrenze kommt stattdessen
+daher, dass der Aufruf in einem Hintergrundauftrag läuft — dort bleibt
+`$LASTEXITCODE` erhalten. Für Anwendungen muss Phase 2 deshalb im Benutzerkontext
 laufen — über `FirstLogonCommands` der autounattend.xml oder über `RunOnce`.
 `Resolve-Winget` prüft jeden Kandidaten vorab mit `--version` und bricht mit
 einer erklärenden Meldung ab, statt jedes Paket einzeln scheitern zu lassen.

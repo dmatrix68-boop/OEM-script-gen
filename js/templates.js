@@ -842,21 +842,43 @@ foreach ($pkg in $packages) {
             Start-Sleep -Seconds (5 * $try)
         }
         try {
-            <#  Mit Zeitgrenze: ein Installer, der auf eine Eingabe wartet, haelt
-                sonst die ganze Liste auf - die folgenden Pakete kaemen nie dran. #>
-            $callArgs = @{
-                FilePath = $exe; Arguments = $pkg.Arguments; SuccessCodes = $SuccessCodes
-                TimeoutSeconds = $PackageTimeout; CaptureOutput = $true
+            <#  Direkter Aufruf statt Start-Process: winget.exe ist ein
+                App-Execution-Alias, der den eigentlichen Vorgang anstoesst und
+                sich sofort beendet. Start-Process wartet dann nur auf diesen
+                Stub, liefert einen leeren Exitcode und meldet ein laufendes
+                Paket als gescheitert. Der Aufruf im Hintergrundauftrag behaelt
+                $LASTEXITCODE und bekommt trotzdem eine Zeitgrenze. #>
+            $jobExe  = $exe
+            $jobArgs = $pkg.Arguments
+            $started = Get-Date
+            $job = Start-Job -ScriptBlock {
+                $e = $using:jobExe
+                $a = @($using:jobArgs)
+                $text = & $e @a 2>&1 | Out-String
+                [pscustomobject]@{ Code = $LASTEXITCODE; Output = $text }
             }
-            $res = Invoke-OemProcess @callArgs
-            $ok = $res.Success
-            $timedOut = $res.TimedOut
-            if ($timedOut) {
+
+            if (Wait-Job -Job $job -Timeout $PackageTimeout) {
+                $r = Receive-Job -Job $job -ErrorAction SilentlyContinue
+                Remove-Job -Job $job -Force -ErrorAction SilentlyContinue
+                $code = 0
+                if ($null -ne $r -and $null -ne $r.Code) { $code = [int]$r.Code }
+                $ok = $SuccessCodes -contains $code
+                if (-not $ok) {
+                    $hint = ''
+                    if ($r) { $hint = ($r.Output -replace '\\s+', ' ').Trim() }
+                    if ($hint.Length -gt 300) { $hint = $hint.Substring(0, 300) }
+                    Write-Log ('Exitcode {0}: {1}' -f $code, $hint) -Level Warn
+                }
+            } else {
+                $timedOut = $true
+                Stop-Job -Job $job -ErrorAction SilentlyContinue
+                Remove-Job -Job $job -Force -ErrorAction SilentlyContinue
                 Write-Log ('{0} hat das Zeitlimit von {1} s ueberschritten und wurde abgebrochen.' -f $pkg.Name, $PackageTimeout) -Level Error
-            } elseif (-not $ok) {
-                $hint = $res.Output
-                if ($hint.Length -gt 300) { $hint = $hint.Substring(0, 300) }
-                Write-Log ('Exitcode {0}: {1}' -f $res.ExitCode, $hint) -Level Warn
+                $procName = [IO.Path]::GetFileNameWithoutExtension($exe)
+                Get-Process -Name $procName -ErrorAction SilentlyContinue |
+                    Where-Object { $_.StartTime -ge $started } |
+                    Stop-Process -Force -ErrorAction SilentlyContinue
             }
         } catch {
             Write-Log ('Fehler bei {0}: {1}' -f $pkg.Name, $_.Exception.Message) -Level Warn
@@ -981,12 +1003,17 @@ if ($installed -and $installed.ProductReleaseIds) {
     }
     s += toCRLF(`
 Write-Log 'Starte Office-Installation (kann einige Minuten dauern) ...'
-$res = Invoke-OemProcess -FilePath $setupExe -Arguments @('/configure', $configToUse) -SuccessCodes @(0, 3010, 1641) -TimeoutSeconds 7200
+$res = Invoke-OemProcess -FilePath $setupExe -Arguments @('/configure', $configToUse) -SuccessCodes @(0, 3010, 1641) -TimeoutSeconds 7200 -CaptureOutput
 if ($configToUse -ne $configXml) { Remove-Item -LiteralPath $configToUse -Force -ErrorAction SilentlyContinue }
 if ($res.Success) {
     Write-Log 'Office-Installation abgeschlossen.'
 } else {
     Write-Log ('Office-Installation meldete Exitcode ' + $res.ExitCode) -Level Error
+    if ($res.Output) {
+        $hint = $res.Output
+        if ($hint.Length -gt 400) { $hint = $hint.Substring(0, 400) }
+        Write-Log ('Meldung des Deployment Tools: ' + $hint) -Level Error
+    }
 }
 `);
     return s;
