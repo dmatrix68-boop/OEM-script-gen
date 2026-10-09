@@ -1,8 +1,10 @@
 /* Katalog: System-Tweaks und AppX-Bloatware.
    reg[].scope: 'machine' -> HKLM, 'user' -> HKCU bzw. Default-User-Hive in Phase 1
    type: DWord | String | ExpandString | QWord
-   deferPs: der PowerShell-Teil setzt einen initialisierten Netzwerk- bzw.
-            Dienststack voraus. Im specialize-Pass von Phase 1 blockieren solche
+   deferPs: der PowerShell-Teil setzt etwas voraus, das es im specialize-Pass
+            noch nicht gibt - je nach deferReason einen initialisierten Netzwerk-
+            bzw. Dienststack ('network') oder ein angelegtes Benutzerkonto
+            ('account'). Im specialize-Pass von Phase 1 blockieren solche
             Cmdlets, deshalb laeuft er dort erst in Phase 2. Der reg-Teil bleibt
             in der gewaehlten Phase. Solche ps-Bloecke duerfen keine Funktionen
             aus OEM-Common.ps1 verwenden - sie laufen in einem eigenen Runspace.
@@ -103,7 +105,7 @@
         { scope: 'user', path: 'Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize', name: 'AppsUseLightTheme', type: 'DWord', value: 0 },
         { scope: 'user', path: 'Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize', name: 'SystemUsesLightTheme', type: 'DWord', value: 0 }] },
     { id: 'restoreOn', cat: 'System', label: 'Systemwiederherstellung für C: aktivieren',
-      deferPs: true, timeout: 300,
+      deferPs: true, deferReason: 'network', timeout: 300,
       ps: [
         'Enable-ComputerRestore -Drive "C:\\" -ErrorAction Stop',
         'vssadmin.exe Resize ShadowStorage /For=C: /On=C: /MaxSize=10% | Out-Null'].join('\n') },
@@ -123,6 +125,20 @@
         { scope: 'machine', path: 'SOFTWARE\\Policies\\Microsoft\\Edge', name: 'HideFirstRunExperience', type: 'DWord', value: 1 },
         { scope: 'machine', path: 'SOFTWARE\\Policies\\Microsoft\\Edge', name: 'StartupBoostEnabled', type: 'DWord', value: 0 },
         { scope: 'machine', path: 'SOFTWARE\\Policies\\Microsoft\\Edge', name: 'PersonalizationReportingEnabled', type: 'DWord', value: 0 }] },
+    { id: 'fixDisplayName', cat: 'System', label: 'Anzeigename des Benutzerkontos berichtigen',
+      desc: 'Setzt den vollständigen Namen auf den Kontonamen, wenn dort ein Platzhalter wie „USER“ steht',
+      deferPs: true, deferReason: 'account', timeout: 60,
+      ps: [
+        '$platzhalter = @(\'\', \'USER\', \'User\', \'user\', \'Benutzer\', \'Admin\', \'Owner\')',
+        '$system = @(\'Administrator\', \'DefaultAccount\', \'Guest\', \'WDAGUtilityAccount\')',
+        'Get-LocalUser -ErrorAction SilentlyContinue |',
+        '    Where-Object { $_.Enabled -and $system -notcontains $_.Name } |',
+        '    ForEach-Object {',
+        '        if ($platzhalter -contains [string]$_.FullName) {',
+        '            Set-LocalUser -Name $_.Name -FullName $_.Name -ErrorAction SilentlyContinue',
+        '            Write-Output ("Anzeigename gesetzt: " + $_.Name)',
+        '        }',
+        '    }'].join('\n') },
     { id: 'onedriveOff', cat: 'System', label: 'OneDrive-Autostart entfernen',
       ps: [
         'Remove-ItemProperty -Path "HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run" -Name "OneDriveSetup" -ErrorAction SilentlyContinue',
@@ -130,22 +146,22 @@
 
     /* ---------- Netzwerk / Remote ---------- */
     { id: 'rdpOn', cat: 'Netzwerk', label: 'Remotedesktop aktivieren (inkl. Firewallregel)',
-      deferPs: true, timeout: 120,
+      deferPs: true, deferReason: 'network', timeout: 120,
       reg: [
         { scope: 'machine', path: 'SYSTEM\\CurrentControlSet\\Control\\Terminal Server', name: 'fDenyTSConnections', type: 'DWord', value: 0 },
         { scope: 'machine', path: 'SYSTEM\\CurrentControlSet\\Control\\Terminal Server\\WinStations\\RDP-Tcp', name: 'UserAuthentication', type: 'DWord', value: 1 }],
       ps: 'Enable-NetFirewallRule -DisplayGroup "Remotedesktop" -ErrorAction SilentlyContinue\nEnable-NetFirewallRule -DisplayGroup "Remote Desktop" -ErrorAction SilentlyContinue' },
     { id: 'icmpOn', cat: 'Netzwerk', label: 'Ping (ICMPv4) zulassen',
-      deferPs: true, timeout: 120,
+      deferPs: true, deferReason: 'network', timeout: 120,
       ps: [
         'if (-not (Get-NetFirewallRule -Name "OEM-ICMPv4-In" -ErrorAction SilentlyContinue)) {',
         '    New-NetFirewallRule -Name "OEM-ICMPv4-In" -DisplayName "ICMPv4 eingehend zulassen" -Protocol ICMPv4 -IcmpType 8 -Direction Inbound -Action Allow | Out-Null',
         '}'].join('\n') },
     { id: 'netPrivate', cat: 'Netzwerk', label: 'Netzwerkprofil auf „Privat“ setzen',
-      deferPs: true, timeout: 60,
+      deferPs: true, deferReason: 'network', timeout: 60,
       ps: 'Get-NetConnectionProfile -ErrorAction SilentlyContinue | Set-NetConnectionProfile -NetworkCategory Private -ErrorAction SilentlyContinue' },
     { id: 'smb1Off', cat: 'Netzwerk', label: 'SMBv1 sicher deaktiviert lassen',
-      deferPs: true, timeout: 600,
+      deferPs: true, deferReason: 'network', timeout: 600,
       ps: 'Disable-WindowsOptionalFeature -Online -FeatureName SMB1Protocol -NoRestart -ErrorAction SilentlyContinue | Out-Null' }
   ];
 

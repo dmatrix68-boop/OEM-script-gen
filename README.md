@@ -87,7 +87,16 @@ Windows Setup auf das Ende des Befehls wartet, **bleibt die gesamte Installation
 stehen**. `-ErrorAction SilentlyContinue` hilft dagegen nicht: Es unterdrückt
 Fehler, nicht das Blockieren.
 
-Betroffene Einträge sind im Katalog mit `deferPs` markiert. Steht das Tweak-Modul
+Dieselbe Verschiebung gilt für Einstellungen, die ein angelegtes Benutzerkonto
+brauchen — etwa „Anzeigename des Benutzerkontos berichtigen". Windows zeigt in
+den Kontoeinstellungen den vollständigen Namen (`FullName`) und nur ersatzweise
+den Kontonamen; bleibt bei der Kontoanlage in OOBE ein Platzhalter wie `USER`
+stehen, sieht man diesen statt des eigenen Namens. Der Tweak setzt `FullName`
+auf den Kontonamen, aber nur dort, wo wirklich ein Platzhalter steht —
+selbstvergebene Namen und Systemkonten bleiben unangetastet.
+
+Betroffene Einträge sind im Katalog mit `deferPs` markiert (`deferReason`
+unterscheidet Netzwerk- von Konto-Abhängigkeit). Steht das Tweak-Modul
 auf Phase 1, erzeugt der Generator daraus ein zweites Modul
 `Set-Tweaks-Spaet.ps1`, das in Phase 2 läuft; die Registry-Anteile desselben
 Tweaks bleiben in Phase 1. Jeder dieser Aufrufe läuft zusätzlich über

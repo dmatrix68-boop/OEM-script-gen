@@ -1093,8 +1093,9 @@ if (Test-Path -LiteralPath $data) {
 
   /* mode 'main': Registry-Werte und unkritische PowerShell-Teile in der gewaehlten Phase.
      mode 'late': nur die aufgeschobenen PowerShell-Teile, immer in Phase 2.
-     Aufgeschoben wird, was einen initialisierten Netzwerk- oder Dienststack braucht:
-     im specialize-Pass blockieren solche Cmdlets und halten das Setup an. */
+     Aufgeschoben wird, was es im specialize-Pass noch nicht gibt: einen
+     initialisierten Netzwerk- oder Dienststack (solche Cmdlets blockieren dort
+     und halten das Setup an) oder ein angelegtes Benutzerkonto. */
   function tweaksModule(st, mode) {
     const sel = Catalog.TWEAKS.filter((t) => st.tweaks.selected.includes(t.id));
     const deferring = st.tweaks.phase === 'setup';
@@ -1102,7 +1103,7 @@ if (Test-Path -LiteralPath $data) {
 
     const list = late ? sel.filter((t) => t.deferPs && t.ps) : sel;
     const title = late
-      ? 'Holt die Einstellungen nach, die einen laufenden Netzwerkstack brauchen.'
+      ? 'Holt die Einstellungen nach, die in Phase 1 noch nicht moeglich waren.'
       : 'Setzt die ausgewaehlten System- und Benutzereinstellungen.';
 
     let s = banner(title, st.meta.name);

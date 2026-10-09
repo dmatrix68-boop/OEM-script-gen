@@ -287,10 +287,20 @@
     const late = Catalog.TWEAKS.filter((t) =>
       state.tweaks.selected.includes(t.id) && t.deferPs && t.ps);
     if (!late.length || state.tweaks.phase !== 'setup') { el.textContent = ''; return; }
-    el.innerHTML = '<b>' + late.length + ' Einstellung' + (late.length === 1 ? '' : 'en') +
-      '</b> brauchen einen laufenden Netzwerk- bzw. Dienststack (' +
-      late.map((t) => t.label).join(', ') + '). Im <code>specialize</code>-Pass von Phase 1 ' +
-      'blockieren diese Cmdlets und halten das Setup an – sie werden deshalb automatisch in Phase 2 ' +
+    const net = late.filter((t) => t.deferReason !== 'account');
+    const acc = late.filter((t) => t.deferReason === 'account');
+    const teile = [];
+    if (net.length) {
+      teile.push('<b>' + net.map((t) => t.label).join(', ') + '</b> ' +
+        (net.length === 1 ? 'braucht' : 'brauchen') + ' einen laufenden Netzwerk- bzw. ' +
+        'Dienststack; im <code>specialize</code>-Pass blockieren solche Cmdlets und halten das Setup an');
+    }
+    if (acc.length) {
+      teile.push('<b>' + acc.map((t) => t.label).join(', ') + '</b> ' +
+        (acc.length === 1 ? 'setzt' : 'setzen') + ' ein angelegtes Benutzerkonto voraus, ' +
+        'das es in Phase 1 noch nicht gibt');
+    }
+    el.innerHTML = teile.join('. ') + '. Diese Einstellungen werden automatisch in Phase 2 ' +
       'nachgeholt, jeweils mit Zeitgrenze. Die Registry-Anteile bleiben in Phase 1.';
     el.style.color = 'var(--acc2)';
   }
