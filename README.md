@@ -18,7 +18,9 @@ Build-Schritt. `index.html` im Browser öffnen genügt (auch per `file://`).
   übernommen und passend installiert; Chocolatey wird bei Bedarf nachinstalliert.
   Beim Export entsteht wieder ein `.ubundle`, das UniGetUI einlesen kann.
 * **Microsoft Office (ODT)** – Configuration.xml importieren oder bearbeiten, mit
-  Auswertung (Produkte, Sprachen, Kanal) und Prüfung auf unbeaufsichtigte Installation.
+  Auswertung (Produkte, Sprachen, Kanal) und Prüfung auf unbeaufsichtigte
+  Installation. Läuft standardmäßig in Phase 2, weil das Deployment Tool die
+  Installationsdateien aus dem Netz lädt.
 * **System-Tweaks** – rund 35 Einstellungen zu Explorer, Taskleiste, Datenschutz,
   System und Netzwerk. Benutzerbezogene Werte werden in Phase 1 in
   `C:\Users\Default\NTUSER.DAT` geschrieben und gelten damit für neue Konten.
@@ -111,6 +113,19 @@ Bei `UseConfigurationSet=true` sucht Setup den Konfigurationssatz **neben der
 Antwortdatei**. Der Generator erkennt das beim Import und stellt die Ablage auf
 „beide Orte“ – Setup wertet nur den passenden aus, der andere Ordner wird
 ignoriert. Das ist die Voreinstellung.
+
+### Office braucht ein Netzwerk
+
+Das Office Deployment Tool lädt die Installationsdateien von Microsoft — auch
+dann, wenn die `setup.exe` mitgeliefert wird; das Archiv enthält nur das
+Werkzeug, nicht Office selbst. In Phase 1 (`specialize`) steht aber noch keine
+Netzwerkverbindung zur Verfügung, genau wie bei den Netzwerk-Tweaks oben.
+
+Das Office-Modul steht deshalb auf Phase 2. Wer es dennoch in Phase 1 braucht,
+setzt in der `Configuration.xml` ein `SourcePath` auf eine lokal mitgelieferte
+Office-Quelle; `Install-Office.ps1` erkennt das, überspringt das Warten auf das
+Netzwerk und installiert offline. Ohne beides bricht das Modul mit einer
+erklärenden Meldung ab, statt ins Leere zu laufen.
 
 ### winget braucht einen Benutzerkontext
 

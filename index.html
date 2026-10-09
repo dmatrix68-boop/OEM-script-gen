@@ -170,8 +170,8 @@
           <label class="field">
             <span>Ausführungsphase</span>
             <select id="officePhase">
+              <option value="firstlogon">Phase 2 – nach erster Anmeldung (empfohlen)</option>
               <option value="setup">Phase 1 – SetupComplete (SYSTEM)</option>
-              <option value="firstlogon">Phase 2 – nach erster Anmeldung</option>
             </select>
           </label>
           <label class="field">
@@ -189,6 +189,7 @@
         <div class="row wrap">
           <label class="chk"><input type="checkbox" id="officeCheckInstalled" checked> Überspringen, wenn Office bereits installiert ist</label>
         </div>
+        <p class="hint" id="officePhaseHint"></p>
         <p class="hint">Bei „mitliefern“ muss <code>setup.exe</code> (Office Deployment Tool) unter <span class="mono" id="officeSetupPath"></span> abgelegt werden – der Generator legt dafür einen Platzhalter-Hinweis ab.</p>
       </div>
 

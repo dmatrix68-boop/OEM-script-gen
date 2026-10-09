@@ -239,18 +239,37 @@ function Invoke-WithTimeout {
     return $false
 }
 
+<#  Direkter TCP-Test statt Test-NetConnection: das Cmdlet stammt aus dem Modul
+    NetTCPIP, ist nicht in jeder Umgebung vorhanden und antwortet traege. #>
+function Test-OemInternet {
+    param([string]$ComputerName = 'www.msftconnecttest.com', [int]$Port = 80, [int]$TimeoutMs = 3000)
+    $client = $null
+    try {
+        $client = New-Object System.Net.Sockets.TcpClient
+        $async = $client.BeginConnect($ComputerName, $Port, $null, $null)
+        if (-not $async.AsyncWaitHandle.WaitOne($TimeoutMs)) { return $false }
+        $client.EndConnect($async)
+        return $true
+    } catch {
+        return $false
+    } finally {
+        if ($client) { $client.Close() }
+    }
+}
+
 function Wait-OemNetwork {
     param([int]$TimeoutSeconds = 300)
+    if (Test-OemInternet) { return $true }
     Write-Log 'Warte auf Netzwerkverbindung ...'
     $sw = [Diagnostics.Stopwatch]::StartNew()
     while ($sw.Elapsed.TotalSeconds -lt $TimeoutSeconds) {
-        try {
-            $ok = Test-NetConnection -ComputerName 'www.msftconnecttest.com' -Port 80 -InformationLevel Quiet -WarningAction SilentlyContinue -ErrorAction SilentlyContinue
-            if ($ok) { Write-Log ('Netzwerk verfuegbar nach {0:n0} s.' -f $sw.Elapsed.TotalSeconds); return $true }
-        } catch { }
         Start-Sleep -Seconds 5
+        if (Test-OemInternet) {
+            Write-Log ('Netzwerk verfuegbar nach {0:n0} s.' -f $sw.Elapsed.TotalSeconds)
+            return $true
+        }
     }
-    Write-Log 'Kein Netzwerk innerhalb des Zeitlimits.' -Level Warn
+    Write-Log ('Kein Netzwerk innerhalb von {0} s.' -f $TimeoutSeconds) -Level Warn
     return $false
 }
 
@@ -892,6 +911,27 @@ if (-not (Test-Path -LiteralPath $setupExe)) {
     s += toCRLF(`
 if (-not (Test-Path -LiteralPath $setupExe)) {
     Write-Log ('setup.exe (ODT) fehlt unter ' + $setupExe) -Level Error
+    return
+}
+
+<#  Das Office Deployment Tool laedt die Installationsdateien von Microsoft,
+    sofern die Antwortdatei nicht per SourcePath auf eine lokale Quelle zeigt.
+    In Phase 1 (specialize) steht noch kein Netzwerk zur Verfuegung. #>
+$needsNetwork = $true
+try {
+    [xml]$odtConfig = Get-Content -LiteralPath $configXml -Raw -ErrorAction Stop
+    $sourcePath = $odtConfig.Configuration.Add.SourcePath
+    if ($sourcePath -and (Test-Path -LiteralPath $sourcePath)) {
+        $needsNetwork = $false
+        Write-Log ('Lokale Office-Quelle: ' + $sourcePath)
+    }
+} catch {
+    Write-Log ('Configuration.xml nicht auswertbar: ' + $_.Exception.Message) -Level Warn
+}
+
+if ($needsNetwork -and -not (Wait-OemNetwork -TimeoutSeconds 600)) {
+    Write-Log 'Ohne Netzwerk kann das Office Deployment Tool die Installationsdateien nicht laden.' -Level Error
+    Write-Log 'Office-Modul in Phase 2 ausfuehren oder in der Configuration.xml SourcePath setzen.' -Level Error
     return
 }
 `);

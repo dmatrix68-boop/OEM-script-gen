@@ -37,7 +37,7 @@
         pinVersions: false, machineScope: false, items: []
       },
       office: {
-        enabled: false, phase: 'setup', setupSource: 'bundled',
+        enabled: false, phase: 'firstlogon', setupSource: 'bundled',
         odtUrl: 'https://officecdn.microsoft.com/pr/wsus/setup.exe',
         xml: OFFICE_TEMPLATE, checkInstalled: true
       },
@@ -636,6 +636,27 @@
       }
       $('#appsPhaseHint').textContent = hint;
       $('#appsPhaseHint').style.color = (wingetApps && systemContext) ? 'var(--warn)' : '';
+
+      const oh = $('#officePhaseHint');
+      if (oh) {
+        let localSource = false;
+        try {
+          localSource = !!Importers.parseOfficeConfig(state.office.xml || '').sourcePath;
+        } catch (e) { /* ungültige XML meldet bereits die Zusammenfassung */ }
+        if (state.office.enabled && state.office.phase === 'setup' && !localSource) {
+          oh.textContent = 'Achtung: In Phase 1 (specialize) besteht noch keine Netzwerkverbindung. ' +
+            'Das Office Deployment Tool lädt die Installationsdateien aber von Microsoft – auch mit ' +
+            'mitgelieferter setup.exe. Entweder Phase 2 wählen oder in der Configuration.xml ' +
+            'SourcePath auf eine lokale Quelle setzen.';
+          oh.style.color = 'var(--warn)';
+        } else if (state.office.enabled && state.office.phase === 'setup' && localSource) {
+          oh.textContent = 'Die Configuration.xml verweist per SourcePath auf eine lokale Quelle – ' +
+            'damit ist die Installation auch ohne Netzwerk in Phase 1 möglich.';
+          oh.style.color = '';
+        } else {
+          oh.textContent = '';
+        }
+      }
       const refs = [];
       const re = /%~dp0"?([A-Za-z0-9_.\\-]+)/g;
       let m;
