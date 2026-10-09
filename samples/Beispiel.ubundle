@@ -1,0 +1,12 @@
+{
+  "export_version": 3,
+  "packages": [
+    { "Id": "7zip.7zip", "Name": "7-Zip", "Version": "24.09", "Source": "winget", "ManagerName": "winget" },
+    { "Id": "Notepad++.Notepad++", "Name": "Notepad++", "Version": "8.7", "Source": "winget", "ManagerName": "winget" },
+    { "Id": "Microsoft.PowerToys", "Name": "PowerToys", "Version": "0.85.1", "Source": "winget", "ManagerName": "winget" },
+    { "Id": "Mozilla.Firefox", "Name": "Mozilla Firefox", "Version": "132.0", "Source": "winget", "ManagerName": "winget" },
+    { "Id": "git", "Name": "Git", "Version": "2.47.0", "Source": "chocolatey", "ManagerName": "Chocolatey" }
+  ],
+  "incompatible_packages_info": "Beispieldatei zum Testen des Imports.",
+  "incompatible_packages": []
+}
