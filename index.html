@@ -128,6 +128,10 @@
             <span>Wiederholversuche</span>
             <input type="number" id="appsRetries" min="0" max="5" value="2">
           </label>
+          <label class="field">
+            <span>Zeitlimit je Paket (Minuten)</span>
+            <input type="number" id="appsPackageTimeout" min="1" max="120" value="15">
+          </label>
         </div>
         <div class="row wrap">
           <label class="chk"><input type="checkbox" id="appsWaitNetwork" checked> Auf Netzwerkverbindung warten</label>
@@ -170,8 +174,8 @@
           <label class="field">
             <span>Ausführungsphase</span>
             <select id="officePhase">
+              <option value="firstlogon">Phase 2 – nach erster Anmeldung (empfohlen)</option>
               <option value="setup">Phase 1 – SetupComplete (SYSTEM)</option>
-              <option value="firstlogon">Phase 2 – nach erster Anmeldung</option>
             </select>
           </label>
           <label class="field">
@@ -187,8 +191,23 @@
           </label>
         </div>
         <div class="row wrap">
+          <label class="field">
+            <span>Installationsquelle</span>
+            <select id="officeSource">
+              <option value="online">online von Microsoft laden</option>
+              <option value="local">lokal mitgelieferte Quelle (offline)</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Ordner der Quelle (unter Office\)</span>
+            <input type="text" id="officeLocalFolder" value="Quelle">
+          </label>
+        </div>
+        <div id="officeSourceBox" class="summary"></div>
+        <div class="row wrap">
           <label class="chk"><input type="checkbox" id="officeCheckInstalled" checked> Überspringen, wenn Office bereits installiert ist</label>
         </div>
+        <p class="hint" id="officePhaseHint"></p>
         <p class="hint">Bei „mitliefern“ muss <code>setup.exe</code> (Office Deployment Tool) unter <span class="mono" id="officeSetupPath"></span> abgelegt werden – der Generator legt dafür einen Platzhalter-Hinweis ab.</p>
       </div>
 
@@ -227,6 +246,7 @@
         </div>
         <p class="hint">In Phase 1 existiert noch kein Benutzerprofil. Benutzerbezogene Registry-Werte werden deshalb in
         <code>C:\Users\Default\NTUSER.DAT</code> geschrieben und gelten damit für alle neu angelegten Konten.</p>
+        <p class="hint" id="tweaksDeferHint"></p>
       </div>
 
       <div class="panel">

@@ -32,12 +32,13 @@
       },
       unattend: { xml: null, name: '', info: null },
       apps: {
-        enabled: true, phase: 'firstlogon', method: 'individual', retries: 2,
+        enabled: true, phase: 'firstlogon', method: 'individual', retries: 2, packageTimeoutMin: 15,
         waitNetwork: true, sourceUpdate: true, bootstrap: true,
         pinVersions: false, machineScope: false, items: []
       },
       office: {
-        enabled: false, phase: 'setup', setupSource: 'bundled',
+        enabled: false, phase: 'firstlogon', setupSource: 'bundled',
+        source: 'online', localFolder: 'Quelle',
         odtUrl: 'https://officecdn.microsoft.com/pr/wsus/setup.exe',
         xml: OFFICE_TEMPLATE, checkInstalled: true
       },
@@ -89,6 +90,7 @@
     ['appsPhase', 'apps.phase', 'text'],
     ['appsMethod', 'apps.method', 'text'],
     ['appsRetries', 'apps.retries', 'num'],
+    ['appsPackageTimeout', 'apps.packageTimeoutMin', 'num'],
     ['appsWaitNetwork', 'apps.waitNetwork', 'bool'],
     ['appsSourceUpdate', 'apps.sourceUpdate', 'bool'],
     ['appsBootstrap', 'apps.bootstrap', 'bool'],
@@ -97,6 +99,8 @@
     ['officeEnabled', 'office.enabled', 'bool'],
     ['officePhase', 'office.phase', 'text'],
     ['officeSetupSource', 'office.setupSource', 'text'],
+    ['officeSource', 'office.source', 'text'],
+    ['officeLocalFolder', 'office.localFolder', 'text'],
     ['officeOdtUrl', 'office.odtUrl', 'text'],
     ['officeCheckInstalled', 'office.checkInstalled', 'bool'],
     ['officeXml', 'office.xml', 'text'],
@@ -129,6 +133,7 @@
       el.addEventListener(type === 'bool' ? 'change' : 'input', () => {
         set(path, type === 'bool' ? el.checked : type === 'num' ? parseInt(el.value, 10) || 0 : el.value);
         if (id === 'officeXml') renderOfficeSummary();
+        if (id === 'tweaksPhase') renderTweaks();
         refresh();
       });
     }
@@ -266,13 +271,39 @@
         refresh();
       });
       const div = document.createElement('div');
-      div.innerHTML = '<div class="cat">' + t.cat + '</div><div class="t"></div>' +
-        (t.desc ? '<div class="d"></div>' : '');
+      const late = t.deferPs && t.ps && state.tweaks.phase === 'setup';
+      div.innerHTML = '<div class="cat">' + t.cat + (late ? ' · läuft in Phase 2' : '') +
+        '</div><div class="t"></div>' + (t.desc ? '<div class="d"></div>' : '');
       div.querySelector('.t').textContent = t.label;
       if (t.desc) div.querySelector('.d').textContent = t.desc;
       lab.appendChild(cb); lab.appendChild(div);
       box.appendChild(lab);
     }
+    renderTweakDeferHint();
+  }
+
+  function renderTweakDeferHint() {
+    const el = $('#tweaksDeferHint');
+    if (!el) return;
+    const late = Catalog.TWEAKS.filter((t) =>
+      state.tweaks.selected.includes(t.id) && t.deferPs && t.ps);
+    if (!late.length || state.tweaks.phase !== 'setup') { el.textContent = ''; return; }
+    const net = late.filter((t) => t.deferReason !== 'account');
+    const acc = late.filter((t) => t.deferReason === 'account');
+    const teile = [];
+    if (net.length) {
+      teile.push('<b>' + net.map((t) => t.label).join(', ') + '</b> ' +
+        (net.length === 1 ? 'braucht' : 'brauchen') + ' einen laufenden Netzwerk- bzw. ' +
+        'Dienststack; im <code>specialize</code>-Pass blockieren solche Cmdlets und halten das Setup an');
+    }
+    if (acc.length) {
+      teile.push('<b>' + acc.map((t) => t.label).join(', ') + '</b> ' +
+        (acc.length === 1 ? 'setzt' : 'setzen') + ' ein angelegtes Benutzerkonto voraus, ' +
+        'das es in Phase 1 noch nicht gibt');
+    }
+    el.innerHTML = teile.join('. ') + '. Diese Einstellungen werden automatisch in Phase 2 ' +
+      'nachgeholt, jeweils mit Zeitgrenze. Die Registry-Anteile bleiben in Phase 1.';
+    el.style.color = 'var(--acc2)';
   }
 
   /* ---------------- Bloatware ---------------- */
@@ -603,9 +634,68 @@
       $('#officeSetupPath').textContent = '$OEM$\\$1\\' + rel + '\\Office\\setup.exe';
       $('#filesTargetPath').textContent = state.paths.installRoot.replace(/\\+$/, '') + '\\Files';
       $('#setKeepInstallLabel').textContent = state.paths.installRoot.replace(/\\+$/, '');
-      $('#appsPhaseHint').textContent = state.apps.phase === 'setup'
-        ? 'Achtung: In Phase 1 läuft winget als SYSTEM, bevor ein Benutzerprofil existiert. Pakete, die nur benutzerbezogen installieren, schlagen dort häufig fehl.'
-        : 'Empfohlen: Netzwerk und App Installer sind bei der ersten Anmeldung zuverlässig verfügbar.';
+      const wingetApps = state.apps.enabled && state.apps.items.some((p) => p.enabled && p.manager === 'winget');
+      const systemContext = state.apps.phase === 'setup' ||
+        (state.options.trigger === 'setupcomplete' && state.options.phase2Runner === 'task');
+      let hint;
+      if (wingetApps && systemContext) {
+        hint = 'Achtung: winget läuft hier als SYSTEM. Der App-Execution-Alias existiert nur je Benutzer, ' +
+          'und der direkte Aufruf aus WindowsApps bricht mit 0xC0000135 ab – in diesem Kontext schlägt ' +
+          'jedes Paket fehl. Phase 2 über die autounattend.xml (FirstLogonCommands) oder RunOnce starten, ' +
+          'damit die Installation im Benutzerkontext läuft.';
+      } else if (state.apps.phase === 'setup') {
+        hint = 'In Phase 1 existiert noch kein Benutzerprofil; Pakete, die nur benutzerbezogen installieren, schlagen dort fehl.';
+      } else {
+        hint = 'Empfohlen: Netzwerk und App Installer sind bei der ersten Anmeldung zuverlässig verfügbar.';
+      }
+      $('#appsPhaseHint').textContent = hint;
+      $('#appsPhaseHint').style.color = (wingetApps && systemContext) ? 'var(--warn)' : '';
+
+      const sb = $('#officeSourceBox');
+      if (sb) {
+        if (state.office.enabled && state.office.source === 'local') {
+          const rel = Templates.relFromRoot(state.paths.installRoot);
+          const folder = (state.office.localFolder || 'Quelle').replace(/^[\\/]+|[\\/]+$/g, '');
+          sb.innerHTML = '<p class="hint">Der Generator trägt <code>SourcePath</code> automatisch in die ' +
+            'Configuration.xml ein und legt den Ordner sowie das Hilfsskript an:</p>' +
+            '<pre class="tree">' + esc(
+              '$OEM$\\$1\\' + rel + '\\Office\\\n' +
+              '  ├─ setup.exe                   (ODT – selbst ablegen)\n' +
+              '  ├─ Configuration.xml           SourcePath=' + state.paths.installRoot.replace(/\\+$/, '') + '\\Office\\' + folder + '\n' +
+              '  ├─ Download-Quelle.ps1         erzeugt die Quelle auf diesem Rechner\n' +
+              '  └─ ' + folder + '\\                      hierhin kommt Office\\Data\\…'
+            ) + '</pre>' +
+            '<p class="hint">Die Quelle selbst wird <b>nicht</b> ins ZIP gepackt – mehrere Gigabyte ' +
+            'durch den Browser zu schleusen ist nicht praktikabel. Nach dem Entpacken ' +
+            '<code>Download-Quelle.ps1</code> im Office-Ordner ausführen, dann steht die Offline-Installation ' +
+            'auch in Phase 1 zur Verfügung. Fehlt die Quelle, weicht das Modul auf den Online-Bezug aus.</p>';
+        } else {
+          sb.innerHTML = '';
+        }
+      }
+
+      const oh = $('#officePhaseHint');
+      if (oh) {
+        let localSource = state.office.source === 'local';
+        if (!localSource) {
+          try {
+            localSource = !!Importers.parseOfficeConfig(state.office.xml || '').sourcePath;
+          } catch (e) { /* ungültige XML meldet bereits die Zusammenfassung */ }
+        }
+        if (state.office.enabled && state.office.phase === 'setup' && !localSource) {
+          oh.textContent = 'Achtung: In Phase 1 (specialize) besteht noch keine Netzwerkverbindung. ' +
+            'Das Office Deployment Tool lädt die Installationsdateien aber von Microsoft – auch mit ' +
+            'mitgelieferter setup.exe. Entweder Phase 2 wählen oder in der Configuration.xml ' +
+            'SourcePath auf eine lokale Quelle setzen.';
+          oh.style.color = 'var(--warn)';
+        } else if (state.office.enabled && state.office.phase === 'setup' && localSource) {
+          oh.textContent = 'Die Configuration.xml verweist per SourcePath auf eine lokale Quelle – ' +
+            'damit ist die Installation auch ohne Netzwerk in Phase 1 möglich.';
+          oh.style.color = '';
+        } else {
+          oh.textContent = '';
+        }
+      }
       const refs = [];
       const re = /%~dp0"?([A-Za-z0-9_.\\-]+)/g;
       let m;

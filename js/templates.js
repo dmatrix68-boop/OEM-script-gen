@@ -41,7 +41,7 @@
     return banner('Gemeinsame Funktionen fuer alle Installationsschritte.', st.meta.name) + toCRLF(`
 $Global:OemRoot = Split-Path -Parent $PSScriptRoot
 $Global:OemLogDir = Join-Path $Global:OemRoot 'Logs'
-$script:LogFile = Join-Path $Global:OemLogDir 'oem-setup.log'
+$Global:OemLogFile = Join-Path $Global:OemLogDir 'oem-setup.log'
 $script:MountedHives = @()
 $script:UserRegRoots = $null
 
@@ -50,7 +50,7 @@ function Initialize-OemLog {
     if (-not (Test-Path -LiteralPath $Global:OemLogDir)) {
         New-Item -Path $Global:OemLogDir -ItemType Directory -Force | Out-Null
     }
-    $script:LogFile = Join-Path $Global:OemLogDir ($Name + '.log')
+    $Global:OemLogFile = Join-Path $Global:OemLogDir ($Name + '.log')
 }
 
 function Write-Log {
@@ -66,7 +66,12 @@ function Write-Log {
         'Debug' { Write-Verbose $line }
         default { Write-Host $line }
     }
-    try { Add-Content -LiteralPath $script:LogFile -Value $line -Encoding UTF8 -ErrorAction Stop } catch { }
+    <#  Global, nicht $script: - eine ueber mehrere Skript-Scopes dot-gesourcte
+        Funktion sieht sonst je nach Aufrufweg eine leere Variable. #>
+    if (-not $Global:OemLogFile) {
+        $Global:OemLogFile = Join-Path $Global:OemLogDir 'oem-setup.log'
+    }
+    try { Add-Content -LiteralPath $Global:OemLogFile -Value $line -Encoding UTF8 -ErrorAction Stop } catch { }
 }
 
 function Test-OemAdmin {
@@ -189,34 +194,127 @@ function Invoke-Step {
     }
 }
 
-function Wait-OemNetwork {
-    param([int]$TimeoutSeconds = 300)
-    Write-Log 'Warte auf Netzwerkverbindung ...'
-    $sw = [Diagnostics.Stopwatch]::StartNew()
-    while ($sw.Elapsed.TotalSeconds -lt $TimeoutSeconds) {
-        try {
-            $ok = Test-NetConnection -ComputerName 'www.msftconnecttest.com' -Port 80 -InformationLevel Quiet -WarningAction SilentlyContinue -ErrorAction SilentlyContinue
-            if ($ok) { Write-Log ('Netzwerk verfuegbar nach {0:n0} s.' -f $sw.Elapsed.TotalSeconds); return $true }
-        } catch { }
-        Start-Sleep -Seconds 5
+<#  Fuehrt einen Block mit harter Zeitgrenze aus. Noetig fuer Netzwerk- und
+    Dienst-Cmdlets: im specialize-Pass warten sie unter Umstaenden endlos auf
+    einen Stack, der noch nicht bereit ist, und blockieren damit das gesamte
+    Windows-Setup. Der Block laeuft in einem eigenen Runspace und kennt die
+    Funktionen aus dieser Datei NICHT. #>
+function Invoke-WithTimeout {
+    param(
+        [Parameter(Mandatory)][string]$Name,
+        [Parameter(Mandatory)][scriptblock]$Body,
+        [int]$TimeoutSeconds = 120
+    )
+    $job = $null
+    try {
+        $job = Start-Job -ScriptBlock $Body -ErrorAction Stop
+    } catch {
+        Write-Log ('{0}: Hintergrundauftrag nicht startbar ({1}) - uebersprungen.' -f $Name, $_.Exception.Message) -Level Warn
+        return $false
     }
-    Write-Log 'Kein Netzwerk innerhalb des Zeitlimits.' -Level Warn
+    if (Wait-Job -Job $job -Timeout $TimeoutSeconds) {
+        $failed = ($job.State -eq 'Failed')
+        $reason = $null
+        if ($failed) {
+            $reason = $job.ChildJobs[0].JobStateInfo.Reason.Message
+            if (-not $reason) { $reason = ($job.ChildJobs[0].Error | Select-Object -First 1) }
+        }
+        $out = Receive-Job -Job $job -ErrorAction SilentlyContinue 2>&1
+        $errs = @($out | Where-Object { $_ -is [System.Management.Automation.ErrorRecord] })
+        if ($failed -or $errs.Count -gt 0) {
+            $msg = if ($reason) { $reason } elseif ($errs.Count -gt 0) { $errs[0].ToString() } else { 'unbekannter Fehler' }
+            Write-Log ('{0}: {1}' -f $Name, $msg) -Level Warn
+            Remove-Job -Job $job -Force -ErrorAction SilentlyContinue
+            return $false
+        }
+        if ($out) {
+            Write-Log ('{0}: {1}' -f $Name, (($out | Select-Object -First 3) -join ' | ')) -Level Debug
+        }
+        Remove-Job -Job $job -Force -ErrorAction SilentlyContinue
+        return $true
+    }
+    Write-Log ('{0}: Zeitueberschreitung nach {1} s - abgebrochen.' -f $Name, $TimeoutSeconds) -Level Warn
+    Stop-Job -Job $job -ErrorAction SilentlyContinue
+    Remove-Job -Job $job -Force -ErrorAction SilentlyContinue
     return $false
 }
 
-function Resolve-Winget {
-    $cmd = Get-Command winget.exe -ErrorAction SilentlyContinue
-    if ($cmd) { return $cmd.Source }
+<#  Direkter TCP-Test statt Test-NetConnection: das Cmdlet stammt aus dem Modul
+    NetTCPIP, ist nicht in jeder Umgebung vorhanden und antwortet traege. #>
+function Test-OemInternet {
+    param([string]$ComputerName = 'www.msftconnecttest.com', [int]$Port = 80, [int]$TimeoutMs = 3000)
+    $client = $null
+    try {
+        $client = New-Object System.Net.Sockets.TcpClient
+        $async = $client.BeginConnect($ComputerName, $Port, $null, $null)
+        if (-not $async.AsyncWaitHandle.WaitOne($TimeoutMs)) { return $false }
+        $client.EndConnect($async)
+        return $true
+    } catch {
+        return $false
+    } finally {
+        if ($client) { $client.Close() }
+    }
+}
 
-    # Unter SYSTEM steht winget nicht im PATH - direkt in WindowsApps suchen.
+function Wait-OemNetwork {
+    param([int]$TimeoutSeconds = 300)
+    if (Test-OemInternet) { return $true }
+    Write-Log 'Warte auf Netzwerkverbindung ...'
+    $sw = [Diagnostics.Stopwatch]::StartNew()
+    while ($sw.Elapsed.TotalSeconds -lt $TimeoutSeconds) {
+        Start-Sleep -Seconds 5
+        if (Test-OemInternet) {
+            Write-Log ('Netzwerk verfuegbar nach {0:n0} s.' -f $sw.Elapsed.TotalSeconds)
+            return $true
+        }
+    }
+    Write-Log ('Kein Netzwerk innerhalb von {0} s.' -f $TimeoutSeconds) -Level Warn
+    return $false
+}
+
+<#  Prueft, ob diese winget.exe wirklich startet. Der direkte Aufruf aus
+    Program Files\\WindowsApps bricht mit 0xC0000135 (-1073741515) ab, weil die
+    MSIX-Abhaengigkeiten nur ueber den App-Execution-Alias aufgeloest werden.
+    Ohne diese Pruefung scheitert anschliessend jedes einzelne Paket. #>
+function Test-WingetUsable {
+    param([Parameter(Mandatory)][string]$Path)
+    try {
+        $null = & $Path --version 2>&1
+        return ($LASTEXITCODE -eq 0)
+    } catch {
+        return $false
+    }
+}
+
+function Resolve-Winget {
+    $candidates = @()
+
+    $cmd = Get-Command winget.exe -ErrorAction SilentlyContinue
+    if ($cmd) { $candidates += $cmd.Source }
+
+    # Unter SYSTEM steht der Alias nicht im PATH - direkt in WindowsApps suchen.
     $base = Join-Path $env:ProgramFiles 'WindowsApps'
     $dirs = Get-ChildItem -Path $base -Directory -Filter 'Microsoft.DesktopAppInstaller_*_x64__8wekyb3d8bbwe' -ErrorAction SilentlyContinue
     if (-not $dirs) {
         $dirs = Get-ChildItem -Path $base -Directory -Filter 'Microsoft.DesktopAppInstaller_*' -ErrorAction SilentlyContinue
     }
-    $best = $dirs | Sort-Object -Property Name -Descending | ForEach-Object { Join-Path $_.FullName 'winget.exe' } |
-            Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
-    return $best
+    $candidates += $dirs | Sort-Object -Property Name -Descending |
+        ForEach-Object { Join-Path $_.FullName 'winget.exe' } |
+        Where-Object { Test-Path -LiteralPath $_ }
+
+    foreach ($candidate in ($candidates | Select-Object -Unique)) {
+        if (Test-WingetUsable -Path $candidate) { return $candidate }
+        Write-Log ('winget unter ' + $candidate + ' ist nicht lauffaehig.') -Level Warn
+    }
+
+    if ($candidates.Count -gt 0 -and (Test-OemSystem)) {
+        Write-Log 'winget wurde gefunden, laesst sich als SYSTEM aber nicht starten.' -Level Error
+        Write-Log 'Der App-Execution-Alias existiert nur je Benutzer. Phase 2 muss dafuer im' -Level Error
+        Write-Log 'Benutzerkontext laufen: Einstellung "Phase 2 wird gestartet ueber" auf RunOnce' -Level Error
+        Write-Log 'stellen oder die autounattend.xml als Ausloeser verwenden (FirstLogonCommands).' -Level Error
+    }
+    return $null
 }
 
 function Install-WingetBootstrap {
@@ -242,30 +340,100 @@ function Install-WingetBootstrap {
     return (Resolve-Winget)
 }
 
+<#  Serialisierung ueber Kontextgrenzen hinweg.
+    Der Mutex allein genuegt nicht: erstellt ihn SYSTEM mit Standardrechten,
+    bekommt ein Lauf im Benutzerkontext beim Oeffnen "Zugriff verweigert" und
+    liefe ungebremst parallel weiter. Deshalb zusaetzlich eine Markierung in der
+    Registry, die jeder Kontext lesen kann, mit Prozesskennung gegen Leichen. #>
+function New-OemMutex {
+    param([Parameter(Mandatory)][string]$Name)
+    try {
+        $createdNew = $false
+        $security = New-Object System.Security.AccessControl.MutexSecurity
+        $everyone = New-Object System.Security.Principal.SecurityIdentifier(
+            [System.Security.Principal.WellKnownSidType]::WorldSid, $null)
+        $rule = New-Object System.Security.AccessControl.MutexAccessRule(
+            $everyone,
+            [System.Security.AccessControl.MutexRights]::FullControl,
+            [System.Security.AccessControl.AccessControlType]::Allow)
+        $security.AddAccessRule($rule)
+        return (New-Object System.Threading.Mutex($false, $Name, [ref]$createdNew, $security))
+    } catch {
+        try { return (New-Object System.Threading.Mutex($false, $Name)) } catch { return $null }
+    }
+}
+
+function Test-OemRunActive {
+    param([Parameter(Mandatory)][string]$Key, [Parameter(Mandatory)][string]$Name)
+    $val = $null
+    try { $val = (Get-ItemProperty -Path $Key -Name $Name -ErrorAction Stop).$Name } catch { return $false }
+    if (-not $val) { return $false }
+    $otherPid = 0
+    if (-not [int]::TryParse(($val -split '\\|')[0], [ref]$otherPid)) { return $false }
+    if ($otherPid -eq $PID) { return $false }
+    return [bool](Get-Process -Id $otherPid -ErrorAction SilentlyContinue)
+}
+
+function Set-OemRunning {
+    param([Parameter(Mandatory)][string]$Key, [Parameter(Mandatory)][string]$Name)
+    try {
+        if (-not (Test-Path -LiteralPath $Key)) { New-Item -Path $Key -Force | Out-Null }
+        $stamp = '{0}|{1}' -f $PID, (Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
+        New-ItemProperty -Path $Key -Name $Name -PropertyType String -Force -Value $stamp | Out-Null
+    } catch { Write-Log ('Laufmarkierung nicht gesetzt: ' + $_.Exception.Message) -Level Warn }
+}
+
+function Clear-OemRunning {
+    param([Parameter(Mandatory)][string]$Key, [Parameter(Mandatory)][string]$Name)
+    try { Remove-ItemProperty -Path $Key -Name $Name -ErrorAction SilentlyContinue } catch { }
+}
+
 function Invoke-OemProcess {
     param(
         [Parameter(Mandatory)][string]$FilePath,
         [string[]]$Arguments = @(),
         [int[]]$SuccessCodes = @(0),
-        [int]$TimeoutSeconds = 3600
+        [int]$TimeoutSeconds = 3600,
+        # Schneidet stdout/stderr mit, damit eine Fehlermeldung ins Protokoll kann
+        [switch]$CaptureOutput
     )
     Write-Log ('Starte: "{0}" {1}' -f $FilePath, ($Arguments -join ' ')) -Level Debug
     $startArgs = @{ FilePath = $FilePath; PassThru = $true; WindowStyle = 'Hidden'; ErrorAction = 'Stop' }
     if ($Arguments -and $Arguments.Count -gt 0) { $startArgs['ArgumentList'] = $Arguments }
+    $outFile = $null
+    $errFile = $null
+    if ($CaptureOutput) {
+        $outFile = [IO.Path]::GetTempFileName()
+        $errFile = [IO.Path]::GetTempFileName()
+        $startArgs['RedirectStandardOutput'] = $outFile
+        $startArgs['RedirectStandardError'] = $errFile
+    }
     $p = Start-Process @startArgs
+    $readOutput = {
+        $text = ''
+        foreach ($f in @($outFile, $errFile)) {
+            if ($f -and (Test-Path -LiteralPath $f)) {
+                $text += (Get-Content -LiteralPath $f -Raw -ErrorAction SilentlyContinue)
+                Remove-Item -LiteralPath $f -Force -ErrorAction SilentlyContinue
+            }
+        }
+        return ($text -replace '\\s+', ' ').Trim()
+    }
+
     if (-not $p) {
         Write-Log ('Prozess konnte nicht gestartet werden: ' + $FilePath) -Level Error
-        return [pscustomobject]@{ ExitCode = -1; Success = $false }
+        return [pscustomobject]@{ ExitCode = -1; Success = $false; TimedOut = $false; Output = (& $readOutput) }
     }
     if (-not $p.WaitForExit($TimeoutSeconds * 1000)) {
         Write-Log ('Zeitueberschreitung nach {0} s - Prozess wird beendet.' -f $TimeoutSeconds) -Level Error
         try { $p.Kill() } catch { }
-        return [pscustomobject]@{ ExitCode = -1; Success = $false }
+        try { $p.WaitForExit(5000) | Out-Null } catch { }
+        return [pscustomobject]@{ ExitCode = -1; Success = $false; TimedOut = $true; Output = (& $readOutput) }
     }
     $code = $p.ExitCode
     $ok = $SuccessCodes -contains $code
     if (-not $ok) { Write-Log ('Exitcode {0} von {1}' -f $code, (Split-Path -Leaf $FilePath)) -Level Warn }
-    return [pscustomobject]@{ ExitCode = $code; Success = $ok }
+    return [pscustomobject]@{ ExitCode = $code; Success = $ok; TimedOut = $false; Output = (& $readOutput) }
 }
 `);
   }
@@ -324,6 +492,7 @@ function Invoke-OemProcess {
   function moduleList(st, phase) {
     const mods = [];
     if (st.tweaks.enabled && st.tweaks.phase === phase && st.tweaks.selected.length) mods.push(['Set-Tweaks.ps1', 'System-Tweaks']);
+    if (phase === 'firstlogon' && hasLateTweaks(st)) mods.push(['Set-Tweaks-Spaet.ps1', 'Tweaks mit Netzwerkbedarf']);
     if (st.bloat.enabled && st.bloat.phase === phase && st.bloat.selected.length) mods.push(['Remove-Bloatware.ps1', 'Bloatware entfernen']);
     if (st.office.enabled && st.office.phase === phase) mods.push(['Install-Office.ps1', 'Microsoft Office (ODT)']);
     if (st.apps.enabled && st.apps.phase === phase && st.apps.items.some((p) => p.enabled)) mods.push(['Install-Apps.ps1', 'Anwendungen']);
@@ -386,18 +555,31 @@ Write-Log ('==================================================================')
 $markerKey = 'HKLM:\\SOFTWARE\\OEM-Setup'
 $markerName = 'Phase_' + $Phase
 
+$runningName = $markerName + '_Running'
 $mutex = $null
 $hasLock = $false
 try {
-    $mutex = New-Object System.Threading.Mutex($false, 'Global\\OEM-Setup-Install')
-    Write-Log 'Warte auf exklusiven Zugriff ...' -Level Debug
-    $hasLock = $mutex.WaitOne([TimeSpan]::FromMinutes(120))
-    if (-not $hasLock) { Write-Log 'Zeitueberschreitung beim Warten auf einen parallelen Lauf.' -Level Warn }
+    $mutex = New-OemMutex -Name 'Global\\OEM-Setup-Install'
+    if ($mutex) {
+        Write-Log 'Warte auf exklusiven Zugriff ...' -Level Debug
+        $hasLock = $mutex.WaitOne([TimeSpan]::FromSeconds(60))
+        if (-not $hasLock) { Write-Log 'Ein anderer Lauf haelt die Sperre.' -Level Warn }
+    }
 } catch [System.Threading.AbandonedMutexException] {
     $hasLock = $true
     Write-Log 'Vorheriger Lauf wurde abgebrochen - uebernehme die Sperre.' -Level Warn
 } catch {
     Write-Log ('Sperre nicht verfuegbar: ' + $_.Exception.Message) -Level Warn
+}
+
+<#  Zweite Absicherung, falls der Mutex ueber die Kontextgrenze hinweg nicht
+    greift: die Laufmarkierung ist fuer SYSTEM und Benutzer gleichermassen lesbar.
+    Laeuft dieselbe Phase bereits, ist dieser Lauf ueberfluessig - er weicht,
+    statt auf ein Ende zu warten, das Stunden entfernt sein kann. #>
+if ((Test-OemRunActive -Key $markerKey -Name $runningName) -and -not $Force) {
+    Write-Log ('Phase ' + $Phase + ' laeuft bereits in einem anderen Prozess - dieser Lauf endet hier.') -Level Warn
+    if ($hasLock -and $mutex) { $mutex.ReleaseMutex() }
+    exit 0
 }
 
 if ($Phase -ne 'Manual' -and -not $Force) {
@@ -409,6 +591,8 @@ if ($Phase -ne 'Manual' -and -not $Force) {
         exit 0
     }
 }
+
+Set-OemRunning -Key $markerKey -Name $runningName
 
 $setupSteps = @(
 ${fmt(setupMods)}
@@ -441,6 +625,8 @@ foreach ($r in $results) {
     Write-Log ('{0,-32} {1}' -f $r.Modul, $(if ($r.Erfolg) { 'OK' } else { 'FEHLER' }))
 }
 
+Clear-OemRunning -Key $markerKey -Name $runningName
+
 try {
     if (-not (Test-Path -LiteralPath $markerKey)) { New-Item -Path $markerKey -Force | Out-Null }
     $stamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
@@ -451,14 +637,21 @@ try {
 }
 `);
 
-    if (needPhase2) {
+    /* Deckt die autounattend.xml Phase 2 bereits ueber FirstLogonCommands ab, waere
+       eine gleichzeitig startende Aufgabe ein zweiter paralleler Lauf. Bei 'both'
+       bleibt sie als verzoegerter Rueckfall, bei 'unattend' entfaellt sie ganz. */
+    const unattendRunsPhase2 = st.options.trigger !== 'setupcomplete';
+    if (needPhase2 && st.options.trigger !== 'unattend') {
       const args = '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + root + '\\Install.ps1" -Phase FirstLogon';
+      const delay = unattendRunsPhase2
+        ? NL + '        $trigger.Delay = \'PT15M\'   # Rueckfall: erst, wenn die Antwortdatei Phase 2 nicht gestartet hat'
+        : '';
       if (st.options.phase2Runner === 'task') {
         s += toCRLF(`
 if ($Phase -eq 'Setup') {
     Invoke-Step -Name 'Phase 2 einplanen (geplante Aufgabe)' -Body {
         $action    = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument ${psq(args)}
-        $trigger   = New-ScheduledTaskTrigger -AtLogOn
+        $trigger   = New-ScheduledTaskTrigger -AtLogOn${delay}
         $principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
         $settings  = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Hours 3)
         Register-ScheduledTask -TaskName ${psq(taskName)} -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Force | Out-Null
@@ -545,8 +738,14 @@ if (-not (Get-Command Write-Log -ErrorAction SilentlyContinue)) {
     s += bootstrapHeader('Install-Apps');
 
     s += toCRLF(`
-$SuccessCodes = @(0, 3010, 1641, -1978335135, -1978335189, -1978335212)
-$MaxRetries   = ${opts.retries}
+<#  Erfolgscodes laut winget-cli/src/AppInstallerSharedLib/Public/AppInstallerErrors.h:
+    0 Installation ok, 3010/1641 Neustart noetig bzw. eingeleitet,
+    0x8A150061 Paket bereits installiert, 0x8A15002B kein Upgrade anwendbar.
+    0x8A150014 (kein Paket gefunden) gehoert ausdruecklich NICHT hierher - sonst
+    gilt eine falsch geschriebene Paket-ID als erfolgreich installiert. #>
+$SuccessCodes   = @(0, 3010, 1641, -1978335135, -1978335189)
+$MaxRetries     = ${opts.retries}
+$PackageTimeout = ${Math.max(60, (opts.packageTimeoutMin || 15) * 60)}   # Sekunden je Paket
 `);
 
     if (opts.waitNetwork) s += toCRLF(`
@@ -617,6 +816,17 @@ $packages = @(
 ${rows.join(NL)}
 )
 
+function Get-WingetFehlertext {
+    param([int]$Code)
+    switch ($Code) {
+        -1978335215 { 'Pruefsumme des Installers weicht vom Manifest ab - der Hersteller hat die Datei ausgetauscht. Mit --ignore-security-hash als Zusatzargument liesse sich die Pruefung uebergehen.' }
+        -1978335212 { 'Kein passendes Paket gefunden - Paket-ID und Quelle pruefen.' }
+        -1978335189 { 'Kein Upgrade anwendbar.' }
+        -1978335135 { 'Paket ist bereits installiert.' }
+        default      { '' }
+    }
+}
+
 Write-Log ('Zu installierende Pakete: ' + $packages.Count)
 $failed = @()
 $index  = 0
@@ -641,24 +851,63 @@ foreach ($pkg in $packages) {
 
     Write-Log ('[{0}/{1}] {2} ({3})' -f $index, $packages.Count, $pkg.Name, $pkg.Id) -Level Step
     $ok = $false
-    for ($try = 0; $try -le $MaxRetries -and -not $ok; $try++) {
+    $timedOut = $false
+    for ($try = 0; $try -le $MaxRetries -and -not $ok -and -not $timedOut; $try++) {
         if ($try -gt 0) {
             Write-Log ('Wiederholung {0} fuer {1}' -f $try, $pkg.Name) -Level Warn
             Start-Sleep -Seconds (5 * $try)
         }
         try {
-            $output = & $exe $pkg.Arguments 2>&1
-            $code = $LASTEXITCODE
-            if ($null -eq $code) { $code = 0 }
-            $ok = $SuccessCodes -contains $code
-            if (-not $ok) {
-                Write-Log ('Exitcode {0}: {1}' -f $code, (($output | Select-Object -Last 3) -join ' | ')) -Level Warn
+            <#  Direkter Aufruf statt Start-Process: winget.exe ist ein
+                App-Execution-Alias, der den eigentlichen Vorgang anstoesst und
+                sich sofort beendet. Start-Process wartet dann nur auf diesen
+                Stub, liefert einen leeren Exitcode und meldet ein laufendes
+                Paket als gescheitert. Der Aufruf im Hintergrundauftrag behaelt
+                $LASTEXITCODE und bekommt trotzdem eine Zeitgrenze. #>
+            $jobExe  = $exe
+            $jobArgs = $pkg.Arguments
+            $started = Get-Date
+            $job = Start-Job -ScriptBlock {
+                $e = $using:jobExe
+                $a = @($using:jobArgs)
+                $text = & $e @a 2>&1 | Out-String
+                [pscustomobject]@{ Code = $LASTEXITCODE; Output = $text }
+            }
+
+            if (Wait-Job -Job $job -Timeout $PackageTimeout) {
+                $r = Receive-Job -Job $job -ErrorAction SilentlyContinue
+                Remove-Job -Job $job -Force -ErrorAction SilentlyContinue
+                $code = 0
+                if ($null -ne $r -and $null -ne $r.Code) { $code = [int]$r.Code }
+                $ok = $SuccessCodes -contains $code
+                if (-not $ok) {
+                    $klartext = Get-WingetFehlertext -Code $code
+                    if ($klartext) { Write-Log ('{0}: {1}' -f $pkg.Name, $klartext) -Level Warn }
+                    $hint = ''
+                    if ($r) { $hint = ($r.Output -replace '\\s+', ' ').Trim() }
+                    if ($hint.Length -gt 300) { $hint = $hint.Substring(0, 300) }
+                    Write-Log ('Exitcode {0}: {1}' -f $code, $hint) -Level Warn
+                }
+            } else {
+                $timedOut = $true
+                Stop-Job -Job $job -ErrorAction SilentlyContinue
+                Remove-Job -Job $job -Force -ErrorAction SilentlyContinue
+                Write-Log ('{0} hat das Zeitlimit von {1} s ueberschritten und wurde abgebrochen.' -f $pkg.Name, $PackageTimeout) -Level Error
+                $procName = [IO.Path]::GetFileNameWithoutExtension($exe)
+                Get-Process -Name $procName -ErrorAction SilentlyContinue |
+                    Where-Object { $_.StartTime -ge $started } |
+                    Stop-Process -Force -ErrorAction SilentlyContinue
             }
         } catch {
             Write-Log ('Fehler bei {0}: {1}' -f $pkg.Name, $_.Exception.Message) -Level Warn
         }
     }
-    if ($ok) { Write-Log ('OK: ' + $pkg.Name) } else { Write-Log ('FEHLGESCHLAGEN: ' + $pkg.Name) -Level Error; $failed += $pkg.Name }
+    if ($ok) {
+        Write-Log ('OK: ' + $pkg.Name)
+    } else {
+        Write-Log ('FEHLGESCHLAGEN: ' + $pkg.Name) -Level Error
+        $failed += $pkg.Name + $(if ($timedOut) { ' (Zeitlimit)' } else { '' })
+    }
 }
 
 if ($failed.Count -gt 0) {
@@ -691,7 +940,7 @@ if (-not (Test-Path -LiteralPath $setupExe)) {
         (Join-Path $Global:OemRoot 'setup.exe')
     ) | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
     if ($alt) {
-        Write-Log ('setup.exe liegt nicht in Office\, verwende stattdessen: ' + $alt) -Level Warn
+        Write-Log ('setup.exe liegt nicht in Office\\, verwende stattdessen: ' + $alt) -Level Warn
         $setupExe = $alt
     }
 }
@@ -725,6 +974,41 @@ if (-not (Test-Path -LiteralPath $setupExe)) {
     Write-Log ('setup.exe (ODT) fehlt unter ' + $setupExe) -Level Error
     return
 }
+
+<#  Das Office Deployment Tool laedt die Installationsdateien von Microsoft,
+    sofern die Antwortdatei nicht per SourcePath auf eine lokale Quelle zeigt.
+    In Phase 1 (specialize) steht noch kein Netzwerk zur Verfuegung. #>
+$needsNetwork = $true
+$configToUse = $configXml
+try {
+    [xml]$odtConfig = Get-Content -LiteralPath $configXml -Raw -ErrorAction Stop
+    $sourcePath = $odtConfig.Configuration.Add.SourcePath
+    if ($sourcePath) {
+        <#  ODT erwartet unter SourcePath die Struktur Office\\Data\\<Version>.
+            Ein leerer Ordner - etwa weil die Quelle nicht mitkopiert wurde -
+            laesst die Installation scheitern, statt online auszuweichen. #>
+        if (Test-Path -LiteralPath (Join-Path $sourcePath 'Office\\Data')) {
+            $needsNetwork = $false
+            Write-Log ('Lokale Office-Quelle: ' + $sourcePath)
+        } else {
+            Write-Log ('SourcePath verweist auf ' + $sourcePath + ', dort fehlt aber Office\\Data.') -Level Warn
+            Write-Log 'Die Quelle wurde offenbar nicht mitgeliefert - es wird online installiert.' -Level Warn
+            $odtConfig.Configuration.Add.RemoveAttribute('SourcePath')
+            $tempDir = $env:TEMP
+            if (-not $tempDir) { $tempDir = $officeDir }
+            $configToUse = Join-Path $tempDir ('odt-online-' + [guid]::NewGuid().ToString('N') + '.xml')
+            $odtConfig.Save($configToUse)
+        }
+    }
+} catch {
+    Write-Log ('Configuration.xml nicht auswertbar: ' + $_.Exception.Message) -Level Warn
+}
+
+if ($needsNetwork -and -not (Wait-OemNetwork -TimeoutSeconds 600)) {
+    Write-Log 'Ohne Netzwerk kann das Office Deployment Tool die Installationsdateien nicht laden.' -Level Error
+    Write-Log 'Office-Modul in Phase 2 ausfuehren oder in der Configuration.xml SourcePath setzen.' -Level Error
+    return
+}
 `);
     if (st.office.checkInstalled) {
       s += toCRLF(`
@@ -737,24 +1021,161 @@ if ($installed -and $installed.ProductReleaseIds) {
     }
     s += toCRLF(`
 Write-Log 'Starte Office-Installation (kann einige Minuten dauern) ...'
-$res = Invoke-OemProcess -FilePath $setupExe -Arguments @('/configure', $configXml) -SuccessCodes @(0, 3010, 1641) -TimeoutSeconds 7200
+$res = Invoke-OemProcess -FilePath $setupExe -Arguments @('/configure', $configToUse) -SuccessCodes @(0, 3010, 1641) -TimeoutSeconds 7200 -CaptureOutput
+if ($configToUse -ne $configXml) { Remove-Item -LiteralPath $configToUse -Force -ErrorAction SilentlyContinue }
 if ($res.Success) {
     Write-Log 'Office-Installation abgeschlossen.'
 } else {
     Write-Log ('Office-Installation meldete Exitcode ' + $res.ExitCode) -Level Error
+    if ($res.Output) {
+        $hint = $res.Output
+        if ($hint.Length -gt 400) { $hint = $hint.Substring(0, 400) }
+        Write-Log ('Meldung des Deployment Tools: ' + $hint) -Level Error
+    }
 }
 `);
     return s;
   }
 
+  /* ---------- Lokale Office-Quelle ---------- */
+
+  /* Zielpfad der mitgelieferten Quelle auf dem installierten System. ODT erwartet
+     darunter Office\Data\..., deshalb zeigt SourcePath auf den Ordner darueber. */
+  function officeLocalPath(st) {
+    const root = st.paths.installRoot.replace(/\\+$/, '');
+    const folder = (st.office.localFolder || 'Quelle').replace(/^[\\/]+|[\\/]+$/g, '');
+    return root + '\\Office\\' + folder;
+  }
+
+  /* Setzt SourcePath im <Add>-Element, ohne die uebrige Datei anzutasten. */
+  function withSourcePath(xml, path) {
+    if (/<Add\b[^>]*\bSourcePath\s*=/i.test(xml)) {
+      return xml.replace(/(<Add\b[^>]*\bSourcePath\s*=\s*")[^"]*(")/i, '$1' + path + '$2');
+    }
+    return xml.replace(/<Add\b/i, '<Add SourcePath="' + path + '"');
+  }
+
+  function officeSourceReadme(st) {
+    const local = officeLocalPath(st);
+    const folder = (st.office.localFolder || 'Quelle').replace(/^[\\/]+|[\\/]+$/g, '');
+    return toCRLF([
+      '===================================================================',
+      ' Hier gehoert die Office-Installationsquelle hin',
+      '===================================================================',
+      '',
+      'Die Configuration.xml verweist per SourcePath auf diesen Ordner:',
+      '    ' + local,
+      '',
+      'Das Office Deployment Tool erwartet darunter die Struktur',
+      '    ' + folder + '\\Office\\Data\\<Version>\\...',
+      '',
+      'SO ERZEUGEN SIE DIE QUELLE',
+      '--------------------------',
+      '1. setup.exe des Office Deployment Tools in den Ordner Office\\ legen.',
+      '   Download: https://www.microsoft.com/download/details.aspx?id=49117',
+      '2. In diesem Ordner (Office\\) eine administrative PowerShell oeffnen und',
+      '   das beiliegende Skript starten:',
+      '',
+      '       powershell -ExecutionPolicy Bypass -File Download-Quelle.ps1',
+      '',
+      '   Es laedt genau die Produkte und Sprachen, die in der Configuration.xml',
+      '   stehen - je nach Auswahl mehrere Gigabyte.',
+      '3. Diese Hinweisdatei anschliessend loeschen und den gefuellten Ordner',
+      '   ' + folder + '\\ mit auf das Installationsmedium kopieren.',
+      '',
+      'HINWEIS',
+      '-------',
+      'Ohne gefuellte Quelle faellt Install-Office.ps1 auf die Online-Installation',
+      'zurueck und braucht dann eine Netzwerkverbindung. In Phase 1 (specialize)',
+      'besteht noch keine - dort funktioniert nur die lokale Quelle.',
+      ''
+    ].join('\n'));
+  }
+
+  function officeDownloadScript(st) {
+    const folder = (st.office.localFolder || 'Quelle').replace(/^[\\/]+|[\\/]+$/g, '');
+    return banner('Laedt die Office-Installationsdateien fuer die Offline-Installation.', st.meta.name) + toCRLF(`
+<#  Auf dem Vorbereitungsrechner ausfuehren, nicht auf dem Zielsystem.
+    Legt die Quelle neben dieses Skript und richtet sie so ein, wie es
+    Install-Office.ps1 auf dem Zielsystem erwartet. #>
+
+$ErrorActionPreference = 'Stop'
+
+$here    = Split-Path -Parent $MyInvocation.MyCommand.Definition
+$setup   = Join-Path $here 'setup.exe'
+$config  = Join-Path $here 'Configuration.xml'
+$target  = Join-Path $here ${psq(folder)}
+
+if (-not (Test-Path -LiteralPath $setup)) {
+    Write-Host 'setup.exe des Office Deployment Tools fehlt in diesem Ordner.' -ForegroundColor Red
+    Write-Host 'Download: https://www.microsoft.com/download/details.aspx?id=49117'
+    exit 1
+}
+if (-not (Test-Path -LiteralPath $config)) {
+    Write-Host 'Configuration.xml fehlt in diesem Ordner.' -ForegroundColor Red
+    exit 1
+}
+
+New-Item -Path $target -ItemType Directory -Force | Out-Null
+
+<#  Fuer den Download muss SourcePath auf den hiesigen Ordner zeigen, auf dem
+    Zielsystem dagegen auf dessen dortigen Pfad. Deshalb eine Arbeitskopie. #>
+[xml]$cfg = Get-Content -LiteralPath $config -Raw
+$add = $cfg.Configuration.Add
+if (-not $add) {
+    Write-Host 'Die Configuration.xml enthaelt kein <Add>-Element.' -ForegroundColor Red
+    exit 1
+}
+$add.SetAttribute('SourcePath', $target)
+$tempDir = $env:TEMP
+if (-not $tempDir) { $tempDir = $here }
+$work = Join-Path $tempDir ('odt-download-' + [guid]::NewGuid().ToString('N') + '.xml')
+$cfg.Save($work)
+
+Write-Host ('Lade Office nach ' + $target + ' ...') -ForegroundColor Cyan
+Write-Host 'Das dauert je nach Auswahl und Leitung eine Weile.' -ForegroundColor DarkGray
+
+$proc = Start-Process -FilePath $setup -ArgumentList @('/download', $work) -Wait -PassThru -NoNewWindow
+Remove-Item -LiteralPath $work -Force -ErrorAction SilentlyContinue
+
+if ($proc.ExitCode -ne 0) {
+    Write-Host ('Download fehlgeschlagen, Exitcode ' + $proc.ExitCode) -ForegroundColor Red
+    exit $proc.ExitCode
+}
+
+$data = Join-Path $target 'Office\\Data'
+if (Test-Path -LiteralPath $data) {
+    $size = (Get-ChildItem -LiteralPath $target -Recurse -File -ErrorAction SilentlyContinue |
+        Measure-Object -Property Length -Sum).Sum / 1GB
+    Write-Host ('Fertig. Quelle belegt {0:n1} GB.' -f $size) -ForegroundColor Green
+    Write-Host 'Die Hinweisdatei im Quellordner kann jetzt geloescht werden.'
+} else {
+    Write-Host 'Der Download meldete Erfolg, aber Office\\Data fehlt.' -ForegroundColor Yellow
+}
+`);
+  }
+
   /* ---------- Modules/Set-Tweaks.ps1 ---------- */
 
-  function tweaksModule(st) {
+  /* mode 'main': Registry-Werte und unkritische PowerShell-Teile in der gewaehlten Phase.
+     mode 'late': nur die aufgeschobenen PowerShell-Teile, immer in Phase 2.
+     Aufgeschoben wird, was es im specialize-Pass noch nicht gibt: einen
+     initialisierten Netzwerk- oder Dienststack (solche Cmdlets blockieren dort
+     und halten das Setup an) oder ein angelegtes Benutzerkonto. */
+  function tweaksModule(st, mode) {
     const sel = Catalog.TWEAKS.filter((t) => st.tweaks.selected.includes(t.id));
-    let s = banner('Setzt die ausgewaehlten System- und Benutzereinstellungen.', st.meta.name);
-    s += bootstrapHeader('Set-Tweaks');
+    const deferring = st.tweaks.phase === 'setup';
+    const late = mode === 'late';
 
-    const needsUser = sel.some((t) => (t.reg || []).some((r) => r.scope === 'user'));
+    const list = late ? sel.filter((t) => t.deferPs && t.ps) : sel;
+    const title = late
+      ? 'Holt die Einstellungen nach, die in Phase 1 noch nicht moeglich waren.'
+      : 'Setzt die ausgewaehlten System- und Benutzereinstellungen.';
+
+    let s = banner(title, st.meta.name);
+    s += bootstrapHeader(late ? 'Set-Tweaks-Spaet' : 'Set-Tweaks');
+
+    const needsUser = !late && sel.some((t) => (t.reg || []).some((r) => r.scope === 'user'));
     if (needsUser) {
       s += toCRLF(`
 $roots = Open-UserHives${st.tweaks.allUsers ? ' -IncludeExistingProfiles' : ''}
@@ -766,21 +1187,39 @@ try {
 
     const pad = needsUser ? '    ' : '';
     const cats = [];
-    sel.forEach((t) => { if (!cats.includes(t.cat)) cats.push(t.cat); });
+    list.forEach((t) => { if (!cats.includes(t.cat)) cats.push(t.cat); });
 
     for (const cat of cats) {
       s += NL + pad + '# ---------- ' + cat + ' ----------' + NL;
-      for (const t of sel.filter((x) => x.cat === cat)) {
-        s += pad + 'Write-Log ' + psq(t.label) + NL;
-        for (const r of (t.reg || [])) {
-          s += pad + 'Set-RegValue -Scope ' + (r.scope === 'user' ? 'User' : 'Machine') +
-            ' -Path ' + psq(r.path) + ' -Name ' + psq(r.name) +
-            ' -Type ' + r.type + ' -Value ' + (typeof r.value === 'number' ? r.value : psq(r.value)) + NL;
+      for (const t of list.filter((x) => x.cat === cat)) {
+        /* In 'main' wird der aufgeschobene ps-Teil weggelassen, wenn ein spaetes
+           Modul erzeugt wird; sonst laeuft er hier - aber mit Zeitgrenze. */
+        const psHere = t.ps && (late || !(t.deferPs && deferring));
+        if (!psHere && !(t.reg || []).length) continue;
+
+        s += pad + 'Write-Log ' + psq(t.label + (late ? ' (nachgeholt)' : '')) + NL;
+
+        if (!late) {
+          for (const r of (t.reg || [])) {
+            s += pad + 'Set-RegValue -Scope ' + (r.scope === 'user' ? 'User' : 'Machine') +
+              ' -Path ' + psq(r.path) + ' -Name ' + psq(r.name) +
+              ' -Type ' + r.type + ' -Value ' + (typeof r.value === 'number' ? r.value : psq(r.value)) + NL;
+          }
         }
-        if (t.ps) {
-          s += pad + 'try {' + NL;
-          s += toCRLF(t.ps).split(NL).map((l) => pad + '    ' + l).join(NL) + NL;
-          s += pad + '} catch { Write-Log (' + psq(t.label + ' fehlgeschlagen: ') + ' + $_.Exception.Message) -Level Warn }' + NL;
+
+        if (psHere) {
+          const body = toCRLF(t.ps).split(NL);
+          if (t.deferPs) {
+            /* Eigener Runspace: der Block darf keine Funktionen aus OEM-Common.ps1 verwenden. */
+            s += pad + 'Invoke-WithTimeout -Name ' + psq(t.label) +
+              ' -TimeoutSeconds ' + (t.timeout || 120) + ' -Body {' + NL;
+            s += body.map((l) => pad + '    ' + l).join(NL) + NL;
+            s += pad + '} | Out-Null' + NL;
+          } else {
+            s += pad + 'try {' + NL;
+            s += body.map((l) => pad + '    ' + l).join(NL) + NL;
+            s += pad + '} catch { Write-Log (' + psq(t.label + ' fehlgeschlagen: ') + ' + $_.Exception.Message) -Level Warn }' + NL;
+          }
         }
       }
     }
@@ -793,9 +1232,15 @@ try {
 `);
     }
     s += toCRLF(`
-Write-Log 'Tweaks angewendet.'
+Write-Log '${late ? 'Nachgeholte Einstellungen abgeschlossen.' : 'Tweaks angewendet.'}'
 `);
     return s;
+  }
+
+  /* Gibt es aufgeschobene PowerShell-Teile, die ein eigenes Phase-2-Modul brauchen? */
+  function hasLateTweaks(st) {
+    return st.tweaks.enabled && st.tweaks.phase === 'setup' &&
+      Catalog.TWEAKS.some((t) => st.tweaks.selected.includes(t.id) && t.deferPs && t.ps);
   }
 
   /* ---------- Modules/Remove-Bloatware.ps1 ---------- */
@@ -988,7 +1433,10 @@ foreach ($item in $items) {
 [CmdletBinding()]
 param(
     # Sammelt alle relevanten Protokolle in einem kleinen ZIP zum Weitergeben
-    [switch]$Export
+    [switch]$Export,
+    # Abweichender Installationsordner, falls die Dateien nicht am erwarteten Ort liegen
+    # (nicht $Root nennen - PowerShell unterscheidet $Root und $root nicht)
+    [string]$InstallRoot
 )
 
 $ErrorActionPreference = 'SilentlyContinue'
@@ -1010,8 +1458,17 @@ function Show-Item {
     Write-Host $Info -ForegroundColor DarkGray
 }
 
+<#  Reihenfolge: ausdruecklich uebergeben, sonst der konfigurierte Ordner,
+    sonst der Ordner, in dem dieses Skript tatsaechlich liegt. Letzteres greift,
+    wenn das Paket von einem anderen Laufwerk aus gestartet wird. #>
 $root = ${psq(root)}
+if ($InstallRoot) {
+    $root = $InstallRoot
+} elseif (-not (Test-Path -LiteralPath $root) -and $PSScriptRoot -and (Test-Path -LiteralPath (Join-Path $PSScriptRoot 'Install.ps1'))) {
+    $root = $PSScriptRoot
+}
 Write-Host ('OEM Setup - Diagnose   (' + (Get-Date -Format 'yyyy-MM-dd HH:mm') + ')') -ForegroundColor White
+Write-Host ('Installationsordner: ' + $root) -ForegroundColor DarkGray
 
 Show-Head 'Dateien auf dem Zielsystem'
 Show-Item 'Installationsordner' (Test-Path $root) $root
@@ -1335,6 +1792,12 @@ Write-Host ''
       todo.push('setup.exe des Office Deployment Tools nach ' + zipRoot + '\\$1\\' +
         relFromRoot(st.paths.installRoot) + '\\Office\\setup.exe kopieren.');
     }
+    if (st.office.enabled && st.office.source === 'local') {
+      const folder = (st.office.localFolder || 'Quelle').replace(/^[\\/]+|[\\/]+$/g, '');
+      todo.push('Office-Installationsquelle erzeugen und nach Office\\' + folder +
+        '\\ kopieren - dazu Office\\Download-Quelle.ps1 auf dem Vorbereitungsrechner ausfuehren ' +
+        '(mehrere Gigabyte). Ohne sie weicht die Installation auf den Online-Bezug aus.');
+    }
     st.files.items.filter((f) => f.enabled && !f.blobPresent).forEach((f) => {
       todo.push('Datei "' + f.name + '" fehlt im Archiv und muss manuell nach ' +
         (f.dest === 'scripts' ? '$OEM$\\$$\\Setup\\Scripts\\' : 'Files\\') + f.target + ' kopiert werden.');
@@ -1387,7 +1850,8 @@ Write-Host ''
     const logonMods = moduleList(st, 'firstlogon').map((m) => m[0]);
     const all = new Set(setupMods.concat(logonMods));
 
-    if (all.has('Set-Tweaks.ps1')) add(inst + '/Modules/Set-Tweaks.ps1', tweaksModule(st));
+    if (all.has('Set-Tweaks.ps1')) add(inst + '/Modules/Set-Tweaks.ps1', tweaksModule(st, 'main'));
+    if (all.has('Set-Tweaks-Spaet.ps1')) add(inst + '/Modules/Set-Tweaks-Spaet.ps1', tweaksModule(st, 'late'));
     if (all.has('Remove-Bloatware.ps1')) add(inst + '/Modules/Remove-Bloatware.ps1', bloatModule(st));
     if (all.has('Install-Office.ps1')) add(inst + '/Modules/Install-Office.ps1', officeModule(st));
     if (all.has('Install-Apps.ps1')) add(inst + '/Modules/Install-Apps.ps1', appsModule(st));
@@ -1396,7 +1860,16 @@ Write-Host ''
     if (all.has('Invoke-Custom.ps1')) add(inst + '/Modules/Invoke-Custom.ps1', customModule(st));
 
     if (st.office.enabled) {
-      add(inst + '/Office/Configuration.xml', toCRLF(st.office.xml.trim() + '\n'));
+      const useLocal = st.office.source === 'local';
+      const officeXml = useLocal
+        ? withSourcePath(st.office.xml.trim(), officeLocalPath(st))
+        : st.office.xml.trim();
+      add(inst + '/Office/Configuration.xml', toCRLF(officeXml + '\n'));
+      if (useLocal) {
+        const folder = (st.office.localFolder || 'Quelle').replace(/^[\\/]+|[\\/]+$/g, '');
+        add(inst + '/Office/' + folder + '/HIER-OFFICE-QUELLE-ABLEGEN.txt', officeSourceReadme(st));
+        add(inst + '/Office/Download-Quelle.ps1', officeDownloadScript(st));
+      }
       if (st.office.setupSource === 'bundled') {
         add(inst + '/Office/HIER-setup.exe-ABLEGEN.txt', toCRLF([
           'Das Office Deployment Tool (setup.exe) muss in diesem Ordner liegen.',
@@ -1432,5 +1905,5 @@ Write-Host ''
     return files;
   }
 
-  global.Templates = { build, relFromRoot, moduleList };
+  global.Templates = { build, relFromRoot, moduleList, hasLateTweaks };
 })(window);
