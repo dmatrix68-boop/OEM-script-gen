@@ -41,7 +41,7 @@
     return banner('Gemeinsame Funktionen fuer alle Installationsschritte.', st.meta.name) + toCRLF(`
 $Global:OemRoot = Split-Path -Parent $PSScriptRoot
 $Global:OemLogDir = Join-Path $Global:OemRoot 'Logs'
-$script:LogFile = Join-Path $Global:OemLogDir 'oem-setup.log'
+$Global:OemLogFile = Join-Path $Global:OemLogDir 'oem-setup.log'
 $script:MountedHives = @()
 $script:UserRegRoots = $null
 
@@ -50,7 +50,7 @@ function Initialize-OemLog {
     if (-not (Test-Path -LiteralPath $Global:OemLogDir)) {
         New-Item -Path $Global:OemLogDir -ItemType Directory -Force | Out-Null
     }
-    $script:LogFile = Join-Path $Global:OemLogDir ($Name + '.log')
+    $Global:OemLogFile = Join-Path $Global:OemLogDir ($Name + '.log')
 }
 
 function Write-Log {
@@ -66,7 +66,12 @@ function Write-Log {
         'Debug' { Write-Verbose $line }
         default { Write-Host $line }
     }
-    try { Add-Content -LiteralPath $script:LogFile -Value $line -Encoding UTF8 -ErrorAction Stop } catch { }
+    <#  Global, nicht $script: - eine ueber mehrere Skript-Scopes dot-gesourcte
+        Funktion sieht sonst je nach Aufrufweg eine leere Variable. #>
+    if (-not $Global:OemLogFile) {
+        $Global:OemLogFile = Join-Path $Global:OemLogDir 'oem-setup.log'
+    }
+    try { Add-Content -LiteralPath $Global:OemLogFile -Value $line -Encoding UTF8 -ErrorAction Stop } catch { }
 }
 
 function Test-OemAdmin {
@@ -249,19 +254,48 @@ function Wait-OemNetwork {
     return $false
 }
 
-function Resolve-Winget {
-    $cmd = Get-Command winget.exe -ErrorAction SilentlyContinue
-    if ($cmd) { return $cmd.Source }
+<#  Prueft, ob diese winget.exe wirklich startet. Der direkte Aufruf aus
+    Program Files\WindowsApps bricht mit 0xC0000135 (-1073741515) ab, weil die
+    MSIX-Abhaengigkeiten nur ueber den App-Execution-Alias aufgeloest werden.
+    Ohne diese Pruefung scheitert anschliessend jedes einzelne Paket. #>
+function Test-WingetUsable {
+    param([Parameter(Mandatory)][string]$Path)
+    try {
+        $null = & $Path --version 2>&1
+        return ($LASTEXITCODE -eq 0)
+    } catch {
+        return $false
+    }
+}
 
-    # Unter SYSTEM steht winget nicht im PATH - direkt in WindowsApps suchen.
+function Resolve-Winget {
+    $candidates = @()
+
+    $cmd = Get-Command winget.exe -ErrorAction SilentlyContinue
+    if ($cmd) { $candidates += $cmd.Source }
+
+    # Unter SYSTEM steht der Alias nicht im PATH - direkt in WindowsApps suchen.
     $base = Join-Path $env:ProgramFiles 'WindowsApps'
     $dirs = Get-ChildItem -Path $base -Directory -Filter 'Microsoft.DesktopAppInstaller_*_x64__8wekyb3d8bbwe' -ErrorAction SilentlyContinue
     if (-not $dirs) {
         $dirs = Get-ChildItem -Path $base -Directory -Filter 'Microsoft.DesktopAppInstaller_*' -ErrorAction SilentlyContinue
     }
-    $best = $dirs | Sort-Object -Property Name -Descending | ForEach-Object { Join-Path $_.FullName 'winget.exe' } |
-            Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
-    return $best
+    $candidates += $dirs | Sort-Object -Property Name -Descending |
+        ForEach-Object { Join-Path $_.FullName 'winget.exe' } |
+        Where-Object { Test-Path -LiteralPath $_ }
+
+    foreach ($candidate in ($candidates | Select-Object -Unique)) {
+        if (Test-WingetUsable -Path $candidate) { return $candidate }
+        Write-Log ('winget unter ' + $candidate + ' ist nicht lauffaehig.') -Level Warn
+    }
+
+    if ($candidates.Count -gt 0 -and (Test-OemSystem)) {
+        Write-Log 'winget wurde gefunden, laesst sich als SYSTEM aber nicht starten.' -Level Error
+        Write-Log 'Der App-Execution-Alias existiert nur je Benutzer. Phase 2 muss dafuer im' -Level Error
+        Write-Log 'Benutzerkontext laufen: Einstellung "Phase 2 wird gestartet ueber" auf RunOnce' -Level Error
+        Write-Log 'stellen oder die autounattend.xml als Ausloeser verwenden (FirstLogonCommands).' -Level Error
+    }
+    return $null
 }
 
 function Install-WingetBootstrap {
@@ -285,6 +319,74 @@ function Install-WingetBootstrap {
     }
     Start-Sleep -Seconds 5
     return (Resolve-Winget)
+}
+
+<#  Serialisierung ueber Kontextgrenzen hinweg.
+    Der Mutex allein genuegt nicht: erstellt ihn SYSTEM mit Standardrechten,
+    bekommt ein Lauf im Benutzerkontext beim Oeffnen "Zugriff verweigert" und
+    liefe ungebremst parallel weiter. Deshalb zusaetzlich eine Markierung in der
+    Registry, die jeder Kontext lesen kann, mit Prozesskennung gegen Leichen. #>
+function New-OemMutex {
+    param([Parameter(Mandatory)][string]$Name)
+    try {
+        $createdNew = $false
+        $security = New-Object System.Security.AccessControl.MutexSecurity
+        $everyone = New-Object System.Security.Principal.SecurityIdentifier(
+            [System.Security.Principal.WellKnownSidType]::WorldSid, $null)
+        $rule = New-Object System.Security.AccessControl.MutexAccessRule(
+            $everyone,
+            [System.Security.AccessControl.MutexRights]::FullControl,
+            [System.Security.AccessControl.AccessControlType]::Allow)
+        $security.AddAccessRule($rule)
+        return (New-Object System.Threading.Mutex($false, $Name, [ref]$createdNew, $security))
+    } catch {
+        try { return (New-Object System.Threading.Mutex($false, $Name)) } catch { return $null }
+    }
+}
+
+function Test-OemRunActive {
+    param([Parameter(Mandatory)][string]$Key, [Parameter(Mandatory)][string]$Name)
+    $val = $null
+    try { $val = (Get-ItemProperty -Path $Key -Name $Name -ErrorAction Stop).$Name } catch { return $false }
+    if (-not $val) { return $false }
+    $otherPid = 0
+    if (-not [int]::TryParse(($val -split '\|')[0], [ref]$otherPid)) { return $false }
+    if ($otherPid -eq $PID) { return $false }
+    return [bool](Get-Process -Id $otherPid -ErrorAction SilentlyContinue)
+}
+
+function Wait-OemOtherRun {
+    param(
+        [Parameter(Mandatory)][string]$Key,
+        [Parameter(Mandatory)][string]$Name,
+        [int]$TimeoutMinutes = 120
+    )
+    if (-not (Test-OemRunActive -Key $Key -Name $Name)) { return $true }
+    Write-Log 'Ein anderer Lauf dieser Phase ist aktiv - warte auf dessen Ende.' -Level Warn
+    $sw = [Diagnostics.Stopwatch]::StartNew()
+    while ($sw.Elapsed.TotalMinutes -lt $TimeoutMinutes) {
+        Start-Sleep -Seconds 10
+        if (-not (Test-OemRunActive -Key $Key -Name $Name)) {
+            Write-Log ('Anderer Lauf beendet nach {0:n0} s.' -f $sw.Elapsed.TotalSeconds)
+            return $true
+        }
+    }
+    Write-Log 'Anderer Lauf haelt die Phase laenger als erlaubt belegt.' -Level Error
+    return $false
+}
+
+function Set-OemRunning {
+    param([Parameter(Mandatory)][string]$Key, [Parameter(Mandatory)][string]$Name)
+    try {
+        if (-not (Test-Path -LiteralPath $Key)) { New-Item -Path $Key -Force | Out-Null }
+        $stamp = '{0}|{1}' -f $PID, (Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
+        New-ItemProperty -Path $Key -Name $Name -PropertyType String -Force -Value $stamp | Out-Null
+    } catch { Write-Log ('Laufmarkierung nicht gesetzt: ' + $_.Exception.Message) -Level Warn }
+}
+
+function Clear-OemRunning {
+    param([Parameter(Mandatory)][string]$Key, [Parameter(Mandatory)][string]$Name)
+    try { Remove-ItemProperty -Path $Key -Name $Name -ErrorAction SilentlyContinue } catch { }
 }
 
 function Invoke-OemProcess {
@@ -432,18 +534,28 @@ Write-Log ('==================================================================')
 $markerKey = 'HKLM:\\SOFTWARE\\OEM-Setup'
 $markerName = 'Phase_' + $Phase
 
+$runningName = $markerName + '_Running'
 $mutex = $null
 $hasLock = $false
 try {
-    $mutex = New-Object System.Threading.Mutex($false, 'Global\\OEM-Setup-Install')
-    Write-Log 'Warte auf exklusiven Zugriff ...' -Level Debug
-    $hasLock = $mutex.WaitOne([TimeSpan]::FromMinutes(120))
-    if (-not $hasLock) { Write-Log 'Zeitueberschreitung beim Warten auf einen parallelen Lauf.' -Level Warn }
+    $mutex = New-OemMutex -Name 'Global\\OEM-Setup-Install'
+    if ($mutex) {
+        Write-Log 'Warte auf exklusiven Zugriff ...' -Level Debug
+        $hasLock = $mutex.WaitOne([TimeSpan]::FromMinutes(120))
+        if (-not $hasLock) { Write-Log 'Zeitueberschreitung beim Warten auf einen parallelen Lauf.' -Level Warn }
+    }
 } catch [System.Threading.AbandonedMutexException] {
     $hasLock = $true
     Write-Log 'Vorheriger Lauf wurde abgebrochen - uebernehme die Sperre.' -Level Warn
 } catch {
     Write-Log ('Sperre nicht verfuegbar: ' + $_.Exception.Message) -Level Warn
+}
+
+<#  Zweite Absicherung, falls der Mutex ueber die Kontextgrenze hinweg nicht
+    greift: die Laufmarkierung ist fuer SYSTEM und Benutzer gleichermassen lesbar. #>
+if (-not (Wait-OemOtherRun -Key $markerKey -Name $runningName)) {
+    if ($hasLock -and $mutex) { $mutex.ReleaseMutex() }
+    exit 0
 }
 
 if ($Phase -ne 'Manual' -and -not $Force) {
@@ -455,6 +567,8 @@ if ($Phase -ne 'Manual' -and -not $Force) {
         exit 0
     }
 }
+
+Set-OemRunning -Key $markerKey -Name $runningName
 
 $setupSteps = @(
 ${fmt(setupMods)}
@@ -487,6 +601,8 @@ foreach ($r in $results) {
     Write-Log ('{0,-32} {1}' -f $r.Modul, $(if ($r.Erfolg) { 'OK' } else { 'FEHLER' }))
 }
 
+Clear-OemRunning -Key $markerKey -Name $runningName
+
 try {
     if (-not (Test-Path -LiteralPath $markerKey)) { New-Item -Path $markerKey -Force | Out-Null }
     $stamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
@@ -497,14 +613,21 @@ try {
 }
 `);
 
-    if (needPhase2) {
+    /* Deckt die autounattend.xml Phase 2 bereits ueber FirstLogonCommands ab, waere
+       eine gleichzeitig startende Aufgabe ein zweiter paralleler Lauf. Bei 'both'
+       bleibt sie als verzoegerter Rueckfall, bei 'unattend' entfaellt sie ganz. */
+    const unattendRunsPhase2 = st.options.trigger !== 'setupcomplete';
+    if (needPhase2 && st.options.trigger !== 'unattend') {
       const args = '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + root + '\\Install.ps1" -Phase FirstLogon';
+      const delay = unattendRunsPhase2
+        ? NL + '        $trigger.Delay = \'PT15M\'   # Rueckfall: erst, wenn die Antwortdatei Phase 2 nicht gestartet hat'
+        : '';
       if (st.options.phase2Runner === 'task') {
         s += toCRLF(`
 if ($Phase -eq 'Setup') {
     Invoke-Step -Name 'Phase 2 einplanen (geplante Aufgabe)' -Body {
         $action    = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument ${psq(args)}
-        $trigger   = New-ScheduledTaskTrigger -AtLogOn
+        $trigger   = New-ScheduledTaskTrigger -AtLogOn${delay}
         $principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
         $settings  = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Hours 3)
         Register-ScheduledTask -TaskName ${psq(taskName)} -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Force | Out-Null

@@ -67,6 +67,15 @@ Mehrfachausführung ist unschädlich: `Install.ps1` vermerkt jede abgeschlossene
 Phase unter `HKLM\SOFTWARE\OEM-Setup` und überspringt sie beim nächsten Aufruf;
 `-Force` erzwingt die Wiederholung.
 
+Gleichzeitige Läufe werden doppelt abgesichert. Ein benannter Mutex allein
+genügt nicht: Legt ihn SYSTEM mit Standardrechten an, scheitert ein Lauf im
+Benutzerkontext beim Öffnen an „Zugriff verweigert" und liefe ungebremst
+parallel. Der Mutex wird deshalb mit einer Zugriffsregel für alle erstellt, und
+zusätzlich hält `Install.ps1` eine Laufmarkierung mit Prozesskennung in der
+Registry, die jeder Kontext lesen kann. Deckt die autounattend.xml Phase 2 schon
+über `FirstLogonCommands` ab, startet die geplante Aufgabe erst 15 Minuten
+verzögert — als Rückfall, nicht als zweiter gleichzeitiger Lauf.
+
 ### Warum manche Tweaks erst in Phase 2 laufen
 
 Im `specialize`-Pass ist der Netzwerkstack noch nicht initialisiert. Cmdlets wie
@@ -102,6 +111,21 @@ Bei `UseConfigurationSet=true` sucht Setup den Konfigurationssatz **neben der
 Antwortdatei**. Der Generator erkennt das beim Import und stellt die Ablage auf
 „beide Orte“ – Setup wertet nur den passenden aus, der andere Ordner wird
 ignoriert. Das ist die Voreinstellung.
+
+### winget braucht einen Benutzerkontext
+
+`winget.exe` ist Teil eines MSIX-Pakets. Erreichbar ist es über den
+App-Execution-Alias unter `%LOCALAPPDATA%\Microsoft\WindowsApps\winget.exe` —
+und den gibt es **nur je Benutzer**. Ruft man die Datei stattdessen direkt aus
+`C:\Program Files\WindowsApps\…` auf, wie es unter SYSTEM naheliegt, bricht sie
+mit `0xC0000135` (`-1073741515`, DLL nicht gefunden) ab, weil die
+MSIX-Abhängigkeiten nicht aufgelöst werden.
+
+Gemessen an einem Durchlauf mit 33 Paketen: als SYSTEM 3 erfolgreich, im
+Benutzerkontext 33. Für Anwendungen muss Phase 2 deshalb im Benutzerkontext
+laufen — über `FirstLogonCommands` der autounattend.xml oder über `RunOnce`.
+`Resolve-Winget` prüft jeden Kandidaten vorab mit `--version` und bricht mit
+einer erklärenden Meldung ab, statt jedes Paket einzeln scheitern zu lassen.
 
 Hintergrund zu den Phasen: In Phase 1 ist `winget` nur eingeschränkt nutzbar – der App Installer ist
 ein MSIX-Paket, das unter SYSTEM nicht im Suchpfad liegt (der Generator löst den Pfad

@@ -620,9 +620,22 @@
       $('#officeSetupPath').textContent = '$OEM$\\$1\\' + rel + '\\Office\\setup.exe';
       $('#filesTargetPath').textContent = state.paths.installRoot.replace(/\\+$/, '') + '\\Files';
       $('#setKeepInstallLabel').textContent = state.paths.installRoot.replace(/\\+$/, '');
-      $('#appsPhaseHint').textContent = state.apps.phase === 'setup'
-        ? 'Achtung: In Phase 1 läuft winget als SYSTEM, bevor ein Benutzerprofil existiert. Pakete, die nur benutzerbezogen installieren, schlagen dort häufig fehl.'
-        : 'Empfohlen: Netzwerk und App Installer sind bei der ersten Anmeldung zuverlässig verfügbar.';
+      const wingetApps = state.apps.enabled && state.apps.items.some((p) => p.enabled && p.manager === 'winget');
+      const systemContext = state.apps.phase === 'setup' ||
+        (state.options.trigger === 'setupcomplete' && state.options.phase2Runner === 'task');
+      let hint;
+      if (wingetApps && systemContext) {
+        hint = 'Achtung: winget läuft hier als SYSTEM. Der App-Execution-Alias existiert nur je Benutzer, ' +
+          'und der direkte Aufruf aus WindowsApps bricht mit 0xC0000135 ab – in diesem Kontext schlägt ' +
+          'jedes Paket fehl. Phase 2 über die autounattend.xml (FirstLogonCommands) oder RunOnce starten, ' +
+          'damit die Installation im Benutzerkontext läuft.';
+      } else if (state.apps.phase === 'setup') {
+        hint = 'In Phase 1 existiert noch kein Benutzerprofil; Pakete, die nur benutzerbezogen installieren, schlagen dort fehl.';
+      } else {
+        hint = 'Empfohlen: Netzwerk und App Installer sind bei der ersten Anmeldung zuverlässig verfügbar.';
+      }
+      $('#appsPhaseHint').textContent = hint;
+      $('#appsPhaseHint').style.color = (wingetApps && systemContext) ? 'var(--warn)' : '';
       const refs = [];
       const re = /%~dp0"?([A-Za-z0-9_.\\-]+)/g;
       let m;
