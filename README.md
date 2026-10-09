@@ -90,10 +90,12 @@ Fehler, nicht das Blockieren.
 Dieselbe Verschiebung gilt für Einstellungen, die ein angelegtes Benutzerkonto
 brauchen — etwa „Anzeigename des Benutzerkontos berichtigen". Windows zeigt in
 den Kontoeinstellungen den vollständigen Namen (`FullName`) und nur ersatzweise
-den Kontonamen; bleibt bei der Kontoanlage in OOBE ein Platzhalter wie `USER`
-stehen, sieht man diesen statt des eigenen Namens. Der Tweak setzt `FullName`
-auf den Kontonamen, aber nur dort, wo wirklich ein Platzhalter steht —
-selbstvergebene Namen und Systemkonten bleiben unangetastet.
+den Kontonamen; kurz nach einer Installation steht dort mitunter ein Platzhalter
+wie `USER`. **In aller Regel zieht Windows den richtigen Namen von selbst nach**,
+der Tweak ist also kein Standardfall — er ist für Installationen gedacht, bei
+denen der Platzhalter stehen bleibt. Er setzt `FullName` auf den Kontonamen, und
+auch das nur dort, wo wirklich ein Platzhalter steht: selbstvergebene Namen,
+deaktivierte Konten und Systemkonten bleiben unangetastet.
 
 Betroffene Einträge sind im Katalog mit `deferPs` markiert (`deferReason`
 unterscheidet Netzwerk- von Konto-Abhängigkeit). Steht das Tweak-Modul

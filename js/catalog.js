@@ -126,7 +126,7 @@
         { scope: 'machine', path: 'SOFTWARE\\Policies\\Microsoft\\Edge', name: 'StartupBoostEnabled', type: 'DWord', value: 0 },
         { scope: 'machine', path: 'SOFTWARE\\Policies\\Microsoft\\Edge', name: 'PersonalizationReportingEnabled', type: 'DWord', value: 0 }] },
     { id: 'fixDisplayName', cat: 'System', label: 'Anzeigename des Benutzerkontos berichtigen',
-      desc: 'Setzt den vollständigen Namen auf den Kontonamen, wenn dort ein Platzhalter wie „USER“ steht',
+      desc: 'Setzt den vollständigen Namen auf den Kontonamen, wenn dort ein Platzhalter wie „USER“ steht. Windows holt das meist von selbst nach – nur für Fälle, in denen der Platzhalter bleibt.',
       deferPs: true, deferReason: 'account', timeout: 60,
       ps: [
         '$platzhalter = @(\'\', \'USER\', \'User\', \'user\', \'Benutzer\', \'Admin\', \'Owner\')',
