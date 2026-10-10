@@ -1811,6 +1811,142 @@ Write-Host ''
     return toCRLF(lines.join('\n'));
   }
 
+
+  /* ---------- README (englische Fassung) ---------- */
+
+  /* Modultitel aus moduleList() fuer die englische Fassung. */
+  const MODULE_TITLES_EN = {
+    'System-Tweaks': 'System tweaks',
+    'Tweaks mit Netzwerkbedarf': 'Tweaks that require the network',
+    'Bloatware entfernen': 'Remove bloatware',
+    'Microsoft Office (ODT)': 'Microsoft Office (ODT)',
+    'Anwendungen': 'Applications',
+    'Eigene Installer': 'Custom installers',
+    'Eigene PowerShell-Befehle': 'Custom PowerShell commands'
+  };
+
+  function readmeEn(st, files) {
+    const zipRoot = st.paths.zipRoot === 'oem' ? '$OEM$'
+      : st.paths.zipRoot === 'both' ? 'sources\\$OEM$ AND $OEM$' : 'sources\\$OEM$';
+    const modEn = (m) => MODULE_TITLES_EN[m] || m;
+    const setupMods = moduleList(st, 'setup').map((m) => modEn(m[1]));
+    const logonMods = moduleList(st, 'firstlogon').map((m) => modEn(m[1]));
+    const lines = [
+      '===================================================================',
+      ' OEM Script Generator - project: ' + st.meta.name,
+      ' Created on ' + new Date().toLocaleString('en-GB'),
+      '===================================================================',
+      '',
+      'HOW TO USE',
+      '----------',
+      '1. Extract the Windows 11 ISO or create a USB stick with the installation media.',
+      (st.options.trigger !== 'setupcomplete'
+        ? '2. Copy autounattend.xml from this archive into the ROOT DIRECTORY of the media\n' +
+          '   (next to sources\\ and boot\\). If an autounattend.xml already exists there,\n' +
+          '   merge the blocks from autounattend-Einfuegen.txt into that existing file.\n' +
+          '2b. Copy the folder "' + zipRoot + '" into the root directory of the'
+        : '2. Copy the folder "' + zipRoot + '" from this archive into the root directory of the'),
+      '   media as well, so that the following path exists:',
+      '      <media>\\sources\\$OEM$\\$$\\Setup\\Scripts\\SetupComplete.cmd',
+      '      <media>\\sources\\$OEM$\\$1\\' + relFromRoot(st.paths.installRoot) + '\\Install.ps1',
+      '3. Add the missing binaries (see section "STILL TO BE ADDED").',
+      '4. Start the installation as usual. Windows copies $1 to ' +
+      st.paths.installRoot.replace(/\\+$/, '') + ' and $$ to %WINDIR%.',
+      '',
+      'WHERE DOES $OEM$ BELONG?',
+      '------------------------',
+      'That depends on the answer file:',
+      '',
+      ' * without autounattend.xml, or with UseConfigurationSet = false:',
+      '     <media>\\sources\\$OEM$\\...',
+      ' * with <UseConfigurationSet>true</UseConfigurationSet> in autounattend.xml:',
+      '     Setup looks for the configuration set NEXT TO the answer file, i.e.',
+      '     <media>\\$OEM$\\...   (root directory, not sources\\)',
+      '',
+      'Populating both locations is the safe bet - Setup only evaluates the matching',
+      'one and ignores the other folder. That is exactly what the generator offers as',
+      'the ZIP root setting "both locations".',
+      '',
+      'Either way: $OEM$ is only evaluated when the installation is started from this',
+      'medium.',
+      '',
+      'TRIGGER',
+      '-------',
+      (st.options.trigger === 'setupcomplete'
+        ? 'SetupComplete.cmd only.'
+        : st.options.trigger === 'unattend'
+          ? 'autounattend.xml only (specialize and FirstLogonCommands).'
+          : 'SetupComplete.cmd AND autounattend.xml - belt and braces.'),
+      '',
+      'Important: Windows Setup does NOT run SetupComplete.cmd when the installation',
+      'uses a product key from the OEM channel - for instance the key stored in the',
+      'BIOS/UEFI of a branded device. This affects the client editions (Home, Pro);',
+      'Enterprise and Windows Server are exempt. On such devices only autounattend.xml',
+      'runs reliably.',
+      '',
+      'Running more than once does no harm: Install.ps1 records every completed phase',
+      'under HKLM\\SOFTWARE\\OEM-Setup and skips it on the next call. Use -Force to run',
+      'a phase again.',
+      '',
+      'SEQUENCE',
+      '--------',
+      'Phase 1 (' + (st.options.trigger === 'unattend' ? 'autounattend.xml, specialize pass' : 'SetupComplete.cmd') + ', SYSTEM context, before the first logon):',
+      setupMods.length ? setupMods.map((m) => '   - ' + m).join('\n') : '   - no modules',
+      '',
+      'Phase 2 (' + (st.options.phase2Runner === 'task' ? 'scheduled task as SYSTEM' : 'RunOnce in the user context') + ', after the first logon):',
+      logonMods.length ? logonMods.map((m) => '   - ' + m).join('\n') : '   - no modules',
+      '',
+      'Logs: ' + st.paths.installRoot.replace(/\\+$/, '') + '\\Logs',
+      '',
+      'TROUBLESHOOTING',
+      '---------------',
+      'On the installed system, in an elevated PowerShell:',
+      '   powershell -ExecutionPolicy Bypass -File ' + st.paths.installRoot + '\\Diagnose.ps1',
+      'The script checks the files, the execution state and the scheduled task, and',
+      'evaluates the Windows Setup logs - including the question of whether Setup',
+      'refused to run SetupComplete.cmd because of the OEM licence channel.',
+      '',
+      'MANUAL TEST',
+      '-----------',
+      'On a test system, in an elevated PowerShell:',
+      '   powershell -ExecutionPolicy Bypass -File ' + st.paths.installRoot + '\\Install.ps1 -Phase Manual',
+      'A single module:',
+      '   powershell -ExecutionPolicy Bypass -File ' + st.paths.installRoot + '\\Install.ps1 -Phase Manual -Only Set-Tweaks.ps1',
+      'Repeat a phase that already ran:  ... -Phase Setup -Force',
+      '',
+      'STILL TO BE ADDED',
+      '-----------------'
+    ];
+
+    const todo = [];
+    if (st.office.enabled && st.office.setupSource === 'bundled') {
+      todo.push('Copy setup.exe of the Office Deployment Tool to ' + zipRoot + '\\$1\\' +
+        relFromRoot(st.paths.installRoot) + '\\Office\\setup.exe.');
+    }
+    if (st.office.enabled && st.office.source === 'local') {
+      const folder = (st.office.localFolder || 'Quelle').replace(/^[\\/]+|[\\/]+$/g, '');
+      todo.push('Create the Office installation source and copy it to Office\\' + folder +
+        '\\ - run Office\\Download-Quelle.ps1 on the staging machine to do so ' +
+        '(several gigabytes). Without it the installation falls back to the online source.');
+    }
+    st.files.items.filter((f) => f.enabled && !f.blobPresent).forEach((f) => {
+      todo.push('File "' + f.name + '" is missing from the archive and has to be copied to ' +
+        (f.dest === 'scripts' ? '$OEM$\\$$\\Setup\\Scripts\\' : 'Files\\') + f.target + ' by hand.');
+    });
+    if (!todo.length) todo.push('Nothing - the archive is complete.');
+    lines.push(todo.map((t) => ' * ' + t).join('\n'));
+
+    lines.push('', 'FILES INCLUDED', '--------------');
+    files.forEach((f) => lines.push(' ' + f.path));
+    lines.push('');
+    return toCRLF(lines.join('\n'));
+  }
+
+  /* Sprache der Oberflaeche; ohne i18n-Modul bleibt es deutsch. */
+  function uiLang() {
+    return (global.I18n && global.I18n.lang === 'en') ? 'en' : 'de';
+  }
+
   /* ---------- Gesamtaufbau ---------- */
 
   function build(st) {
@@ -1901,7 +2037,12 @@ Write-Host ''
       });
     }
 
-    files.push({ path: 'LIESMICH.txt', data: readme(st, files.slice()), binary: false });
+    const en = uiLang() === 'en';
+    files.push({
+      path: en ? 'README.txt' : 'LIESMICH.txt',
+      data: en ? readmeEn(st, files.slice()) : readme(st, files.slice()),
+      binary: false
+    });
     return files;
   }
 

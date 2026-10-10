@@ -10,34 +10,35 @@
 
 <header class="topbar">
   <div class="brand">
-    <span class="logo">$OEM$</span>
+    <span class="logo" data-i18n="oem">$OEM$</span>
     <div>
-      <h1>OEM Script Generator</h1>
-      <p class="sub">Installationsskripte für den <code>$OEM$</code>-Ordner auf dem Windows-11-Installationsmedium</p>
+      <h1 data-i18n="oem-script-generator">OEM Script Generator</h1>
+      <p class="sub" data-i18n="installationsskripte-fuer-den-oem-ordner">Installationsskripte für den <code>$OEM$</code>-Ordner auf dem Windows-11-Installationsmedium</p>
     </div>
   </div>
   <div class="topbar-actions">
-    <input type="text" id="projectName" class="project-name" placeholder="Projektname" value="MusterPC">
-    <button class="btn" id="btnLoadProject" title="Projektdatei (.oemproj.json) laden">Projekt laden</button>
-    <button class="btn" id="btnSaveProject" title="Projektdatei speichern">Projekt speichern</button>
-    <button class="btn primary" id="btnExport" title="Komplette OEM-Struktur als ZIP herunterladen">ZIP erzeugen</button>
+    <input type="text" id="projectName" class="project-name" data-i18n-ph="projektname" placeholder="Projektname" value="MusterPC">
+    <button class="btn" id="btnLoadProject" data-i18n-title="projektdatei-oemproj-json-laden" title="Projektdatei (.oemproj.json) laden" data-i18n="projekt-laden">Projekt laden</button>
+    <button class="btn" id="btnSaveProject" data-i18n-title="projektdatei-speichern" title="Projektdatei speichern" data-i18n="projekt-speichern">Projekt speichern</button>
+    <button class="btn primary" id="btnExport" data-i18n-title="komplette-oem-struktur-als-zip" title="Komplette OEM-Struktur als ZIP herunterladen" data-i18n="zip-erzeugen">ZIP erzeugen</button>
+    <div class="langswitch" role="group" aria-label="Sprache / Language"><button class="lang" id="langDe" data-lang="de" title="Deutsch">DE</button><button class="lang" id="langEn" data-lang="en" title="English">EN</button></div>
   </div>
 </header>
 
 <div class="layout">
   <nav class="sidebar">
-    <button class="nav-item active" data-view="overview"><span class="ico">▦</span>Übersicht</button>
-    <button class="nav-item" data-view="import"><span class="ico">↧</span>Import</button>
-    <button class="nav-item" data-view="apps"><span class="ico">▣</span>Anwendungen<span class="badge" id="badgeApps">0</span></button>
-    <button class="nav-item" data-view="office"><span class="ico">◫</span>Office / ODT</button>
-    <button class="nav-item" data-view="tweaks"><span class="ico">⚙</span>Tweaks<span class="badge" id="badgeTweaks">0</span></button>
-    <button class="nav-item" data-view="bloat"><span class="ico">✂</span>Bloatware<span class="badge" id="badgeBloat">0</span></button>
-    <button class="nav-item" data-view="files"><span class="ico">🗀</span>Eigene Dateien<span class="badge" id="badgeFiles">0</span></button>
-    <button class="nav-item" data-view="custom"><span class="ico">›_</span>Eigene Befehle</button>
-    <button class="nav-item" data-view="settings"><span class="ico">⚒</span>Einstellungen</button>
-    <button class="nav-item" data-view="preview"><span class="ico">◲</span>Vorschau</button>
+    <button class="nav-item active" data-view="overview" data-i18n="uebersicht"><span class="ico">▦</span>Übersicht</button>
+    <button class="nav-item" data-view="import" data-i18n="import"><span class="ico">↧</span>Import</button>
+    <button class="nav-item" data-view="apps" data-i18n="anwendungen0"><span class="ico">▣</span>Anwendungen<span class="badge" id="badgeApps">0</span></button>
+    <button class="nav-item" data-view="office" data-i18n="office-odt"><span class="ico">◫</span>Office / ODT</button>
+    <button class="nav-item" data-view="tweaks" data-i18n="tweaks0"><span class="ico">⚙</span>Tweaks<span class="badge" id="badgeTweaks">0</span></button>
+    <button class="nav-item" data-view="bloat" data-i18n="bloatware0"><span class="ico">✂</span>Bloatware<span class="badge" id="badgeBloat">0</span></button>
+    <button class="nav-item" data-view="files" data-i18n="eigene-dateien0"><span class="ico">🗀</span>Eigene Dateien<span class="badge" id="badgeFiles">0</span></button>
+    <button class="nav-item" data-view="custom" data-i18n="eigene-befehle"><span class="ico">›_</span>Eigene Befehle</button>
+    <button class="nav-item" data-view="settings" data-i18n="einstellungen"><span class="ico">⚒</span>Einstellungen</button>
+    <button class="nav-item" data-view="preview" data-i18n="vorschau"><span class="ico">◲</span>Vorschau</button>
     <div class="sidebar-foot">
-      <div id="dropHint" class="drop-hint">Dateien irgendwo ablegen zum Importieren<br><small>.ubundle · .cmd · .ps1 · .xml · .json</small></div>
+      <div id="dropHint" class="drop-hint" data-i18n="dateien-irgendwo-ablegen-zum-importieren">Dateien irgendwo ablegen zum Importieren<br><small>.ubundle · .cmd · .ps1 · .xml · .json</small></div>
     </div>
   </nav>
 
@@ -45,112 +46,112 @@
 
     <!-- ÜBERSICHT -->
     <section class="view active" id="view-overview">
-      <h2>Übersicht</h2>
-      <p class="lead">Dieser Generator erzeugt eine fertige <code>$OEM$</code>-Ordnerstruktur, die auf dem Windows-11-Installationsmedium
+      <h2 data-i18n="uebersicht-2">Übersicht</h2>
+      <p class="lead" data-i18n="dieser-generator-erzeugt-eine-fertige">Dieser Generator erzeugt eine fertige <code>$OEM$</code>-Ordnerstruktur, die auf dem Windows-11-Installationsmedium
       nach <code>sources\$OEM$</code> kopiert wird. Windows Setup übernimmt den Inhalt automatisch auf die Zielplatte;
       <code>SetupComplete.cmd</code> wird am Ende des Setups als <b>SYSTEM</b> ausgeführt und startet die Installationskette.</p>
 
       <div class="cards" id="overviewCards"></div>
 
       <div class="panel">
-        <h3>Ablaufkette</h3>
+        <h3 data-i18n="ablaufkette">Ablaufkette</h3>
         <ol class="flow" id="flowList"></ol>
       </div>
 
       <div class="panel">
-        <h3>Zielstruktur auf dem Medium</h3>
+        <h3 data-i18n="zielstruktur-auf-dem-medium">Zielstruktur auf dem Medium</h3>
         <pre class="tree" id="overviewTree"></pre>
       </div>
     </section>
 
     <!-- IMPORT -->
     <section class="view" id="view-import">
-      <h2>Import</h2>
-      <p class="lead">Bestehende Skripte und Paketlisten einlesen. Erkannt werden UniGetUI-Bundles, winget-Exporte,
+      <h2 data-i18n="import-2">Import</h2>
+      <p class="lead" data-i18n="bestehende-skripte-und-paketlisten-einlesen">Bestehende Skripte und Paketlisten einlesen. Erkannt werden UniGetUI-Bundles, winget-Exporte,
       <code>SetupComplete.cmd</code>, ODT-<code>Configuration.xml</code>, PowerShell-Skripte und gespeicherte Projekte.</p>
 
       <div class="dropzone" id="dropzone">
         <div class="dz-inner">
           <div class="dz-ico">↧</div>
-          <div><b>Dateien hierher ziehen</b> oder <button class="btn small" id="btnPickFiles">auswählen</button></div>
-          <div class="dz-types">.ubundle · .json · .cmd/.bat · .ps1 · autounattend.xml · .exe/.msi</div>
+          <div><b>Dateien hierher ziehen</b> oder <button class="btn small" id="btnPickFiles" data-i18n="auswaehlen">auswählen</button></div>
+          <div class="dz-types" data-i18n="ubundle-json-cmd-bat-ps1">.ubundle · .json · .cmd/.bat · .ps1 · autounattend.xml · .exe/.msi</div>
         </div>
         <input type="file" id="fileInput" multiple hidden>
       </div>
 
       <div class="grid2">
         <div class="panel">
-          <h3>UniGetUI-Bundle importieren</h3>
-          <p class="hint">In UniGetUI: <i>Pakete-Bündel → Bündel exportieren</i>. Unterstützt werden JSON
+          <h3 data-i18n="unigetui-bundle-importieren">UniGetUI-Bundle importieren</h3>
+          <p class="hint" data-i18n="in-unigetui-pakete-buendel-buendel">In UniGetUI: <i>Pakete-Bündel → Bündel exportieren</i>. Unterstützt werden JSON
           (<code>.ubundle</code>/<code>.json</code>), XML und YAML sowie winget-<code>import</code>-Dateien.</p>
           <div class="row">
-            <button class="btn" id="btnPickBundle">Bundle-Datei wählen</button>
-            <label class="chk"><input type="checkbox" id="bundleReplace"> vorhandene Liste ersetzen</label>
+            <button class="btn" id="btnPickBundle" data-i18n="bundle-datei-waehlen">Bundle-Datei wählen</button>
+            <label class="chk"><input type="checkbox" id="bundleReplace"> <span data-i18n="vorhandene-liste-ersetzen">vorhandene Liste ersetzen</span></label>
           </div>
           <input type="file" id="bundleInput" accept=".ubundle,.json,.xml,.yaml,.yml" hidden>
           <details class="mt">
-            <summary>Bundle-Inhalt einfügen (Copy &amp; Paste)</summary>
+            <summary data-i18n="bundle-inhalt-einfuegen-copy-amp">Bundle-Inhalt einfügen (Copy &amp; Paste)</summary>
             <textarea id="bundlePaste" rows="6" placeholder='{ "export_version": 3, "packages": [ ... ] }'></textarea>
-            <button class="btn small mt" id="btnParsePaste">Einlesen</button>
+            <button class="btn small mt" id="btnParsePaste" data-i18n="einlesen">Einlesen</button>
           </details>
         </div>
 
         <div class="panel">
-          <h3>Importprotokoll</h3>
-          <ul class="log" id="importLog"><li class="muted">Noch nichts importiert.</li></ul>
-          <button class="btn small" id="btnClearLog">Protokoll leeren</button>
+          <h3 data-i18n="importprotokoll">Importprotokoll</h3>
+          <ul class="log" id="importLog"><li class="muted" data-i18n="noch-nichts-importiert">Noch nichts importiert.</li></ul>
+          <button class="btn small" id="btnClearLog" data-i18n="protokoll-leeren">Protokoll leeren</button>
         </div>
       </div>
     </section>
 
     <!-- ANWENDUNGEN -->
     <section class="view" id="view-apps">
-      <h2>Anwendungen</h2>
-      <label class="switch"><input type="checkbox" id="appsEnabled" checked><span></span>Modul aktiv</label>
+      <h2 data-i18n="anwendungen">Anwendungen</h2>
+      <label class="switch"><input type="checkbox" id="appsEnabled" checked><span></span><span data-i18n="modul-aktiv">Modul aktiv</span></label>
 
       <div class="panel">
         <div class="row wrap">
           <label class="field">
-            <span>Ausführungsphase</span>
+            <span><span data-i18n="ausfuehrungsphase">Ausführungsphase</span></span>
             <select id="appsPhase">
-              <option value="firstlogon">Phase 2 – nach erster Anmeldung (empfohlen)</option>
-              <option value="setup">Phase 1 – direkt in SetupComplete (SYSTEM)</option>
+              <option value="firstlogon"><span data-i18n="phase-2-nach-erster-anmeldung">Phase 2 – nach erster Anmeldung (empfohlen)</span></option>
+              <option value="setup"><span data-i18n="phase-1-direkt-in-setupcomplete">Phase 1 – direkt in SetupComplete (SYSTEM)</span></option>
             </select>
           </label>
           <label class="field">
-            <span>Installationsmethode</span>
+            <span><span data-i18n="installationsmethode">Installationsmethode</span></span>
             <select id="appsMethod">
-              <option value="individual">Einzelbefehle je Paket (robust, Fehler pro Paket)</option>
-              <option value="import">winget import (packages.json)</option>
+              <option value="individual"><span data-i18n="einzelbefehle-je-paket-robust-fehler">Einzelbefehle je Paket (robust, Fehler pro Paket)</span></option>
+              <option value="import"><span data-i18n="winget-import-packages-json">winget import (packages.json)</span></option>
             </select>
           </label>
           <label class="field">
-            <span>Wiederholversuche</span>
+            <span><span data-i18n="wiederholversuche">Wiederholversuche</span></span>
             <input type="number" id="appsRetries" min="0" max="5" value="2">
           </label>
           <label class="field">
-            <span>Zeitlimit je Paket (Minuten)</span>
+            <span><span data-i18n="zeitlimit-je-paket-minuten">Zeitlimit je Paket (Minuten)</span></span>
             <input type="number" id="appsPackageTimeout" min="1" max="120" value="15">
           </label>
         </div>
         <div class="row wrap">
-          <label class="chk"><input type="checkbox" id="appsWaitNetwork" checked> Auf Netzwerkverbindung warten</label>
-          <label class="chk"><input type="checkbox" id="appsSourceUpdate" checked> <code>winget source update</code> vorab</label>
-          <label class="chk"><input type="checkbox" id="appsBootstrap" checked> winget/App Installer bei Bedarf nachinstallieren</label>
-          <label class="chk"><input type="checkbox" id="appsPinVersions"> exakte Versionen aus dem Bundle erzwingen</label>
-          <label class="chk"><input type="checkbox" id="appsMachineScope"> <code>--scope machine</code> bevorzugen</label>
+          <label class="chk"><input type="checkbox" id="appsWaitNetwork" checked> <span data-i18n="auf-netzwerkverbindung-warten">Auf Netzwerkverbindung warten</span></label>
+          <label class="chk"><input type="checkbox" id="appsSourceUpdate" checked> <code><span data-i18n="winget-source-update">winget source update</span></code> <span data-i18n="vorab">vorab</span></label>
+          <label class="chk"><input type="checkbox" id="appsBootstrap" checked> <span data-i18n="winget-app-installer-bei-bedarf">winget/App Installer bei Bedarf nachinstallieren</span></label>
+          <label class="chk"><input type="checkbox" id="appsPinVersions"> <span data-i18n="exakte-versionen-aus-dem-bundle">exakte Versionen aus dem Bundle erzwingen</span></label>
+          <label class="chk"><input type="checkbox" id="appsMachineScope"> <code><span data-i18n="scope-machine">--scope machine</span></code> <span data-i18n="bevorzugen">bevorzugen</span></label>
         </div>
         <p class="hint" id="appsPhaseHint"></p>
       </div>
 
       <div class="panel">
         <div class="toolbar">
-          <input type="search" id="appsFilter" placeholder="Filtern (Name, ID, Manager)…">
+          <input type="search" id="appsFilter" data-i18n-ph="filtern-name-id-manager" placeholder="Filtern (Name, ID, Manager)…">
           <span class="spacer"></span>
-          <button class="btn small" id="btnAppsAll">Alle</button>
-          <button class="btn small" id="btnAppsNone">Keine</button>
-          <button class="btn small" id="btnAppsAdd">Paket hinzufügen</button>
-          <button class="btn small danger" id="btnAppsClear">Liste leeren</button>
+          <button class="btn small" id="btnAppsAll" data-i18n="alle">Alle</button>
+          <button class="btn small" id="btnAppsNone" data-i18n="keine">Keine</button>
+          <button class="btn small" id="btnAppsAdd" data-i18n="paket-hinzufuegen">Paket hinzufügen</button>
+          <button class="btn small danger" id="btnAppsClear" data-i18n="liste-leeren">Liste leeren</button>
         </div>
         <div class="table-wrap">
           <table class="tbl" id="appsTable">
@@ -166,94 +167,94 @@
 
     <!-- OFFICE -->
     <section class="view" id="view-office">
-      <h2>Microsoft Office (ODT)</h2>
-      <label class="switch"><input type="checkbox" id="officeEnabled"><span></span>Modul aktiv</label>
+      <h2 data-i18n="microsoft-office-odt">Microsoft Office (ODT)</h2>
+      <label class="switch"><input type="checkbox" id="officeEnabled"><span></span><span data-i18n="modul-aktiv">Modul aktiv</span></label>
 
       <div class="panel">
         <div class="row wrap">
           <label class="field">
-            <span>Ausführungsphase</span>
+            <span><span data-i18n="ausfuehrungsphase">Ausführungsphase</span></span>
             <select id="officePhase">
-              <option value="firstlogon">Phase 2 – nach erster Anmeldung (empfohlen)</option>
-              <option value="setup">Phase 1 – SetupComplete (SYSTEM)</option>
+              <option value="firstlogon"><span data-i18n="phase-2-nach-erster-anmeldung">Phase 2 – nach erster Anmeldung (empfohlen)</span></option>
+              <option value="setup"><span data-i18n="phase-1-setupcomplete-system">Phase 1 – SetupComplete (SYSTEM)</span></option>
             </select>
           </label>
           <label class="field">
-            <span>ODT-Setup (setup.exe)</span>
+            <span><span data-i18n="odt-setup-setup-exe">ODT-Setup (setup.exe)</span></span>
             <select id="officeSetupSource">
-              <option value="bundled">liegt im OEM-Ordner (mitliefern)</option>
-              <option value="download">zur Laufzeit von Microsoft laden</option>
+              <option value="bundled"><span data-i18n="liegt-im-oem-ordner-mitliefern">liegt im OEM-Ordner (mitliefern)</span></option>
+              <option value="download"><span data-i18n="zur-laufzeit-von-microsoft-laden">zur Laufzeit von Microsoft laden</span></option>
             </select>
           </label>
           <label class="field grow">
-            <span>Download-URL (nur bei „laden“)</span>
+            <span><span data-i18n="download-url-nur-bei-laden">Download-URL (nur bei „laden“)</span></span>
             <input type="text" id="officeOdtUrl" value="https://officecdn.microsoft.com/pr/wsus/setup.exe">
           </label>
         </div>
         <div class="row wrap">
           <label class="field">
-            <span>Installationsquelle</span>
+            <span><span data-i18n="installationsquelle">Installationsquelle</span></span>
             <select id="officeSource">
-              <option value="online">online von Microsoft laden</option>
-              <option value="local">lokal mitgelieferte Quelle (offline)</option>
+              <option value="online"><span data-i18n="online-von-microsoft-laden">online von Microsoft laden</span></option>
+              <option value="local"><span data-i18n="lokal-mitgelieferte-quelle-offline">lokal mitgelieferte Quelle (offline)</span></option>
             </select>
           </label>
           <label class="field">
-            <span>Ordner der Quelle (unter Office\)</span>
+            <span><span data-i18n="ordner-der-quelle-unter-office">Ordner der Quelle (unter Office\)</span></span>
             <input type="text" id="officeLocalFolder" value="Quelle">
           </label>
         </div>
         <div id="officeSourceBox" class="summary"></div>
         <div class="row wrap">
-          <label class="chk"><input type="checkbox" id="officeCheckInstalled" checked> Überspringen, wenn Office bereits installiert ist</label>
+          <label class="chk"><input type="checkbox" id="officeCheckInstalled" checked> <span data-i18n="ueberspringen-wenn-office-bereits-installiert">Überspringen, wenn Office bereits installiert ist</span></label>
         </div>
         <p class="hint" id="officePhaseHint"></p>
-        <p class="hint">Bei „mitliefern“ muss <code>setup.exe</code> (Office Deployment Tool) unter <span class="mono" id="officeSetupPath"></span> abgelegt werden – der Generator legt dafür einen Platzhalter-Hinweis ab.</p>
+        <p class="hint" data-i18n="bei-mitliefern-muss-setup-exe">Bei „mitliefern“ muss <code>setup.exe</code> (Office Deployment Tool) unter <span class="mono" id="officeSetupPath"></span> abgelegt werden – der Generator legt dafür einen Platzhalter-Hinweis ab.</p>
       </div>
 
       <div class="grid2">
         <div class="panel">
-          <h3>Configuration.xml</h3>
+          <h3 data-i18n="configuration-xml">Configuration.xml</h3>
           <div class="row">
-            <button class="btn small" id="btnOfficeImport">XML importieren</button>
-            <button class="btn small" id="btnOfficeTemplate">Vorlage einfügen</button>
+            <button class="btn small" id="btnOfficeImport" data-i18n="xml-importieren">XML importieren</button>
+            <button class="btn small" id="btnOfficeTemplate" data-i18n="vorlage-einfuegen">Vorlage einfügen</button>
             <input type="file" id="officeInput" accept=".xml" hidden>
           </div>
           <textarea id="officeXml" rows="18" spellcheck="false"></textarea>
         </div>
         <div class="panel">
-          <h3>Erkannte Konfiguration</h3>
-          <div id="officeSummary" class="summary"><p class="muted">Keine gültige Configuration.xml.</p></div>
+          <h3 data-i18n="erkannte-konfiguration">Erkannte Konfiguration</h3>
+          <div id="officeSummary" class="summary"><p class="muted" data-i18n="keine-gueltige-configuration-xml">Keine gültige Configuration.xml.</p></div>
         </div>
       </div>
     </section>
 
     <!-- TWEAKS -->
     <section class="view" id="view-tweaks">
-      <h2>System-Tweaks</h2>
-      <label class="switch"><input type="checkbox" id="tweaksEnabled" checked><span></span>Modul aktiv</label>
+      <h2 data-i18n="system-tweaks">System-Tweaks</h2>
+      <label class="switch"><input type="checkbox" id="tweaksEnabled" checked><span></span><span data-i18n="modul-aktiv">Modul aktiv</span></label>
 
       <div class="panel">
         <div class="row wrap">
           <label class="field">
-            <span>Ausführungsphase</span>
+            <span><span data-i18n="ausfuehrungsphase">Ausführungsphase</span></span>
             <select id="tweaksPhase">
-              <option value="setup">Phase 1 – SetupComplete (SYSTEM)</option>
-              <option value="firstlogon">Phase 2 – nach erster Anmeldung</option>
+              <option value="setup"><span data-i18n="phase-1-setupcomplete-system">Phase 1 – SetupComplete (SYSTEM)</span></option>
+              <option value="firstlogon"><span data-i18n="phase-2-nach-erster-anmeldung-2">Phase 2 – nach erster Anmeldung</span></option>
             </select>
           </label>
-          <label class="chk"><input type="checkbox" id="tweaksAllUsers" checked> Benutzer-Einstellungen auch auf Default-Profil &amp; bestehende Profile anwenden</label>
+          <label class="chk"><input type="checkbox" id="tweaksAllUsers" checked> <span data-i18n="benutzer-einstellungen-auch-auf-default">Benutzer-Einstellungen auch auf Default-Profil &amp; bestehende Profile anwenden</span></label>
         </div>
-        <p class="hint">In Phase 1 existiert noch kein Benutzerprofil. Benutzerbezogene Registry-Werte werden deshalb in
+        <p class="hint" data-i18n="in-phase-1-existiert-noch">In Phase 1 existiert noch kein Benutzerprofil. Benutzerbezogene Registry-Werte werden deshalb in
         <code>C:\Users\Default\NTUSER.DAT</code> geschrieben und gelten damit für alle neu angelegten Konten.</p>
         <p class="hint" id="tweaksDeferHint"></p>
       </div>
 
       <div class="panel">
         <div class="toolbar">
-          <input type="search" id="tweaksFilter" placeholder="Tweaks filtern…">
+          <input type="search" id="tweaksFilter" data-i18n-ph="tweaks-filtern" placeholder="Tweaks filtern…">
           <span class="spacer"></span>
-          <button class="btn small" id="btnTweaksNone">Auswahl leeren</button>
+          <button class="btn small" id="btnTweaksNone" data-i18n="auswahl-leeren">Auswahl leeren</button>
         </div>
         <div id="tweaksList" class="tweaks"></div>
       </div>
@@ -261,25 +262,25 @@
 
     <!-- BLOATWARE -->
     <section class="view" id="view-bloat">
-      <h2>Bloatware entfernen</h2>
-      <label class="switch"><input type="checkbox" id="bloatEnabled"><span></span>Modul aktiv</label>
+      <h2 data-i18n="bloatware-entfernen">Bloatware entfernen</h2>
+      <label class="switch"><input type="checkbox" id="bloatEnabled"><span></span><span data-i18n="modul-aktiv">Modul aktiv</span></label>
       <div class="panel">
         <div class="row wrap">
           <label class="field">
-            <span>Ausführungsphase</span>
+            <span><span data-i18n="ausfuehrungsphase">Ausführungsphase</span></span>
             <select id="bloatPhase">
-              <option value="setup">Phase 1 – SetupComplete (SYSTEM)</option>
-              <option value="firstlogon">Phase 2 – nach erster Anmeldung</option>
+              <option value="setup"><span data-i18n="phase-1-setupcomplete-system">Phase 1 – SetupComplete (SYSTEM)</span></option>
+              <option value="firstlogon"><span data-i18n="phase-2-nach-erster-anmeldung-2">Phase 2 – nach erster Anmeldung</span></option>
             </select>
           </label>
-          <label class="chk"><input type="checkbox" id="bloatProvisioned" checked> Auch aus dem Provisioning entfernen (gilt für neue Benutzer)</label>
+          <label class="chk"><input type="checkbox" id="bloatProvisioned" checked> <span data-i18n="auch-aus-dem-provisioning-entfernen">Auch aus dem Provisioning entfernen (gilt für neue Benutzer)</span></label>
         </div>
         <div class="toolbar">
-          <input type="search" id="bloatFilter" placeholder="AppX-Pakete filtern…">
+          <input type="search" id="bloatFilter" data-i18n-ph="appx-pakete-filtern" placeholder="AppX-Pakete filtern…">
           <span class="spacer"></span>
-          <button class="btn small" id="btnBloatRec">Empfehlung wählen</button>
-          <button class="btn small" id="btnBloatNone">Auswahl leeren</button>
-          <button class="btn small" id="btnBloatAdd">Eigenes Paket</button>
+          <button class="btn small" id="btnBloatRec" data-i18n="empfehlung-waehlen">Empfehlung wählen</button>
+          <button class="btn small" id="btnBloatNone" data-i18n="auswahl-leeren">Auswahl leeren</button>
+          <button class="btn small" id="btnBloatAdd" data-i18n="eigenes-paket">Eigenes Paket</button>
         </div>
         <div id="bloatList" class="bloat"></div>
       </div>
@@ -287,14 +288,14 @@
 
     <!-- EIGENE DATEIEN -->
     <section class="view" id="view-files">
-      <h2>Eigene Dateien &amp; Installer</h2>
-      <p class="lead">Beliebige Dateien in die OEM-Struktur aufnehmen: Setup-Dateien (.exe/.msi) mit Silent-Parametern,
+      <h2 data-i18n="eigene-dateien-amp-installer">Eigene Dateien &amp; Installer</h2>
+      <p class="lead" data-i18n="beliebige-dateien-in-die-oem">Beliebige Dateien in die OEM-Struktur aufnehmen: Setup-Dateien (.exe/.msi) mit Silent-Parametern,
       Skripte, Konfigurationen, Treiber. Zielordner ist standardmäßig <span class="mono" id="filesTargetPath"></span>.</p>
       <div class="panel">
         <div class="row">
-          <button class="btn" id="btnFilesAdd">Dateien hinzufügen</button>
+          <button class="btn" id="btnFilesAdd" data-i18n="dateien-hinzufuegen">Dateien hinzufügen</button>
           <input type="file" id="filesInput" multiple hidden>
-          <span class="hint">Binärdateien werden nur im ZIP mitgeliefert, nicht in der Projektdatei gespeichert.</span>
+          <span class="hint" data-i18n="binaerdateien-werden-nur-im-zip">Binärdateien werden nur im ZIP mitgeliefert, nicht in der Projektdatei gespeichert.</span>
         </div>
         <div class="table-wrap">
           <table class="tbl" id="filesTable">
@@ -307,61 +308,61 @@
 
     <!-- EIGENE BEFEHLE -->
     <section class="view" id="view-custom">
-      <h2>Eigene Befehle</h2>
-      <p class="lead">Freie Zeilen, die unverändert übernommen werden – z.&nbsp;B. aus einer importierten
+      <h2 data-i18n="eigene-befehle-2">Eigene Befehle</h2>
+      <p class="lead" data-i18n="freie-zeilen-die-unveraendert-uebernommen">Freie Zeilen, die unverändert übernommen werden – z.&nbsp;B. aus einer importierten
       <code>SetupComplete.cmd</code>. Sie werden nach den Modulen ausgeführt.</p>
       <div class="grid2">
         <div class="panel">
-          <h3>CMD-Zeilen (in SetupComplete.cmd)</h3>
-          <label class="chk"><input type="checkbox" id="customCmdEnabled" checked> aktiv</label>
-          <textarea id="customCmd" rows="12" spellcheck="false" placeholder="REM eigene Batch-Befehle"></textarea>
-          <p class="hint">Laufen als SYSTEM im Kontext von <code>%WINDIR%\Setup\Scripts</code>.</p>
+          <h3 data-i18n="cmd-zeilen-in-setupcomplete-cmd">CMD-Zeilen (in SetupComplete.cmd)</h3>
+          <label class="chk"><input type="checkbox" id="customCmdEnabled" checked> <span data-i18n="aktiv">aktiv</span></label>
+          <textarea id="customCmd" rows="12" spellcheck="false" data-i18n-ph="rem-eigene-batch-befehle" placeholder="REM eigene Batch-Befehle"></textarea>
+          <p class="hint" data-i18n="laufen-als-system-im-kontext">Laufen als SYSTEM im Kontext von <code>%WINDIR%\Setup\Scripts</code>.</p>
           <p class="hint" id="customCmdRefHint"></p>
         </div>
         <div class="panel">
-          <h3>PowerShell-Zeilen (in Install.ps1)</h3>
-          <label class="chk"><input type="checkbox" id="customPsEnabled" checked> aktiv</label>
+          <h3 data-i18n="powershell-zeilen-in-install-ps1">PowerShell-Zeilen (in Install.ps1)</h3>
+          <label class="chk"><input type="checkbox" id="customPsEnabled" checked> <span data-i18n="aktiv">aktiv</span></label>
           <label class="field">
-            <span>Ausführungsphase</span>
+            <span><span data-i18n="ausfuehrungsphase">Ausführungsphase</span></span>
             <select id="customPsPhase">
-              <option value="setup">Phase 1 – SetupComplete (SYSTEM)</option>
-              <option value="firstlogon">Phase 2 – nach erster Anmeldung</option>
+              <option value="setup"><span data-i18n="phase-1-setupcomplete-system">Phase 1 – SetupComplete (SYSTEM)</span></option>
+              <option value="firstlogon"><span data-i18n="phase-2-nach-erster-anmeldung-2">Phase 2 – nach erster Anmeldung</span></option>
             </select>
           </label>
-          <textarea id="customPs" rows="10" spellcheck="false" placeholder="# eigener PowerShell-Code"></textarea>
+          <textarea id="customPs" rows="10" spellcheck="false" data-i18n-ph="eigener-powershell-code" placeholder="# eigener PowerShell-Code"></textarea>
         </div>
       </div>
     </section>
 
     <!-- EINSTELLUNGEN -->
     <section class="view" id="view-settings">
-      <h2>Einstellungen</h2>
+      <h2 data-i18n="einstellungen-2">Einstellungen</h2>
       <div class="panel">
-        <h3>Pfade</h3>
+        <h3 data-i18n="pfade">Pfade</h3>
         <div class="row wrap">
           <label class="field grow">
-            <span>Installationsordner auf dem Zielsystem</span>
+            <span><span data-i18n="installationsordner-auf-dem-zielsystem">Installationsordner auf dem Zielsystem</span></span>
             <input type="text" id="setInstallRoot" value="C:\Install">
           </label>
           <label class="field">
-            <span>Ablage von <code>$OEM$</code> auf dem Medium</span>
+            <span><span data-i18n="ablage-von">Ablage von</span> <code><span data-i18n="oem">$OEM$</span></code> <span data-i18n="auf-dem-medium">auf dem Medium</span></span>
             <select id="setZipRoot">
-              <option value="both">beide Orte – sicherste Variante (empfohlen)</option>
-              <option value="sources">sources\$OEM$\… – ohne Konfigurationssatz</option>
-              <option value="oem">$OEM$\… im Wurzelverzeichnis – bei UseConfigurationSet</option>
+              <option value="both"><span data-i18n="beide-orte-sicherste-variante-empfohlen">beide Orte – sicherste Variante (empfohlen)</span></option>
+              <option value="sources"><span data-i18n="sources-oem-ohne-konfigurationssatz">sources\$OEM$\… – ohne Konfigurationssatz</span></option>
+              <option value="oem"><span data-i18n="oem-im-wurzelverzeichnis-bei-useconfigurationset">$OEM$\… im Wurzelverzeichnis – bei UseConfigurationSet</span></option>
             </select>
           </label>
         </div>
       </div>
       <div class="panel">
-        <h3>Auslöser</h3>
+        <h3 data-i18n="ausloeser">Auslöser</h3>
         <div class="row wrap">
           <label class="field grow">
-            <span>Wodurch wird Install.ps1 gestartet?</span>
+            <span><span data-i18n="wodurch-wird-install-ps1-gestartet">Wodurch wird Install.ps1 gestartet?</span></span>
             <select id="setTrigger">
-              <option value="both">SetupComplete.cmd und autounattend.xml (empfohlen)</option>
-              <option value="setupcomplete">nur SetupComplete.cmd</option>
-              <option value="unattend">nur autounattend.xml</option>
+              <option value="both"><span data-i18n="setupcomplete-cmd-und-autounattend-xml">SetupComplete.cmd und autounattend.xml (empfohlen)</span></option>
+              <option value="setupcomplete"><span data-i18n="nur-setupcomplete-cmd">nur SetupComplete.cmd</span></option>
+              <option value="unattend"><span data-i18n="nur-autounattend-xml">nur autounattend.xml</span></option>
             </select>
           </label>
         </div>
@@ -372,42 +373,42 @@
         Phase 2 über <code>FirstLogonCommands</code>.</p>
         <div id="unattendBox" class="summary"></div>
         <div class="row">
-          <button class="btn small" id="btnUnattendImport">Vorhandene autounattend.xml importieren</button>
-          <button class="btn small" id="btnUnattendDrop" hidden>Importierte Datei verwerfen</button>
+          <button class="btn small" id="btnUnattendImport" data-i18n="vorhandene-autounattend-xml-importieren">Vorhandene autounattend.xml importieren</button>
+          <button class="btn small" id="btnUnattendDrop" hidden data-i18n="importierte-datei-verwerfen">Importierte Datei verwerfen</button>
           <input type="file" id="unattendInput" accept=".xml" hidden>
         </div>
       </div>
 
       <div class="panel">
-        <h3>Ablauf</h3>
+        <h3 data-i18n="ablauf">Ablauf</h3>
         <div class="row wrap">
           <label class="field">
-            <span>Phase 2 wird gestartet über</span>
+            <span><span data-i18n="phase-2-wird-gestartet-ueber">Phase 2 wird gestartet über</span></span>
             <select id="setPhase2Runner">
-              <option value="task">Geplante Aufgabe als SYSTEM (zuverlässig)</option>
-              <option value="runonce">RunOnce im Kontext des ersten Benutzers</option>
+              <option value="task"><span data-i18n="geplante-aufgabe-als-system-zuverlaessig">Geplante Aufgabe als SYSTEM (zuverlässig)</span></option>
+              <option value="runonce"><span data-i18n="runonce-im-kontext-des-ersten">RunOnce im Kontext des ersten Benutzers</span></option>
             </select>
           </label>
           <label class="field">
-            <span>Abschluss von Phase 2</span>
+            <span><span data-i18n="abschluss-von-phase-2">Abschluss von Phase 2</span></span>
             <select id="setFinish">
-              <option value="none">nichts tun</option>
-              <option value="reboot">Neustart</option>
-              <option value="shutdown">Herunterfahren</option>
+              <option value="none"><span data-i18n="nichts-tun">nichts tun</span></option>
+              <option value="reboot"><span data-i18n="neustart">Neustart</span></option>
+              <option value="shutdown"><span data-i18n="herunterfahren">Herunterfahren</span></option>
             </select>
           </label>
         </div>
         <div class="row wrap">
-          <label class="chk"><input type="checkbox" id="setTranscript" checked> PowerShell-Transcript mitschreiben</label>
-          <label class="chk"><input type="checkbox" id="setSelfDelete"> <code>%WINDIR%\Setup\Scripts</code> nach Abschluss löschen <span class="muted">(erschwert die Fehlersuche)</span></label>
-          <label class="chk"><input type="checkbox" id="setKeepInstall"> <span class="mono-inline" id="setKeepInstallLabel">C:\Install</span> nach Abschluss löschen</label>
-          <label class="chk"><input type="checkbox" id="setToastOnFinish"> Abschlussmeldung im Explorer anzeigen</label>
+          <label class="chk"><input type="checkbox" id="setTranscript" checked> <span data-i18n="powershell-transcript-mitschreiben">PowerShell-Transcript mitschreiben</span></label>
+          <label class="chk"><input type="checkbox" id="setSelfDelete"> <code><span data-i18n="windir-setup-scripts">%WINDIR%\Setup\Scripts</span></code> <span data-i18n="nach-abschluss-loeschen">nach Abschluss löschen</span> <span class="muted"><span data-i18n="erschwert-die-fehlersuche">(erschwert die Fehlersuche)</span></span></label>
+          <label class="chk"><input type="checkbox" id="setKeepInstall"> <span class="mono-inline" id="setKeepInstallLabel"><span data-i18n="c-install">C:\Install</span></span> <span data-i18n="nach-abschluss-loeschen">nach Abschluss löschen</span></label>
+          <label class="chk"><input type="checkbox" id="setToastOnFinish"> <span data-i18n="abschlussmeldung-im-explorer-anzeigen">Abschlussmeldung im Explorer anzeigen</span></label>
         </div>
       </div>
       <div class="panel">
-        <h3>Projekt</h3>
+        <h3 data-i18n="projekt">Projekt</h3>
         <div class="row">
-          <button class="btn small danger" id="btnReset">Projekt zurücksetzen</button>
+          <button class="btn small danger" id="btnReset" data-i18n="projekt-zuruecksetzen">Projekt zurücksetzen</button>
           <input type="file" id="projectInput" accept=".json" hidden>
         </div>
       </div>
@@ -415,7 +416,7 @@
 
     <!-- VORSCHAU -->
     <section class="view" id="view-preview">
-      <h2>Vorschau</h2>
+      <h2 data-i18n="vorschau-2">Vorschau</h2>
       <div class="preview">
         <aside class="filelist" id="fileList"></aside>
         <div class="filebody">
@@ -423,8 +424,8 @@
             <span class="mono" id="previewPath">–</span>
             <span class="spacer"></span>
             <span class="muted" id="previewSize"></span>
-            <button class="btn small" id="btnCopyFile">Kopieren</button>
-            <button class="btn small" id="btnDownloadFile">Einzeln laden</button>
+            <button class="btn small" id="btnCopyFile" data-i18n="kopieren">Kopieren</button>
+            <button class="btn small" id="btnDownloadFile" data-i18n="einzeln-laden">Einzeln laden</button>
           </div>
           <pre id="previewBody" class="code"></pre>
         </div>
@@ -436,6 +437,7 @@
 
 <div class="toasts" id="toasts"></div>
 
+<script src="js/i18n.js"></script>
 <script src="js/zip.js"></script>
 <script src="js/catalog.js"></script>
 <script src="js/importers.js"></script>
