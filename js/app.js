@@ -3,6 +3,8 @@
   'use strict';
 
   const $ = (sel, root) => (root || document).querySelector(sel);
+  const T = (de) => I18n.term(de);
+  const F = function () { return I18n.fmt.apply(null, arguments); };
   const $$ = (sel, root) => Array.from((root || document).querySelectorAll(sel));
 
   const OFFICE_TEMPLATE = [
@@ -170,7 +172,7 @@
     if (!list.length) {
       const tr = document.createElement('tr');
       tr.innerHTML = '<td colspan="7" class="muted" style="padding:18px;text-align:center">' +
-        (state.apps.items.length ? 'Keine Treffer.' : 'Noch keine Pakete – UniGetUI-Bundle importieren oder Paket hinzufügen.') + '</td>';
+        (state.apps.items.length ? T('Keine Treffer.') : T('Noch keine Pakete – UniGetUI-Bundle importieren oder Paket hinzufügen.')) + '</td>';
       tbody.appendChild(tr);
     }
 
@@ -215,7 +217,7 @@
 
       const actTd = document.createElement('td');
       const del = document.createElement('button');
-      del.className = 'btn small icon danger'; del.textContent = '✕'; del.title = 'Entfernen';
+      del.className = 'btn small icon danger'; del.textContent = '✕'; del.title = T('Entfernen');
       del.addEventListener('click', () => {
         state.apps.items = state.apps.items.filter((x) => x !== p);
         renderApps(); refresh();
@@ -258,7 +260,10 @@
     Catalog.TWEAKS.forEach((t) => { if (!cats.includes(t.cat)) cats.push(t.cat); });
 
     for (const t of Catalog.TWEAKS) {
-      if (filter && !(t.label + ' ' + t.cat + ' ' + (t.desc || '')).toLowerCase().includes(filter)) continue;
+      /* Sowohl die deutsche Vorlage als auch die angezeigte Fassung durchsuchen,
+         damit der Filter in beiden Sprachen greift. */
+      const haystack = [t.label, t.cat, t.desc || '', T(t.label), T(t.cat), T(t.desc || '')].join(' ').toLowerCase();
+      if (filter && !haystack.includes(filter)) continue;
       const on = state.tweaks.selected.includes(t.id);
       const lab = document.createElement('label');
       lab.className = 'tweak' + (on ? ' sel' : '');
@@ -272,10 +277,10 @@
       });
       const div = document.createElement('div');
       const late = t.deferPs && t.ps && state.tweaks.phase === 'setup';
-      div.innerHTML = '<div class="cat">' + t.cat + (late ? ' · läuft in Phase 2' : '') +
+      div.innerHTML = '<div class="cat">' + T(t.cat) + (late ? T(' · läuft in Phase 2') : '') +
         '</div><div class="t"></div>' + (t.desc ? '<div class="d"></div>' : '');
-      div.querySelector('.t').textContent = t.label;
-      if (t.desc) div.querySelector('.d').textContent = t.desc;
+      div.querySelector('.t').textContent = T(t.label);
+      if (t.desc) div.querySelector('.d').textContent = T(t.desc);
       lab.appendChild(cb); lab.appendChild(div);
       box.appendChild(lab);
     }
@@ -292,17 +297,17 @@
     const acc = late.filter((t) => t.deferReason === 'account');
     const teile = [];
     if (net.length) {
-      teile.push('<b>' + net.map((t) => t.label).join(', ') + '</b> ' +
-        (net.length === 1 ? 'braucht' : 'brauchen') + ' einen laufenden Netzwerk- bzw. ' +
-        'Dienststack; im <code>specialize</code>-Pass blockieren solche Cmdlets und halten das Setup an');
+      teile.push('<b>' + net.map((t) => T(t.label)).join(', ') + '</b> ' +
+        T(net.length === 1 ? 'braucht' : 'brauchen') +
+        T(' einen laufenden Netzwerk- bzw. Dienststack; im <code>specialize</code>-Pass blockieren solche Cmdlets und halten das Setup an'));
     }
     if (acc.length) {
-      teile.push('<b>' + acc.map((t) => t.label).join(', ') + '</b> ' +
-        (acc.length === 1 ? 'setzt' : 'setzen') + ' ein angelegtes Benutzerkonto voraus, ' +
-        'das es in Phase 1 noch nicht gibt');
+      teile.push('<b>' + acc.map((t) => T(t.label)).join(', ') + '</b> ' +
+        T(acc.length === 1 ? 'setzt' : 'setzen') +
+        T(' ein angelegtes Benutzerkonto voraus, das es in Phase 1 noch nicht gibt'));
     }
-    el.innerHTML = teile.join('. ') + '. Diese Einstellungen werden automatisch in Phase 2 ' +
-      'nachgeholt, jeweils mit Zeitgrenze. Die Registry-Anteile bleiben in Phase 1.';
+    el.innerHTML = teile.join('. ') +
+      T('. Diese Einstellungen werden automatisch in Phase 2 nachgeholt, jeweils mit Zeitgrenze. Die Registry-Anteile bleiben in Phase 1.');
     el.style.color = 'var(--acc2)';
   }
 
@@ -314,11 +319,11 @@
     box.innerHTML = '';
     const known = Catalog.BLOAT.slice();
     state.bloat.selected.forEach((id) => {
-      if (!known.some((b) => b.id === id)) known.push({ id, name: '(eigenes Paket)' });
+      if (!known.some((b) => b.id === id)) known.push({ id, name: T('(eigenes Paket)') });
     });
 
     for (const b of known) {
-      if (filter && !(b.id + ' ' + b.name).toLowerCase().includes(filter)) continue;
+      if (filter && !(b.id + ' ' + b.name + ' ' + T(b.name)).toLowerCase().includes(filter)) continue;
       const on = state.bloat.selected.includes(b.id);
       const lab = document.createElement('label');
       lab.className = on ? 'sel' : '';
@@ -332,7 +337,7 @@
       });
       const span = document.createElement('span');
       span.innerHTML = '<span class="id"></span>';
-      span.insertBefore(document.createTextNode(b.name), span.firstChild);
+      span.insertBefore(document.createTextNode(T(b.name)), span.firstChild);
       span.querySelector('.id').textContent = b.id;
       lab.appendChild(cb); lab.appendChild(span);
       box.appendChild(lab);
@@ -345,7 +350,7 @@
     const tbody = $('#filesTable tbody');
     tbody.innerHTML = '';
     if (!state.files.items.length) {
-      tbody.innerHTML = '<tr><td colspan="7" class="muted" style="padding:18px;text-align:center">Keine Dateien hinzugefügt.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="7" class="muted" style="padding:18px;text-align:center">' + T('Keine Dateien hinzugefügt.') + '</td></tr>';
       return;
     }
     for (const f of state.files.items) {
@@ -363,12 +368,12 @@
       nameTd.querySelector('.mono').textContent = f.name;
       nameTd.querySelector('.muted').textContent = f.blob
         ? (f.blob.length / 1024 > 1024 ? (f.blob.length / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(f.blob.length / 1024)) + ' KB')
-        : 'nicht im Archiv (nur Platzhalter)';
+        : T('nicht im Archiv (nur Platzhalter)');
       tr.appendChild(nameTd);
 
       const destTd = document.createElement('td');
       const ds = document.createElement('select');
-      [['files', 'Install\\Files'], ['scripts', 'Setup\\Scripts']].forEach(([v, l]) => {
+      [['files', T('Install\\Files')], ['scripts', T('Setup\\Scripts')]].forEach(([v, l]) => {
         const o = document.createElement('option'); o.value = v; o.textContent = l;
         if ((f.dest || 'files') === v) o.selected = true; ds.appendChild(o);
       });
@@ -384,14 +389,14 @@
 
       const runTd = document.createElement('td');
       const ri = document.createElement('input');
-      ri.type = 'text'; ri.value = f.run; ri.placeholder = '/S  bzw.  /qn /norestart  – leer = nur kopieren';
-      if (f.dest === 'scripts') { ri.disabled = true; ri.placeholder = 'Aufruf über eigene CMD-Zeilen (%~dp0)'; }
+      ri.type = 'text'; ri.value = f.run; ri.placeholder = T('/S  bzw.  /qn /norestart  – leer = nur kopieren');
+      if (f.dest === 'scripts') { ri.disabled = true; ri.placeholder = T('Aufruf über eigene CMD-Zeilen (%~dp0)'); }
       ri.addEventListener('change', () => { f.run = ri.value; refresh(); });
       runTd.appendChild(ri); tr.appendChild(runTd);
 
       const phTd = document.createElement('td');
       const ps = document.createElement('select');
-      [['setup', 'Phase 1'], ['firstlogon', 'Phase 2']].forEach(([v, l]) => {
+      [['setup', T('Phase 1')], ['firstlogon', T('Phase 2')]].forEach(([v, l]) => {
         const o = document.createElement('option'); o.value = v; o.textContent = l;
         if (f.phase === v) o.selected = true; ps.appendChild(o);
       });
@@ -415,10 +420,10 @@
   function renderOfficeSummary() {
     const box = $('#officeSummary');
     const xml = state.office.xml || '';
-    if (!xml.trim()) { box.innerHTML = '<p class="muted">Keine Configuration.xml hinterlegt.</p>'; return; }
+    if (!xml.trim()) { box.innerHTML = '<p class="muted">' + T('Keine Configuration.xml hinterlegt.') + '</p>'; return; }
     let cfg;
     try { cfg = Importers.parseOfficeConfig(xml); }
-    catch (e) { box.innerHTML = '<p class="muted">Nicht lesbar: ' + e.message + '</p>'; return; }
+    catch (e) { box.innerHTML = '<p class="muted">' + T('Nicht lesbar: ') + e.message + '</p>'; return; }
 
     const silent = /<Display\b[^>]*Level\s*=\s*"None"/i.test(xml);
     const dl = document.createElement('dl');
@@ -427,10 +432,10 @@
       const dd = document.createElement('dd'); dd.textContent = v;
       dl.appendChild(dt); dl.appendChild(dd);
     };
-    row('Architektur', cfg.edition ? cfg.edition + " Bit" : '–');
-    row('Kanal', cfg.channel || '–');
-    if (cfg.version) row('Version', cfg.version);
-    row('Produkte', cfg.products.length ? '' : '–');
+    row(T('Architektur'), cfg.edition ? cfg.edition + " Bit" : '–');
+    row(T('Kanal'), cfg.channel || '–');
+    if (cfg.version) row(T('Version'), cfg.version);
+    row(T('Produkte'), cfg.products.length ? '' : '–');
     box.innerHTML = '';
     box.appendChild(dl);
 
@@ -444,23 +449,23 @@
       });
       dl.lastChild.appendChild(ul);
     }
-    row('MSI-Vorgänger entfernen', cfg.removeMSI ? 'ja' : 'nein');
-    row('Updates', cfg.updatesEnabled === null ? 'Standard' : cfg.updatesEnabled);
-    row('Benutzereinstellungen', cfg.appSettings + ' Einträge');
+    row(T('MSI-Vorgänger entfernen'), cfg.removeMSI ? 'ja' : 'nein');
+    row(T('Updates'), cfg.updatesEnabled === null ? 'Standard' : cfg.updatesEnabled);
+    row(T('Benutzereinstellungen'), cfg.appSettings + ' Einträge');
 
     const warn = document.createElement('p');
     warn.className = 'hint';
     if (silent) {
-      warn.textContent = 'Unbeaufsichtigte Installation ist konfiguriert (Display Level="None").';
+      warn.textContent = T('Unbeaufsichtigte Installation ist konfiguriert (Display Level="None").');
     } else {
       warn.innerHTML = 'Kein <code>&lt;Display Level="None" AcceptEULA="TRUE" /&gt;</code> – die Installation würde eine Oberfläche anzeigen. ';
       const b = document.createElement('button');
-      b.className = 'btn small'; b.textContent = 'Automatisch ergänzen';
+      b.className = 'btn small'; b.textContent = T('Automatisch ergänzen');
       b.addEventListener('click', () => {
         state.office.xml = Importers.ensureSilentDisplay(state.office.xml);
         $('#officeXml').value = state.office.xml;
         renderOfficeSummary(); refresh();
-        toast('Display-Element ergänzt.', 'ok');
+        toast(T('Display-Element ergänzt.'), 'ok');
       });
       warn.appendChild(b);
     }
@@ -477,9 +482,9 @@
     if (!u.xml) {
       const p = document.createElement('p');
       p.className = 'hint';
-      p.textContent = 'Es wird eine eigenständige autounattend.xml erzeugt, die nur die Skripte startet. ' +
+      p.textContent = T('Es wird eine eigenständige autounattend.xml erzeugt, die nur die Skripte startet. ' +
         'Wenn Sie bereits eine Antwortdatei verwenden, importieren Sie diese hier – der Generator ergänzt sie, ' +
-        'statt sie zu ersetzen.';
+        'statt sie zu ersetzen.');
       box.appendChild(p);
       drop.hidden = true;
       return;
@@ -492,11 +497,11 @@
       const dd = document.createElement('dd'); dd.textContent = v;
       dl.appendChild(dt); dl.appendChild(dd);
     };
-    row('Importierte Datei', u.name);
-    row('Vorhandene Befehle', String(u.info.commandCount));
-    row('Passes', u.info.passes.filter(Boolean).join(', ') || '–');
-    row('UseConfigurationSet', u.info.useConfigurationSet ? 'true' : 'false');
-    if (u.info.productKey) row('Produktschlüssel', u.info.productKey);
+    row(T('Importierte Datei'), u.name);
+    row(T('Vorhandene Befehle'), String(u.info.commandCount));
+    row(T('Passes'), u.info.passes.filter(Boolean).join(', ') || '–');
+    row(T('UseConfigurationSet'), u.info.useConfigurationSet ? 'true' : 'false');
+    if (u.info.productKey) row(T('Produktschlüssel'), u.info.productKey);
     box.appendChild(dl);
 
     const p = document.createElement('p');
@@ -507,8 +512,8 @@
         'Die Ablage steht deshalb auf „beide Orte“.';
       p.style.color = 'var(--warn)';
     } else {
-      p.textContent = 'Die Aufrufe werden mit fortlaufender Order in die vorhandenen Blöcke eingefügt; ' +
-        'bereits vorhandene Einträge des Generators werden dabei ersetzt.';
+      p.textContent = T('Die Aufrufe werden mit fortlaufender Order in die vorhandenen Blöcke eingefügt; ' +
+        'bereits vorhandene Einträge des Generators werden dabei ersetzt.');
     }
     box.appendChild(p);
   }
@@ -519,11 +524,11 @@
     const cards = $('#overviewCards');
     const activeApps = state.apps.items.filter((p) => p.enabled).length;
     const data = [
-      { on: state.apps.enabled && activeApps > 0, k: 'Anwendungen', v: activeApps, d: state.apps.phase === 'setup' ? 'Phase 1' : 'Phase 2' },
-      { on: state.office.enabled, k: 'Office (ODT)', v: state.office.enabled ? 'aktiv' : 'aus', d: state.office.enabled ? (state.office.phase === 'setup' ? 'Phase 1' : 'Phase 2') : '–' },
-      { on: state.tweaks.enabled && state.tweaks.selected.length > 0, k: 'Tweaks', v: state.tweaks.selected.length, d: state.tweaks.phase === 'setup' ? 'Phase 1' : 'Phase 2' },
-      { on: state.bloat.enabled && state.bloat.selected.length > 0, k: 'Bloatware', v: state.bloat.selected.length, d: 'AppX-Pakete' },
-      { on: state.files.items.some((f) => f.enabled), k: 'Eigene Dateien', v: state.files.items.filter((f) => f.enabled).length, d: 'im Archiv' }
+      { on: state.apps.enabled && activeApps > 0, k: T('Anwendungen'), v: activeApps, d: T(state.apps.phase === 'setup' ? 'Phase 1' : 'Phase 2') },
+      { on: state.office.enabled, k: T('Office (ODT)'), v: T(state.office.enabled ? 'aktiv' : 'aus'), d: state.office.enabled ? T(state.office.phase === 'setup' ? 'Phase 1' : 'Phase 2') : '–' },
+      { on: state.tweaks.enabled && state.tweaks.selected.length > 0, k: T('Tweaks'), v: state.tweaks.selected.length, d: T(state.tweaks.phase === 'setup' ? 'Phase 1' : 'Phase 2') },
+      { on: state.bloat.enabled && state.bloat.selected.length > 0, k: T('Bloatware'), v: state.bloat.selected.length, d: T('AppX-Pakete') },
+      { on: state.files.items.some((f) => f.enabled), k: T('Eigene Dateien'), v: state.files.items.filter((f) => f.enabled).length, d: T('im Archiv') }
     ];
     cards.innerHTML = '';
     data.forEach((c) => {
@@ -539,19 +544,19 @@
     const flow = $('#flowList');
     flow.innerHTML = '';
     const steps = [];
-    steps.push(['Setup', 'Windows Setup kopiert <code>$OEM$\\$1</code> nach ' + esc(state.paths.installRoot) + ' und <code>$OEM$\\$$</code> nach <code>%WINDIR%</code>']);
-    steps.push(['P1', '<code>SetupComplete.cmd</code> startet <code>Install.ps1 -Phase Setup</code> als SYSTEM']);
-    Templates.moduleList(state, 'setup').forEach((m) => steps.push(['P1', esc(m[1])]));
-    if (state.custom.cmdEnabled && state.custom.cmd.trim()) steps.push(['P1', 'Eigene CMD-Befehle']);
+    steps.push(['Setup', T('Windows Setup kopiert <code>$OEM$\\$1</code> nach ') + esc(state.paths.installRoot) + T(' und <code>$OEM$\\$$</code> nach <code>%WINDIR%</code>')]);
+    steps.push(['P1', T('<code>SetupComplete.cmd</code> startet <code>Install.ps1 -Phase Setup</code> als SYSTEM')]);
+    Templates.moduleList(state, 'setup').forEach((m) => steps.push(['P1', esc(T(m[1]))]));
+    if (state.custom.cmdEnabled && state.custom.cmd.trim()) steps.push(['P1', T('Eigene CMD-Befehle')]);
     const logon = Templates.moduleList(state, 'firstlogon');
     if (logon.length) {
-      steps.push(['P2', state.options.phase2Runner === 'task'
+      steps.push(['P2', T(state.options.phase2Runner === 'task'
         ? 'Geplante Aufgabe <code>OEM-Setup-Phase2</code> startet als SYSTEM bei der ersten Anmeldung'
-        : '<code>RunOnce</code> startet <code>Install.ps1 -Phase FirstLogon</code>']);
-      logon.forEach((m) => steps.push(['P2', esc(m[1])]));
+        : '<code>RunOnce</code> startet <code>Install.ps1 -Phase FirstLogon</code>')]);
+      logon.forEach((m) => steps.push(['P2', esc(T(m[1]))]));
     }
-    if (state.options.finish === 'reboot') steps.push(['P2', 'Neustart']);
-    if (state.options.finish === 'shutdown') steps.push(['P2', 'Herunterfahren']);
+    if (state.options.finish === 'reboot') steps.push(['P2', T('Neustart')]);
+    if (state.options.finish === 'shutdown') steps.push(['P2', T('Herunterfahren')]);
     steps.forEach((s) => {
       const li = document.createElement('li');
       li.innerHTML = '<span class="ph">' + s[0] + '</span>' + s[1];
@@ -580,7 +585,7 @@
         walk(node[k], prefix + (last ? '   ' : '│  '));
       });
     })(root, '');
-    return out.join('\n') || '(leer)';
+    return out.join('\n') || T('(leer)');
   }
 
   /* ---------------- Vorschau ---------------- */
@@ -605,11 +610,11 @@
     $('#previewPath').textContent = cur ? cur.path : '–';
     if (!cur) { $('#previewBody').textContent = ''; $('#previewSize').textContent = ''; return; }
     if (cur.binary) {
-      $('#previewBody').textContent = '[Binärdatei – ' + (cur.data.length / 1024).toFixed(0) + ' KB – wird unverändert ins Archiv übernommen]';
+      $('#previewBody').textContent = T('[Binärdatei – ') + (cur.data.length / 1024).toFixed(0) + T(' KB – wird unverändert ins Archiv übernommen]');
       $('#previewSize').textContent = (cur.data.length / 1024).toFixed(0) + ' KB';
     } else {
       $('#previewBody').textContent = cur.data;
-      $('#previewSize').textContent = new Blob([cur.data]).size + ' Bytes · ' + cur.data.split('\n').length + ' Zeilen';
+      $('#previewSize').textContent = new Blob([cur.data]).size + ' ' + T('Bytes') + ' · ' + cur.data.split('\n').length + ' ' + T('Zeilen');
     }
   }
 
@@ -639,14 +644,14 @@
         (state.options.trigger === 'setupcomplete' && state.options.phase2Runner === 'task');
       let hint;
       if (wingetApps && systemContext) {
-        hint = 'Achtung: winget läuft hier als SYSTEM. Der App-Execution-Alias existiert nur je Benutzer, ' +
+        hint = T('Achtung: winget läuft hier als SYSTEM. Der App-Execution-Alias existiert nur je Benutzer, ' +
           'und der direkte Aufruf aus WindowsApps bricht mit 0xC0000135 ab – in diesem Kontext schlägt ' +
           'jedes Paket fehl. Phase 2 über die autounattend.xml (FirstLogonCommands) oder RunOnce starten, ' +
-          'damit die Installation im Benutzerkontext läuft.';
+          'damit die Installation im Benutzerkontext läuft.');
       } else if (state.apps.phase === 'setup') {
-        hint = 'In Phase 1 existiert noch kein Benutzerprofil; Pakete, die nur benutzerbezogen installieren, schlagen dort fehl.';
+        hint = T('In Phase 1 existiert noch kein Benutzerprofil; Pakete, die nur benutzerbezogen installieren, schlagen dort fehl.');
       } else {
-        hint = 'Empfohlen: Netzwerk und App Installer sind bei der ersten Anmeldung zuverlässig verfügbar.';
+        hint = T('Empfohlen: Netzwerk und App Installer sind bei der ersten Anmeldung zuverlässig verfügbar.');
       }
       $('#appsPhaseHint').textContent = hint;
       $('#appsPhaseHint').style.color = (wingetApps && systemContext) ? 'var(--warn)' : '';
@@ -656,8 +661,7 @@
         if (state.office.enabled && state.office.source === 'local') {
           const rel = Templates.relFromRoot(state.paths.installRoot);
           const folder = (state.office.localFolder || 'Quelle').replace(/^[\\/]+|[\\/]+$/g, '');
-          sb.innerHTML = '<p class="hint">Der Generator trägt <code>SourcePath</code> automatisch in die ' +
-            'Configuration.xml ein und legt den Ordner sowie das Hilfsskript an:</p>' +
+          sb.innerHTML = '<p class="hint">' + T('Der Generator trägt <code>SourcePath</code> automatisch in die Configuration.xml ein und legt den Ordner sowie das Hilfsskript an:') + '</p>' +
             '<pre class="tree">' + esc(
               '$OEM$\\$1\\' + rel + '\\Office\\\n' +
               '  ├─ setup.exe                   (ODT – selbst ablegen)\n' +
@@ -665,10 +669,10 @@
               '  ├─ Download-Quelle.ps1         erzeugt die Quelle auf diesem Rechner\n' +
               '  └─ ' + folder + '\\                      hierhin kommt Office\\Data\\…'
             ) + '</pre>' +
-            '<p class="hint">Die Quelle selbst wird <b>nicht</b> ins ZIP gepackt – mehrere Gigabyte ' +
+            '<p class="hint">' + T('Die Quelle selbst wird <b>nicht</b> ins ZIP gepackt – mehrere Gigabyte ' +
             'durch den Browser zu schleusen ist nicht praktikabel. Nach dem Entpacken ' +
             '<code>Download-Quelle.ps1</code> im Office-Ordner ausführen, dann steht die Offline-Installation ' +
-            'auch in Phase 1 zur Verfügung. Fehlt die Quelle, weicht das Modul auf den Online-Bezug aus.</p>';
+            'auch in Phase 1 zur Verfügung. Fehlt die Quelle, weicht das Modul auf den Online-Bezug aus.') + '</p>';
         } else {
           sb.innerHTML = '';
         }
@@ -683,14 +687,14 @@
           } catch (e) { /* ungültige XML meldet bereits die Zusammenfassung */ }
         }
         if (state.office.enabled && state.office.phase === 'setup' && !localSource) {
-          oh.textContent = 'Achtung: In Phase 1 (specialize) besteht noch keine Netzwerkverbindung. ' +
+          oh.textContent = T('Achtung: In Phase 1 (specialize) besteht noch keine Netzwerkverbindung. ' +
             'Das Office Deployment Tool lädt die Installationsdateien aber von Microsoft – auch mit ' +
             'mitgelieferter setup.exe. Entweder Phase 2 wählen oder in der Configuration.xml ' +
-            'SourcePath auf eine lokale Quelle setzen.';
+            'SourcePath auf eine lokale Quelle setzen.');
           oh.style.color = 'var(--warn)';
         } else if (state.office.enabled && state.office.phase === 'setup' && localSource) {
-          oh.textContent = 'Die Configuration.xml verweist per SourcePath auf eine lokale Quelle – ' +
-            'damit ist die Installation auch ohne Netzwerk in Phase 1 möglich.';
+          oh.textContent = T('Die Configuration.xml verweist per SourcePath auf eine lokale Quelle – ' +
+            'damit ist die Installation auch ohne Netzwerk in Phase 1 möglich.');
           oh.style.color = '';
         } else {
           oh.textContent = '';
@@ -705,10 +709,11 @@
         .map((f) => f.target.toLowerCase());
       const missing = refs.filter((r) => !inScripts.includes(r.toLowerCase()));
       $('#customCmdRefHint').textContent = missing.length
-        ? 'Referenziert, aber nicht im Archiv: ' + missing.join(', ') +
-          ' – die Dateien unter „Eigene Dateien“ mit Zielordner „Setup\\Scripts“ hinzufügen.'
+        ? T('Referenziert, aber nicht im Archiv: ') + missing.join(', ') +
+          T(' – die Dateien unter „Eigene Dateien“ mit Zielordner „Setup\\Scripts“ hinzufügen.')
         : '';
       $('#customCmdRefHint').style.color = missing.length ? 'var(--warn)' : '';
+      I18n.apply();
       if ($('#view-preview').classList.contains('active')) renderPreview();
       if ($('#view-overview').classList.contains('active')) renderOverview();
     }, 60);
@@ -716,6 +721,7 @@
 
   function renderAll() {
     syncInputs();
+    I18n.apply();
     renderApps(); renderTweaks(); renderBloat(); renderFiles(); renderOfficeSummary(); renderUnattend();
     refresh();
   }
@@ -763,12 +769,12 @@
       case 'project': {
         loadProject(JSON.parse(text));
         logImport('Projekt geladen: ' + name);
-        toast('Projekt geladen.', 'ok');
+        toast(T('Projekt geladen.'), 'ok');
         return;
       }
       case 'bundle': {
         const pkgs = Importers.parseBundle(text, name);
-        if (!pkgs.length) { logImport('Keine Pakete gefunden in ' + name, 'warnl'); toast('Keine Pakete gefunden.', 'warn'); return; }
+        if (!pkgs.length) { logImport('Keine Pakete gefunden in ' + name, 'warnl'); toast(T('Keine Pakete gefunden.'), 'warn'); return; }
         const r = addPackages(pkgs, !!opts.replace);
         state.apps.enabled = true;
         logImport('Bundle ' + name + ': ' + r.added + ' Pakete übernommen' + (r.skipped ? ', ' + r.skipped + ' Duplikate übersprungen' : ''));
@@ -785,7 +791,7 @@
           info = ' (' + cfg.products.map((p) => p.id).join(', ') + ')';
         } catch (e) { /* Zusammenfassung optional */ }
         logImport('Office-Konfiguration übernommen: ' + name + info);
-        toast('Configuration.xml importiert.', 'ok');
+        toast(T('Configuration.xml importiert.'), 'ok');
         renderAll();
         return;
       }
@@ -809,7 +815,7 @@
         if (!res.packages.length && !res.custom.length && !res.officeConfigName) {
           logImport(name + ': nichts Verwertbares gefunden', 'warnl');
         }
-        toast('SetupComplete.cmd analysiert.', 'ok');
+        toast(T('SetupComplete.cmd analysiert.'), 'ok');
         renderAll();
         return;
       }
@@ -823,14 +829,14 @@
           '& (Join-Path $Global:OemRoot ' + "'Files\\" + name + "')";
         state.custom.psEnabled = true;
         logImport('PowerShell-Skript übernommen und Aufruf ergänzt: ' + name);
-        toast('PowerShell-Skript importiert.', 'ok');
+        toast(T('PowerShell-Skript importiert.'), 'ok');
         renderAll();
         return;
       }
       case 'unattend': {
         let info;
         try { info = Importers.parseUnattend(text); }
-        catch (e) { logImport(name + ': ' + e.message, 'err'); toast('autounattend.xml nicht lesbar.', 'err'); return; }
+        catch (e) { logImport(name + ': ' + e.message, 'err'); toast(T('autounattend.xml nicht lesbar.'), 'err'); return; }
         state.unattend = { xml: text, name: name, info: info };
         if (state.options.trigger === 'setupcomplete') state.options.trigger = 'both';
         if (info.useConfigurationSet && state.paths.zipRoot === 'sources') state.paths.zipRoot = 'both';
@@ -839,7 +845,7 @@
         if (info.useConfigurationSet) {
           logImport('UseConfigurationSet=true erkannt: $OEM$ gehört ins Wurzelverzeichnis des Mediums – Ablage auf „beide Orte“ gestellt.', 'warnl');
         }
-        toast('autounattend.xml wird ergänzt statt ersetzt.', 'ok');
+        toast(T('autounattend.xml wird ergänzt statt ersetzt.'), 'ok');
         renderAll();
         return;
       }
@@ -887,7 +893,7 @@
     }));
     renderAll();
     if (state.files.items.length) {
-      toast('Hinweis: Binärdateien sind nicht Teil der Projektdatei und müssen erneut hinzugefügt werden.', 'warn');
+      toast(T('Hinweis: Binärdateien sind nicht Teil der Projektdatei und müssen erneut hinzugefügt werden.'), 'warn');
     }
   }
 
@@ -926,7 +932,7 @@
     $('#btnSaveProject').addEventListener('click', () => {
       download(new Blob([projectJson()], { type: 'application/json' }),
         (state.meta.name || 'Projekt').replace(/[^\w.-]+/g, '_') + '.oemproj.json');
-      toast('Projektdatei gespeichert.', 'ok');
+      toast(T('Projektdatei gespeichert.'), 'ok');
     });
     $('#btnLoadProject').addEventListener('click', () => $('#projectInput').click());
     $('#projectInput').addEventListener('change', (e) => {
@@ -979,10 +985,10 @@
     $('#btnAppsAll').addEventListener('click', () => { state.apps.items.forEach((p) => { p.enabled = true; }); renderApps(); refresh(); });
     $('#btnAppsNone').addEventListener('click', () => { state.apps.items.forEach((p) => { p.enabled = false; }); renderApps(); refresh(); });
     $('#btnAppsClear').addEventListener('click', () => {
-      if (!state.apps.items.length || confirm('Paketliste wirklich leeren?')) { state.apps.items = []; renderApps(); refresh(); }
+      if (!state.apps.items.length || confirm(T('Paketliste wirklich leeren?'))) { state.apps.items = []; renderApps(); refresh(); }
     });
     $('#btnAppsAdd').addEventListener('click', () => {
-      const id = prompt('Paket-ID (z. B. 7zip.7zip):');
+      const id = prompt(T('Paket-ID (z. B. 7zip.7zip):'));
       if (!id) return;
       state.apps.items.push(Importers.mkPkg({ id: id.trim(), name: id.trim(), manager: 'winget', source: 'winget' }));
       $('#appsFilter').value = '';
@@ -1015,7 +1021,7 @@
       toast(state.bloat.selected.length + ' Pakete zum Entfernen ausgewählt.', 'ok');
     });
     $('#btnBloatAdd').addEventListener('click', () => {
-      const id = prompt('AppX-Paketname (z. B. Microsoft.BingNews):');
+      const id = prompt(T('AppX-Paketname (z. B. Microsoft.BingNews):'));
       if (!id) return;
       if (!state.bloat.selected.includes(id.trim())) state.bloat.selected.push(id.trim());
       state.bloat.enabled = true;
@@ -1041,8 +1047,8 @@
     $('#btnCopyFile').addEventListener('click', async () => {
       const cur = previewFiles.find((f) => f.path === previewActive);
       if (!cur || cur.binary) return;
-      try { await navigator.clipboard.writeText(cur.data); toast('In die Zwischenablage kopiert.', 'ok'); }
-      catch (e) { toast('Kopieren nicht möglich.', 'err'); }
+      try { await navigator.clipboard.writeText(cur.data); toast(T('In die Zwischenablage kopiert.'), 'ok'); }
+      catch (e) { toast(T('Kopieren nicht möglich.'), 'err'); }
     });
     $('#btnDownloadFile').addEventListener('click', () => {
       const cur = previewFiles.find((f) => f.path === previewActive);
@@ -1060,15 +1066,24 @@
     $('#btnUnattendDrop').addEventListener('click', () => {
       state.unattend = { xml: null, name: '', info: null };
       renderUnattend(); refresh();
-      toast('Importierte autounattend.xml verworfen.', 'ok');
+      toast(T('Importierte autounattend.xml verworfen.'), 'ok');
     });
 
     /* Einstellungen */
     $('#btnReset').addEventListener('click', () => {
-      if (!confirm('Projekt auf Werkseinstellungen zurücksetzen?')) return;
+      if (!confirm(T('Projekt auf Werkseinstellungen zurücksetzen?'))) return;
       state = defaultState();
       renderAll();
-      toast('Projekt zurückgesetzt.', 'ok');
+      toast(T('Projekt zurückgesetzt.'), 'ok');
+    });
+
+    /* Sprache */
+    $$('.langswitch .lang').forEach((b) => {
+      b.addEventListener('click', () => I18n.setLanguage(b.dataset.lang));
+    });
+    document.addEventListener('oemgen:language', () => {
+      $$('.langswitch .lang').forEach((b) => b.classList.toggle('active', b.dataset.lang === I18n.lang));
+      renderAll();
     });
 
     window.addEventListener('beforeunload', (e) => {
@@ -1083,7 +1098,7 @@
   function init() {
     bindAll();
     wire();
-    renderAll();
+    I18n.setLanguage(I18n.detect());   /* löst renderAll über das Sprachereignis aus */
     setView('overview');
   }
 

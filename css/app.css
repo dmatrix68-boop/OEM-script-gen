@@ -215,3 +215,13 @@ body.dragging .dropzone{border-color:var(--acc)}
 .toast.err{border-left-color:var(--err)}
 .toast.warn{border-left-color:var(--warn)}
 @keyframes slide{from{opacity:0;transform:translateX(12px)}to{opacity:1;transform:none}}
+
+/* Sprachumschalter */
+.langswitch{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+.langswitch .lang{
+  background:var(--bg3);border:0;color:var(--fg2);font:inherit;font-size:12px;font-weight:600;
+  padding:7px 10px;cursor:pointer;letter-spacing:.03em;
+}
+.langswitch .lang+.lang{border-left:1px solid var(--line)}
+.langswitch .lang:hover{color:var(--fg)}
+.langswitch .lang.active{background:var(--acc);color:#fff}

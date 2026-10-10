@@ -1,11 +1,17 @@
 # OEM Script Generator
 
+*Deutsche Fassung · [English version](README.en.md)*
+
 Web-Oberfläche zum Erzeugen von Installationsskripten für den `$OEM$`-Ordner eines
 Windows-11-Installationsmediums. Konfiguration im Browser, Ergebnis ist ein ZIP mit
 der fertigen Ordnerstruktur, die direkt in die ISO bzw. auf den USB-Stick kopiert wird.
 
 Läuft vollständig lokal: keine Server-Komponente, keine externen Bibliotheken, kein
 Build-Schritt. `index.html` im Browser öffnen genügt (auch per `file://`).
+
+Die Oberfläche ist zweisprachig – Deutsch und Englisch. Der Umschalter sitzt in der
+Kopfzeile (**DE** / **EN**), beim ersten Start entscheidet die Browsersprache. Die
+Sprache bestimmt auch, ob im erzeugten Archiv `LIESMICH.txt` oder `README.txt` liegt.
 
 ## Funktionen
 
@@ -282,6 +288,9 @@ powershell -ExecutionPolicy Bypass -File C:\Install\Install.ps1 -Phase Manual -O
   gehören deshalb besser in Phase 2.
 * Beim Speichern eines Projekts werden mitgelieferte Binärdateien **nicht** in die
   Projektdatei aufgenommen – sie müssen nach dem Laden erneut hinzugefügt werden.
+* Die erzeugten PowerShell-Skripte und ihre Protokollausgaben sind unabhängig von
+  der Oberflächensprache deutsch; nur die Dokumentation im Archiv folgt dem
+  Umschalter.
 
 ## Entwicklung
 
@@ -302,6 +311,7 @@ node tools/check-escapes.js
 ```
 index.html        Oberfläche
 css/app.css       Layout
+js/i18n.js        Wörterbuch Deutsch/Englisch und Sprachumschaltung
 js/zip.js         ZIP-Writer (Deflate über CompressionStream, sonst „stored“)
 js/catalog.js     Tweak- und Bloatware-Katalog, Paketmanager-Definitionen
 js/importers.js   Parser für Bundles, SetupComplete.cmd und ODT-XML
