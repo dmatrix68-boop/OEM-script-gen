@@ -9,6 +9,22 @@
   'use strict';
 
   const EN = {
+    'th-name': 'Name',
+    'th-paket-id': 'Package ID',
+    'th-manager': 'Manager',
+    'th-version': 'Version',
+    'th-zusatzargumente': 'Extra arguments',
+    'th-datei': 'File',
+    'th-zielordner': 'Target folder',
+    'th-zielpfad-relativ': 'Target path (relative)',
+    'th-ausfuehren-mit': 'Run with',
+    'th-phase': 'Phase',
+    'dateien-hierher-ziehen-oder': '<b>Drag files here</b> or ',
+    'hinweis-oem-sperre': 'Windows Setup does <b>not</b> run <code>SetupComplete.cmd</code> when the '
+      + 'installation uses a product key from the OEM channel \u2013 for instance the key stored in the '
+      + 'BIOS/UEFI of a branded device. This affects Home and Pro; Enterprise and Windows Server are '
+      + 'exempt. <code>autounattend.xml</code> is unaffected and starts phase 1 in the '
+      + '<code>specialize</code> pass and phase 2 via <code>FirstLogonCommands</code>.',
     /* Kopfzeile und Navigation */
     'oem-script-generator': 'OEM Script Generator',
     'installationsskripte-fuer-den-oem-ordner':
@@ -20,16 +36,16 @@
     'projektdatei-oemproj-json-laden': 'Load project file (.oemproj.json)',
     'projektdatei-speichern': 'Save project file',
     'komplette-oem-struktur-als-zip': 'Download the complete OEM structure as a ZIP',
-    'uebersicht': '<span class="ico">▦</span>Overview',
-    'import': '<span class="ico">↧</span>Import',
-    'anwendungen0': '<span class="ico">▣</span>Applications<span class="badge" id="badgeApps">0</span>',
-    'office-odt': '<span class="ico">◫</span>Office / ODT',
-    'tweaks0': '<span class="ico">⚙</span>Tweaks<span class="badge" id="badgeTweaks">0</span>',
-    'bloatware0': '<span class="ico">✂</span>Bloatware<span class="badge" id="badgeBloat">0</span>',
-    'eigene-dateien0': '<span class="ico">🗀</span>Own files<span class="badge" id="badgeFiles">0</span>',
-    'eigene-befehle': '<span class="ico">›_</span>Own commands',
-    'einstellungen': '<span class="ico">⚒</span>Settings',
-    'vorschau': '<span class="ico">◲</span>Preview',
+    'nav-uebersicht': 'Overview',
+    'nav-import': 'Import',
+    'nav-anwendungen': 'Applications',
+    'nav-office-odt': 'Office / ODT',
+    'nav-tweaks': 'Tweaks',
+    'nav-bloatware': 'Bloatware',
+    'nav-eigene-dateien': 'Own files',
+    'nav-eigene-befehle': 'Own commands',
+    'nav-einstellungen': 'Settings',
+    'nav-vorschau': 'Preview',
     'dateien-irgendwo-ablegen-zum-importieren':
       'Drop files anywhere to import<br><small>.ubundle · .cmd · .ps1 · .xml · .json</small>',
 
@@ -99,9 +115,10 @@
     'lokal-mitgelieferte-quelle-offline': 'locally supplied source (offline)',
     'ordner-der-quelle-unter-office': 'Source folder (below Office\\)',
     'ueberspringen-wenn-office-bereits-installiert': 'Skip if Office is already installed',
-    'bei-mitliefern-muss-setup-exe':
-      'When shipping it along, <code>setup.exe</code> (Office Deployment Tool) has to be placed at ' +
-      '<span class="mono" id="officeSetupPath"></span> – the generator leaves a placeholder note there.',
+    'bei-mitliefern-muss-setup-exe-1':
+      'When shipping it along, <code>setup.exe</code> (Office Deployment Tool) has to be placed at ',
+    'bei-mitliefern-muss-setup-exe-2':
+      ' – the generator leaves a placeholder note there.',
     'configuration-xml': 'Configuration.xml',
     'xml-importieren': 'Import XML',
     'vorlage-einfuegen': 'Insert template',
@@ -125,9 +142,9 @@
 
     /* Eigene Dateien */
     'eigene-dateien-amp-installer': 'Own files &amp; installers',
-    'beliebige-dateien-in-die-oem':
+    'beliebige-dateien-in-die-oem-1':
       'Include arbitrary files in the OEM structure: setup files (.exe/.msi) with silent switches, scripts, ' +
-      'configurations, drivers. The default target folder is <span class="mono" id="filesTargetPath"></span>.',
+      'configurations, drivers. The default target folder is ',
     'dateien-hinzufuegen': 'Add files',
     'binaerdateien-werden-nur-im-zip':
       'Binary files are only shipped inside the ZIP, never stored in the project file.',
@@ -189,6 +206,75 @@
       hier die deutsche Fassung selbst - der Katalog bleibt dadurch unverändert
       lesbar, und ein fehlender Eintrag fällt sofort auf.  */
   const TERMS_EN = {
+    /* Hinweise, Protokoll- und Statusmeldungen */
+    'Scoop läuft nur im Benutzerkontext – Phase 2 mit RunOnce wählen.':
+      'Scoop only runs in the user context – choose phase 2 with RunOnce.',
+    'Chocolatey wird bei Bedarf automatisch nachinstalliert (Internetzugang nötig).':
+      'Chocolatey is installed automatically when needed (internet access required).',
+    'npm-/pip-Pakete setzen eine vorhandene Laufzeitumgebung voraus.':
+      'npm and pip packages require an existing runtime.',
+    'Install\\Files: wird vom Modul "Eigene Installer" ausgefuehrt.\nSetup\\Scripts: liegt neben SetupComplete.cmd und ist ueber %~dp0 erreichbar.':
+      'Install\\Files: executed by the "Custom installers" module.\nSetup\\Scripts: sits next to SetupComplete.cmd and is reachable via %~dp0.',
+    ' Bit': '-bit',
+    ' – ohne: ': ' – excluding: ',
+    'ja': 'yes',
+    'nein': 'no',
+    'Standard': 'default',
+    '{0} Einträge': '{0} entries',
+    'Kein <code>&lt;Display Level="None" AcceptEULA="TRUE" /&gt;</code> – die Installation würde eine Oberfläche anzeigen. ':
+      'No <code>&lt;Display Level="None" AcceptEULA="TRUE" /&gt;</code> – the installation would show a user interface. ',
+    '<b>UseConfigurationSet=true:</b> Windows Setup sucht den <code>$OEM$</code>-Ordner neben der Antwortdatei, also im <b>Wurzelverzeichnis</b> des Mediums – nicht unter <code>sources\\</code>. Die Ablage steht deshalb auf „beide Orte“.':
+      '<b>UseConfigurationSet=true:</b> Windows Setup looks for the <code>$OEM$</code> folder next to the answer file, i.e. in the <b>root directory</b> of the medium – not under <code>sources\\</code>. The location has therefore been set to "both places".',
+    '  ├─ setup.exe                   (ODT – selbst ablegen)':
+      '  ├─ setup.exe                   (ODT – add it yourself)',
+    '  ├─ Download-Quelle.ps1         erzeugt die Quelle auf diesem Rechner':
+      '  ├─ Download-Quelle.ps1         creates the source on this machine',
+    '\\                      hierhin kommt Office\\Data\\…':
+      '\\                      this is where Office\\Data\\… goes',
+    'Datei übernommen: {0} ({1} KB)': 'File taken over: {0} ({1} KB)',
+    'Keine Pakete gefunden in {0}': 'No packages found in {0}',
+    'Bundle {0}: {1} Pakete übernommen': 'Bundle {0}: {1} packages taken over',
+    ', {0} Duplikate übersprungen': ', {0} duplicates skipped',
+    '{0} Pakete importiert.': '{0} packages imported.',
+    'Office-Konfiguration übernommen: {0}': 'Office configuration taken over: {0}',
+    '{0}: {1} winget-Aufrufe erkannt ({2} neu': '{0}: {1} winget calls recognised ({2} new',
+    ', {0} bereits vorhanden': ', {0} already present',
+    '{0}: Office-Aufruf erkannt – Configuration.xml separat importieren':
+      '{0}: Office call recognised – import Configuration.xml separately',
+    '{0}: {1} eigene Befehlszeilen übernommen': '{0}: {1} custom command lines taken over',
+    '{0}: nichts Verwertbares gefunden': '{0}: nothing usable found',
+    '# Importiertes Skript ausführen': '# run the imported script',
+    'PowerShell-Skript übernommen und Aufruf ergänzt: {0}':
+      'PowerShell script taken over and its call added: {0}',
+    'autounattend.xml übernommen: {0} – {1} vorhandene Befehle, UseConfigurationSet={2}':
+      'autounattend.xml taken over: {0} – {1} existing commands, UseConfigurationSet={2}',
+    'UseConfigurationSet=true erkannt: $OEM$ gehört ins Wurzelverzeichnis des Mediums – Ablage auf „beide Orte“ gestellt.':
+      'UseConfigurationSet=true detected: $OEM$ belongs in the root directory of the medium – location set to "both places".',
+    'Als Datei übernommen: {0}': 'Taken over as a file: {0}',
+    'Erzeuge …': 'Generating …',
+    'ZIP mit {0} Dateien erstellt.': 'ZIP with {0} files created.',
+    'Export fehlgeschlagen: {0}': 'Export failed: {0}',
+    'ZIP erzeugen': 'Generate ZIP',
+    'Eingefügtes Bundle: {0} Pakete übernommen': 'Pasted bundle: {0} packages taken over',
+    'Konnte nicht gelesen werden: {0}': 'Could not be read: {0}',
+    'Noch nichts importiert.': 'Nothing imported yet.',
+    '{0} Pakete zum Entfernen ausgewählt.': '{0} packages selected for removal.',
+    /* Meldungen aus den Importern */
+    'Unbekanntes Bundle-Format': 'Unknown bundle format',
+    'Office-Installation (ODT) erkannt: {0}': 'Office installation (ODT) recognised: {0}',
+    'PowerShell-Aufruf erkannt: {0}': 'PowerShell call recognised: {0}',
+    'AppX-Entfernung erkannt – bitte im Modul „Bloatware“ nachpflegen.':
+      'AppX removal recognised – please add it in the "Bloatware" module.',
+    'XML nicht lesbar': 'XML not readable',
+    'Kein <Configuration>-Element': 'No <Configuration> element',
+    'Kein <unattend>-Element': 'No <unattend> element',
+    /* Modultitel aus Templates.moduleList() */
+    'System-Tweaks': 'System tweaks',
+    'Tweaks mit Netzwerkbedarf': 'Tweaks that require the network',
+    'Bloatware entfernen': 'Remove bloatware',
+    'Microsoft Office (ODT)': 'Microsoft Office (ODT)',
+    'Eigene Installer': 'Custom installers',
+    'Eigene PowerShell-Befehle': 'Custom PowerShell commands',
     /* Kategorien */
     'Explorer': 'Explorer',
     'Taskleiste': 'Taskbar',
@@ -452,6 +538,8 @@
     apply,
     setLanguage,
     detect,
-    get lang() { return current; }
+    get lang() { return current; },
+    /* nur fuer tools/check-i18n.js */
+    dict: (lang) => DICTS[lang]
   };
 })(window);

@@ -27,16 +27,18 @@
 
 <div class="layout">
   <nav class="sidebar">
-    <button class="nav-item active" data-view="overview" data-i18n="uebersicht"><span class="ico">▦</span>Übersicht</button>
-    <button class="nav-item" data-view="import" data-i18n="import"><span class="ico">↧</span>Import</button>
-    <button class="nav-item" data-view="apps" data-i18n="anwendungen0"><span class="ico">▣</span>Anwendungen<span class="badge" id="badgeApps">0</span></button>
-    <button class="nav-item" data-view="office" data-i18n="office-odt"><span class="ico">◫</span>Office / ODT</button>
-    <button class="nav-item" data-view="tweaks" data-i18n="tweaks0"><span class="ico">⚙</span>Tweaks<span class="badge" id="badgeTweaks">0</span></button>
-    <button class="nav-item" data-view="bloat" data-i18n="bloatware0"><span class="ico">✂</span>Bloatware<span class="badge" id="badgeBloat">0</span></button>
-    <button class="nav-item" data-view="files" data-i18n="eigene-dateien0"><span class="ico">🗀</span>Eigene Dateien<span class="badge" id="badgeFiles">0</span></button>
-    <button class="nav-item" data-view="custom" data-i18n="eigene-befehle"><span class="ico">›_</span>Eigene Befehle</button>
-    <button class="nav-item" data-view="settings" data-i18n="einstellungen"><span class="ico">⚒</span>Einstellungen</button>
-    <button class="nav-item" data-view="preview" data-i18n="vorschau"><span class="ico">◲</span>Vorschau</button>
+    <!-- Die Uebersetzungsmarke sitzt am Beschriftungs-span, nicht am Knopf:
+         sonst wuerde jedes I18n.apply() die Zaehler mit ueberschreiben. -->
+    <button class="nav-item active" data-view="overview"><span class="ico">▦</span><span data-i18n="nav-uebersicht">Übersicht</span></button>
+    <button class="nav-item" data-view="import"><span class="ico">↧</span><span data-i18n="nav-import">Import</span></button>
+    <button class="nav-item" data-view="apps"><span class="ico">▣</span><span data-i18n="nav-anwendungen">Anwendungen</span><span class="badge" id="badgeApps">0</span></button>
+    <button class="nav-item" data-view="office"><span class="ico">◫</span><span data-i18n="nav-office-odt">Office / ODT</span></button>
+    <button class="nav-item" data-view="tweaks"><span class="ico">⚙</span><span data-i18n="nav-tweaks">Tweaks</span><span class="badge" id="badgeTweaks">0</span></button>
+    <button class="nav-item" data-view="bloat"><span class="ico">✂</span><span data-i18n="nav-bloatware">Bloatware</span><span class="badge" id="badgeBloat">0</span></button>
+    <button class="nav-item" data-view="files"><span class="ico">🗀</span><span data-i18n="nav-eigene-dateien">Eigene Dateien</span><span class="badge" id="badgeFiles">0</span></button>
+    <button class="nav-item" data-view="custom"><span class="ico">›_</span><span data-i18n="nav-eigene-befehle">Eigene Befehle</span></button>
+    <button class="nav-item" data-view="settings"><span class="ico">⚒</span><span data-i18n="nav-einstellungen">Einstellungen</span></button>
+    <button class="nav-item" data-view="preview"><span class="ico">◲</span><span data-i18n="nav-vorschau">Vorschau</span></button>
     <div class="sidebar-foot">
       <div id="dropHint" class="drop-hint" data-i18n="dateien-irgendwo-ablegen-zum-importieren">Dateien irgendwo ablegen zum Importieren<br><small>.ubundle · .cmd · .ps1 · .xml · .json</small></div>
     </div>
@@ -73,7 +75,7 @@
       <div class="dropzone" id="dropzone">
         <div class="dz-inner">
           <div class="dz-ico">↧</div>
-          <div><b>Dateien hierher ziehen</b> oder <button class="btn small" id="btnPickFiles" data-i18n="auswaehlen">auswählen</button></div>
+          <div><span data-i18n="dateien-hierher-ziehen-oder"><b>Dateien hierher ziehen</b> oder </span><button class="btn small" id="btnPickFiles" data-i18n="auswaehlen">auswählen</button></div>
           <div class="dz-types" data-i18n="ubundle-json-cmd-bat-ps1">.ubundle · .json · .cmd/.bat · .ps1 · autounattend.xml · .exe/.msi</div>
         </div>
         <input type="file" id="fileInput" multiple hidden>
@@ -114,15 +116,15 @@
           <label class="field">
             <span><span data-i18n="ausfuehrungsphase">Ausführungsphase</span></span>
             <select id="appsPhase">
-              <option value="firstlogon"><span data-i18n="phase-2-nach-erster-anmeldung">Phase 2 – nach erster Anmeldung (empfohlen)</span></option>
-              <option value="setup"><span data-i18n="phase-1-direkt-in-setupcomplete">Phase 1 – direkt in SetupComplete (SYSTEM)</span></option>
+              <option value="firstlogon" data-i18n="phase-2-nach-erster-anmeldung">Phase 2 – nach erster Anmeldung (empfohlen)</option>
+              <option value="setup" data-i18n="phase-1-direkt-in-setupcomplete">Phase 1 – direkt in SetupComplete (SYSTEM)</option>
             </select>
           </label>
           <label class="field">
             <span><span data-i18n="installationsmethode">Installationsmethode</span></span>
             <select id="appsMethod">
-              <option value="individual"><span data-i18n="einzelbefehle-je-paket-robust-fehler">Einzelbefehle je Paket (robust, Fehler pro Paket)</span></option>
-              <option value="import"><span data-i18n="winget-import-packages-json">winget import (packages.json)</span></option>
+              <option value="individual" data-i18n="einzelbefehle-je-paket-robust-fehler">Einzelbefehle je Paket (robust, Fehler pro Paket)</option>
+              <option value="import" data-i18n="winget-import-packages-json">winget import (packages.json)</option>
             </select>
           </label>
           <label class="field">
@@ -156,7 +158,7 @@
         <div class="table-wrap">
           <table class="tbl" id="appsTable">
             <thead>
-              <tr><th class="w-chk"></th><th>Name</th><th>Paket-ID</th><th>Manager</th><th>Version</th><th>Zusatzargumente</th><th class="w-act"></th></tr>
+              <tr><th class="w-chk"></th><th data-i18n="th-name">Name</th><th data-i18n="th-paket-id">Paket-ID</th><th data-i18n="th-manager">Manager</th><th data-i18n="th-version">Version</th><th data-i18n="th-zusatzargumente">Zusatzargumente</th><th class="w-act"></th></tr>
             </thead>
             <tbody></tbody>
           </table>
@@ -175,15 +177,15 @@
           <label class="field">
             <span><span data-i18n="ausfuehrungsphase">Ausführungsphase</span></span>
             <select id="officePhase">
-              <option value="firstlogon"><span data-i18n="phase-2-nach-erster-anmeldung">Phase 2 – nach erster Anmeldung (empfohlen)</span></option>
-              <option value="setup"><span data-i18n="phase-1-setupcomplete-system">Phase 1 – SetupComplete (SYSTEM)</span></option>
+              <option value="firstlogon" data-i18n="phase-2-nach-erster-anmeldung">Phase 2 – nach erster Anmeldung (empfohlen)</option>
+              <option value="setup" data-i18n="phase-1-setupcomplete-system">Phase 1 – SetupComplete (SYSTEM)</option>
             </select>
           </label>
           <label class="field">
             <span><span data-i18n="odt-setup-setup-exe">ODT-Setup (setup.exe)</span></span>
             <select id="officeSetupSource">
-              <option value="bundled"><span data-i18n="liegt-im-oem-ordner-mitliefern">liegt im OEM-Ordner (mitliefern)</span></option>
-              <option value="download"><span data-i18n="zur-laufzeit-von-microsoft-laden">zur Laufzeit von Microsoft laden</span></option>
+              <option value="bundled" data-i18n="liegt-im-oem-ordner-mitliefern">liegt im OEM-Ordner (mitliefern)</option>
+              <option value="download" data-i18n="zur-laufzeit-von-microsoft-laden">zur Laufzeit von Microsoft laden</option>
             </select>
           </label>
           <label class="field grow">
@@ -195,8 +197,8 @@
           <label class="field">
             <span><span data-i18n="installationsquelle">Installationsquelle</span></span>
             <select id="officeSource">
-              <option value="online"><span data-i18n="online-von-microsoft-laden">online von Microsoft laden</span></option>
-              <option value="local"><span data-i18n="lokal-mitgelieferte-quelle-offline">lokal mitgelieferte Quelle (offline)</span></option>
+              <option value="online" data-i18n="online-von-microsoft-laden">online von Microsoft laden</option>
+              <option value="local" data-i18n="lokal-mitgelieferte-quelle-offline">lokal mitgelieferte Quelle (offline)</option>
             </select>
           </label>
           <label class="field">
@@ -209,7 +211,7 @@
           <label class="chk"><input type="checkbox" id="officeCheckInstalled" checked> <span data-i18n="ueberspringen-wenn-office-bereits-installiert">Überspringen, wenn Office bereits installiert ist</span></label>
         </div>
         <p class="hint" id="officePhaseHint"></p>
-        <p class="hint" data-i18n="bei-mitliefern-muss-setup-exe">Bei „mitliefern“ muss <code>setup.exe</code> (Office Deployment Tool) unter <span class="mono" id="officeSetupPath"></span> abgelegt werden – der Generator legt dafür einen Platzhalter-Hinweis ab.</p>
+        <p class="hint"><span data-i18n="bei-mitliefern-muss-setup-exe-1">Bei „mitliefern“ muss <code>setup.exe</code> (Office Deployment Tool) unter </span><span class="mono" id="officeSetupPath"></span><span data-i18n="bei-mitliefern-muss-setup-exe-2"> abgelegt werden – der Generator legt dafür einen Platzhalter-Hinweis ab.</span></p>
       </div>
 
       <div class="grid2">
@@ -239,8 +241,8 @@
           <label class="field">
             <span><span data-i18n="ausfuehrungsphase">Ausführungsphase</span></span>
             <select id="tweaksPhase">
-              <option value="setup"><span data-i18n="phase-1-setupcomplete-system">Phase 1 – SetupComplete (SYSTEM)</span></option>
-              <option value="firstlogon"><span data-i18n="phase-2-nach-erster-anmeldung-2">Phase 2 – nach erster Anmeldung</span></option>
+              <option value="setup" data-i18n="phase-1-setupcomplete-system">Phase 1 – SetupComplete (SYSTEM)</option>
+              <option value="firstlogon" data-i18n="phase-2-nach-erster-anmeldung-2">Phase 2 – nach erster Anmeldung</option>
             </select>
           </label>
           <label class="chk"><input type="checkbox" id="tweaksAllUsers" checked> <span data-i18n="benutzer-einstellungen-auch-auf-default">Benutzer-Einstellungen auch auf Default-Profil &amp; bestehende Profile anwenden</span></label>
@@ -269,8 +271,8 @@
           <label class="field">
             <span><span data-i18n="ausfuehrungsphase">Ausführungsphase</span></span>
             <select id="bloatPhase">
-              <option value="setup"><span data-i18n="phase-1-setupcomplete-system">Phase 1 – SetupComplete (SYSTEM)</span></option>
-              <option value="firstlogon"><span data-i18n="phase-2-nach-erster-anmeldung-2">Phase 2 – nach erster Anmeldung</span></option>
+              <option value="setup" data-i18n="phase-1-setupcomplete-system">Phase 1 – SetupComplete (SYSTEM)</option>
+              <option value="firstlogon" data-i18n="phase-2-nach-erster-anmeldung-2">Phase 2 – nach erster Anmeldung</option>
             </select>
           </label>
           <label class="chk"><input type="checkbox" id="bloatProvisioned" checked> <span data-i18n="auch-aus-dem-provisioning-entfernen">Auch aus dem Provisioning entfernen (gilt für neue Benutzer)</span></label>
@@ -289,8 +291,8 @@
     <!-- EIGENE DATEIEN -->
     <section class="view" id="view-files">
       <h2 data-i18n="eigene-dateien-amp-installer">Eigene Dateien &amp; Installer</h2>
-      <p class="lead" data-i18n="beliebige-dateien-in-die-oem">Beliebige Dateien in die OEM-Struktur aufnehmen: Setup-Dateien (.exe/.msi) mit Silent-Parametern,
-      Skripte, Konfigurationen, Treiber. Zielordner ist standardmäßig <span class="mono" id="filesTargetPath"></span>.</p>
+      <p class="lead"><span data-i18n="beliebige-dateien-in-die-oem-1">Beliebige Dateien in die OEM-Struktur aufnehmen: Setup-Dateien (.exe/.msi) mit Silent-Parametern,
+      Skripte, Konfigurationen, Treiber. Zielordner ist standardmäßig </span><span class="mono" id="filesTargetPath"></span>.</p>
       <div class="panel">
         <div class="row">
           <button class="btn" id="btnFilesAdd" data-i18n="dateien-hinzufuegen">Dateien hinzufügen</button>
@@ -299,7 +301,7 @@
         </div>
         <div class="table-wrap">
           <table class="tbl" id="filesTable">
-            <thead><tr><th class="w-chk"></th><th>Datei</th><th>Zielordner</th><th>Zielpfad (relativ)</th><th>Ausführen mit</th><th>Phase</th><th class="w-act"></th></tr></thead>
+            <thead><tr><th class="w-chk"></th><th data-i18n="th-datei">Datei</th><th data-i18n="th-zielordner">Zielordner</th><th data-i18n="th-zielpfad-relativ">Zielpfad (relativ)</th><th data-i18n="th-ausfuehren-mit">Ausführen mit</th><th data-i18n="th-phase">Phase</th><th class="w-act"></th></tr></thead>
             <tbody></tbody>
           </table>
         </div>
@@ -325,8 +327,8 @@
           <label class="field">
             <span><span data-i18n="ausfuehrungsphase">Ausführungsphase</span></span>
             <select id="customPsPhase">
-              <option value="setup"><span data-i18n="phase-1-setupcomplete-system">Phase 1 – SetupComplete (SYSTEM)</span></option>
-              <option value="firstlogon"><span data-i18n="phase-2-nach-erster-anmeldung-2">Phase 2 – nach erster Anmeldung</span></option>
+              <option value="setup" data-i18n="phase-1-setupcomplete-system">Phase 1 – SetupComplete (SYSTEM)</option>
+              <option value="firstlogon" data-i18n="phase-2-nach-erster-anmeldung-2">Phase 2 – nach erster Anmeldung</option>
             </select>
           </label>
           <textarea id="customPs" rows="10" spellcheck="false" data-i18n-ph="eigener-powershell-code" placeholder="# eigener PowerShell-Code"></textarea>
@@ -347,9 +349,9 @@
           <label class="field">
             <span><span data-i18n="ablage-von">Ablage von</span> <code><span data-i18n="oem">$OEM$</span></code> <span data-i18n="auf-dem-medium">auf dem Medium</span></span>
             <select id="setZipRoot">
-              <option value="both"><span data-i18n="beide-orte-sicherste-variante-empfohlen">beide Orte – sicherste Variante (empfohlen)</span></option>
-              <option value="sources"><span data-i18n="sources-oem-ohne-konfigurationssatz">sources\$OEM$\… – ohne Konfigurationssatz</span></option>
-              <option value="oem"><span data-i18n="oem-im-wurzelverzeichnis-bei-useconfigurationset">$OEM$\… im Wurzelverzeichnis – bei UseConfigurationSet</span></option>
+              <option value="both" data-i18n="beide-orte-sicherste-variante-empfohlen">beide Orte – sicherste Variante (empfohlen)</option>
+              <option value="sources" data-i18n="sources-oem-ohne-konfigurationssatz">sources\$OEM$\… – ohne Konfigurationssatz</option>
+              <option value="oem" data-i18n="oem-im-wurzelverzeichnis-bei-useconfigurationset">$OEM$\… im Wurzelverzeichnis – bei UseConfigurationSet</option>
             </select>
           </label>
         </div>
@@ -360,13 +362,13 @@
           <label class="field grow">
             <span><span data-i18n="wodurch-wird-install-ps1-gestartet">Wodurch wird Install.ps1 gestartet?</span></span>
             <select id="setTrigger">
-              <option value="both"><span data-i18n="setupcomplete-cmd-und-autounattend-xml">SetupComplete.cmd und autounattend.xml (empfohlen)</span></option>
-              <option value="setupcomplete"><span data-i18n="nur-setupcomplete-cmd">nur SetupComplete.cmd</span></option>
-              <option value="unattend"><span data-i18n="nur-autounattend-xml">nur autounattend.xml</span></option>
+              <option value="both" data-i18n="setupcomplete-cmd-und-autounattend-xml">SetupComplete.cmd und autounattend.xml (empfohlen)</option>
+              <option value="setupcomplete" data-i18n="nur-setupcomplete-cmd">nur SetupComplete.cmd</option>
+              <option value="unattend" data-i18n="nur-autounattend-xml">nur autounattend.xml</option>
             </select>
           </label>
         </div>
-        <p class="hint">Windows Setup führt <code>SetupComplete.cmd</code> <b>nicht</b> aus, wenn die Installation
+        <p class="hint" data-i18n="hinweis-oem-sperre">Windows Setup führt <code>SetupComplete.cmd</code> <b>nicht</b> aus, wenn die Installation
         einen Produktschlüssel aus dem OEM-Kanal verwendet – etwa den im BIOS/UEFI hinterlegten Schlüssel eines
         Markengeräts. Betroffen sind Home und Pro, ausgenommen sind Enterprise und Windows Server. Die
         <code>autounattend.xml</code> ist davon unabhängig und startet Phase 1 im <code>specialize</code>-Pass sowie
@@ -385,16 +387,16 @@
           <label class="field">
             <span><span data-i18n="phase-2-wird-gestartet-ueber">Phase 2 wird gestartet über</span></span>
             <select id="setPhase2Runner">
-              <option value="task"><span data-i18n="geplante-aufgabe-als-system-zuverlaessig">Geplante Aufgabe als SYSTEM (zuverlässig)</span></option>
-              <option value="runonce"><span data-i18n="runonce-im-kontext-des-ersten">RunOnce im Kontext des ersten Benutzers</span></option>
+              <option value="task" data-i18n="geplante-aufgabe-als-system-zuverlaessig">Geplante Aufgabe als SYSTEM (zuverlässig)</option>
+              <option value="runonce" data-i18n="runonce-im-kontext-des-ersten">RunOnce im Kontext des ersten Benutzers</option>
             </select>
           </label>
           <label class="field">
             <span><span data-i18n="abschluss-von-phase-2">Abschluss von Phase 2</span></span>
             <select id="setFinish">
-              <option value="none"><span data-i18n="nichts-tun">nichts tun</span></option>
-              <option value="reboot"><span data-i18n="neustart">Neustart</span></option>
-              <option value="shutdown"><span data-i18n="herunterfahren">Herunterfahren</span></option>
+              <option value="none" data-i18n="nichts-tun">nichts tun</option>
+              <option value="reboot" data-i18n="neustart">Neustart</option>
+              <option value="shutdown" data-i18n="herunterfahren">Herunterfahren</option>
             </select>
           </label>
         </div>

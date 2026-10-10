@@ -306,6 +306,16 @@ ersetzte. Im Template-Literal gehören solche Folgen deshalb verdoppelt
 node tools/check-escapes.js
 ```
 
+Zweisprachigkeit: Oberflächentexte tragen `data-i18n`, Katalog- und
+Laufzeittexte laufen über `T()`/`F()` mit der deutschen Fassung als Schlüssel.
+Ein übersetzter Bereich darf kein Element mit `id` enthalten – `I18n.apply()`
+schreibt seinen Inhalt komplett neu und würde dort gesetzte Zähler oder Pfade
+überbügeln. Dagegen prüft:
+
+```bash
+node tools/check-i18n.js
+```
+
 ## Projektaufbau
 
 ```
@@ -319,4 +329,5 @@ js/templates.js   Erzeugung sämtlicher Skripte
 js/app.js         Zustand, Oberfläche, Import/Export
 samples/          Beispieldateien zum Testen der Importfunktion
 tools/            check-escapes.js – prüft die Template-Literale auf verschluckte Escapes
+                  check-i18n.js    – prüft Wörterbuch gegen Oberfläche
 ```

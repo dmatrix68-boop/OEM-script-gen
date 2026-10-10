@@ -1814,21 +1814,11 @@ Write-Host ''
 
   /* ---------- README (englische Fassung) ---------- */
 
-  /* Modultitel aus moduleList() fuer die englische Fassung. */
-  const MODULE_TITLES_EN = {
-    'System-Tweaks': 'System tweaks',
-    'Tweaks mit Netzwerkbedarf': 'Tweaks that require the network',
-    'Bloatware entfernen': 'Remove bloatware',
-    'Microsoft Office (ODT)': 'Microsoft Office (ODT)',
-    'Anwendungen': 'Applications',
-    'Eigene Installer': 'Custom installers',
-    'Eigene PowerShell-Befehle': 'Custom PowerShell commands'
-  };
-
   function readmeEn(st, files) {
     const zipRoot = st.paths.zipRoot === 'oem' ? '$OEM$'
       : st.paths.zipRoot === 'both' ? 'sources\\$OEM$ AND $OEM$' : 'sources\\$OEM$';
-    const modEn = (m) => MODULE_TITLES_EN[m] || m;
+    /* Die Modultitel stehen im i18n-Woerterbuch; readmeEn laeuft nur mit geladenem Modul. */
+    const modEn = (m) => (global.I18n ? global.I18n.term(m) : m);
     const setupMods = moduleList(st, 'setup').map((m) => modEn(m[1]));
     const logonMods = moduleList(st, 'firstlogon').map((m) => modEn(m[1]));
     const lines = [

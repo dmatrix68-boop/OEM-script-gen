@@ -297,6 +297,16 @@ literal such sequences therefore belong doubled (`\\s+`). This checks for it:
 node tools/check-escapes.js
 ```
 
+On bilingualism: interface strings carry `data-i18n`, catalog and runtime
+strings go through `T()`/`F()` with the German version as the key. A translated
+element must not contain an element with an `id` – `I18n.apply()` rewrites its
+contents wholesale and would overwrite counters or paths set there. This checks
+for it:
+
+```bash
+node tools/check-i18n.js
+```
+
 ## Project layout
 
 ```
@@ -310,4 +320,5 @@ js/templates.js   generation of every script
 js/app.js         state, interface, import/export
 samples/          sample files for testing the import function
 tools/            check-escapes.js – checks the template literals for swallowed escapes
+                  check-i18n.js    – checks the dictionary against the interface
 ```
