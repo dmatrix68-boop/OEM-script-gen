@@ -2,6 +2,14 @@
 (function (global) {
   'use strict';
 
+  /*  Meldungen fuer die Oberflaeche. Mit geladenem i18n-Modul uebersetzt F()
+      die deutsche Vorlage und fuellt {0}, {1}, ...; ohne Modul bleibt es deutsch. */
+  function F(german) {
+    const args = Array.prototype.slice.call(arguments, 1);
+    const tpl = global.I18n ? global.I18n.term(german) : german;
+    return String(tpl).replace(/\{(\d+)\}/g, (m, i) => (args[i] !== undefined ? args[i] : m));
+  }
+
   const MGR_MAP = [
     [/winget|windows package manager|app installer/i, 'winget'],
     [/choco/i, 'chocolatey'],
@@ -132,7 +140,7 @@
     }
     if (trimmed.startsWith('<')) return dedupe(parseBundleXml(trimmed));
     if (/\.ya?ml$/.test(name) || /^[-\s]*(id|packages)\s*:/im.test(trimmed)) return dedupe(parseBundleYaml(trimmed));
-    throw new Error('Unbekanntes Bundle-Format');
+    throw new Error(F('Unbekanntes Bundle-Format'));
   }
 
   /* ---------- SetupComplete.cmd ---------- */
@@ -163,7 +171,7 @@
 
       // Office Deployment Tool
       let m = line.match(/setup\.exe\s+\/configure\s+"?([^"\s]+\.xml)"?/i);
-      if (m) { res.officeConfigName = m[1].replace(/.*[\\/]/, ''); res.notes.push('Office-Installation (ODT) erkannt: ' + m[1]); continue; }
+      if (m) { res.officeConfigName = m[1].replace(/.*[\\/]/, ''); res.notes.push(F('Office-Installation (ODT) erkannt: {0}', m[1])); continue; }
 
       // winget
       m = line.match(/winget(?:\.exe)?\s+install\s+(.*)$/i);
@@ -178,11 +186,11 @@
 
       // PowerShell-Skriptaufrufe
       m = line.match(/-File\s+"?([^"]+\.ps1)"?/i);
-      if (m) { res.scripts.push(m[1]); res.notes.push('PowerShell-Aufruf erkannt: ' + m[1]); continue; }
+      if (m) { res.scripts.push(m[1]); res.notes.push(F('PowerShell-Aufruf erkannt: {0}', m[1])); continue; }
 
       // DISM / AppX-Entfernung
       if (/Remove-AppxPackage|Remove-AppxProvisionedPackage/i.test(line)) {
-        res.notes.push('AppX-Entfernung erkannt – bitte im Modul „Bloatware“ nachpflegen.');
+        res.notes.push(F('AppX-Entfernung erkannt – bitte im Modul „Bloatware“ nachpflegen.'));
         res.custom.push(line); continue;
       }
 
@@ -197,9 +205,9 @@
 
   function parseOfficeConfig(text) {
     const doc = new DOMParser().parseFromString(text, 'application/xml');
-    if (doc.querySelector('parsererror')) throw new Error('XML nicht lesbar');
+    if (doc.querySelector('parsererror')) throw new Error(F('XML nicht lesbar'));
     const root = doc.documentElement;
-    if (!root || root.nodeName !== 'Configuration') throw new Error('Kein <Configuration>-Element');
+    if (!root || root.nodeName !== 'Configuration') throw new Error(F('Kein <Configuration>-Element'));
 
     const add = root.querySelector('Add');
     const products = [];
@@ -243,9 +251,9 @@
 
   function parseUnattend(text) {
     const doc = new DOMParser().parseFromString(text, 'application/xml');
-    if (doc.querySelector('parsererror')) throw new Error('XML nicht lesbar');
+    if (doc.querySelector('parsererror')) throw new Error(F('XML nicht lesbar'));
     const root = doc.documentElement;
-    if (!root || root.localName !== 'unattend') throw new Error('Kein <unattend>-Element');
+    if (!root || root.localName !== 'unattend') throw new Error(F('Kein <unattend>-Element'));
 
     const el = (sel) => root.getElementsByTagName(sel);
     const first = (sel) => (el(sel).length ? el(sel)[0] : null);
@@ -274,9 +282,9 @@
      Idempotent: eigene Eintraege werden zuvor entfernt, die Order neu vergeben. */
   function patchUnattend(text, commands) {
     const doc = new DOMParser().parseFromString(text, 'application/xml');
-    if (doc.querySelector('parsererror')) throw new Error('XML nicht lesbar');
+    if (doc.querySelector('parsererror')) throw new Error(F('XML nicht lesbar'));
     const root = doc.documentElement;
-    if (!root || root.localName !== 'unattend') throw new Error('Kein <unattend>-Element');
+    if (!root || root.localName !== 'unattend') throw new Error(F('Kein <unattend>-Element'));
 
     const MARK = 'OEM Setup Phase';
 

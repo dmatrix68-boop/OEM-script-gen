@@ -230,9 +230,9 @@
 
     const managers = Array.from(new Set(state.apps.items.filter((p) => p.enabled).map((p) => p.manager)));
     const hints = [];
-    if (managers.includes('scoop')) hints.push('Scoop läuft nur im Benutzerkontext – Phase 2 mit RunOnce wählen.');
-    if (managers.includes('chocolatey')) hints.push('Chocolatey wird bei Bedarf automatisch nachinstalliert (Internetzugang nötig).');
-    if (managers.includes('npm') || managers.includes('pip')) hints.push('npm-/pip-Pakete setzen eine vorhandene Laufzeitumgebung voraus.');
+    if (managers.includes('scoop')) hints.push(T('Scoop läuft nur im Benutzerkontext – Phase 2 mit RunOnce wählen.'));
+    if (managers.includes('chocolatey')) hints.push(T('Chocolatey wird bei Bedarf automatisch nachinstalliert (Internetzugang nötig).'));
+    if (managers.includes('npm') || managers.includes('pip')) hints.push(T('npm-/pip-Pakete setzen eine vorhandene Laufzeitumgebung voraus.'));
     $('#appsManagerHint').textContent = hints.join(' ');
   }
 
@@ -377,7 +377,7 @@
         const o = document.createElement('option'); o.value = v; o.textContent = l;
         if ((f.dest || 'files') === v) o.selected = true; ds.appendChild(o);
       });
-      ds.title = 'Install\\Files: wird vom Modul "Eigene Installer" ausgefuehrt.\nSetup\\Scripts: liegt neben SetupComplete.cmd und ist ueber %~dp0 erreichbar.';
+      ds.title = T('Install\\Files: wird vom Modul "Eigene Installer" ausgefuehrt.\nSetup\\Scripts: liegt neben SetupComplete.cmd und ist ueber %~dp0 erreichbar.');
       ds.addEventListener('change', () => { f.dest = ds.value; renderFiles(); refresh(); });
       destTd.appendChild(ds); tr.appendChild(destTd);
 
@@ -432,7 +432,7 @@
       const dd = document.createElement('dd'); dd.textContent = v;
       dl.appendChild(dt); dl.appendChild(dd);
     };
-    row(T('Architektur'), cfg.edition ? cfg.edition + " Bit" : '–');
+    row(T('Architektur'), cfg.edition ? cfg.edition + T(' Bit') : '–');
     row(T('Kanal'), cfg.channel || '–');
     if (cfg.version) row(T('Version'), cfg.version);
     row(T('Produkte'), cfg.products.length ? '' : '–');
@@ -444,21 +444,21 @@
       cfg.products.forEach((p) => {
         const li = document.createElement('li');
         li.textContent = p.id + (p.languages.length ? ' [' + p.languages.join(', ') + ']' : '') +
-          (p.excluded.length ? ' – ohne: ' + p.excluded.join(', ') : '');
+          (p.excluded.length ? T(' – ohne: ') + p.excluded.join(', ') : '');
         ul.appendChild(li);
       });
       dl.lastChild.appendChild(ul);
     }
-    row(T('MSI-Vorgänger entfernen'), cfg.removeMSI ? 'ja' : 'nein');
-    row(T('Updates'), cfg.updatesEnabled === null ? 'Standard' : cfg.updatesEnabled);
-    row(T('Benutzereinstellungen'), cfg.appSettings + ' Einträge');
+    row(T('MSI-Vorgänger entfernen'), cfg.removeMSI ? T('ja') : T('nein'));
+    row(T('Updates'), cfg.updatesEnabled === null ? T('Standard') : cfg.updatesEnabled);
+    row(T('Benutzereinstellungen'), F('{0} Einträge', cfg.appSettings));
 
     const warn = document.createElement('p');
     warn.className = 'hint';
     if (silent) {
       warn.textContent = T('Unbeaufsichtigte Installation ist konfiguriert (Display Level="None").');
     } else {
-      warn.innerHTML = 'Kein <code>&lt;Display Level="None" AcceptEULA="TRUE" /&gt;</code> – die Installation würde eine Oberfläche anzeigen. ';
+      warn.innerHTML = T('Kein <code>&lt;Display Level="None" AcceptEULA="TRUE" /&gt;</code> – die Installation würde eine Oberfläche anzeigen. ');
       const b = document.createElement('button');
       b.className = 'btn small'; b.textContent = T('Automatisch ergänzen');
       b.addEventListener('click', () => {
@@ -507,9 +507,9 @@
     const p = document.createElement('p');
     p.className = 'hint';
     if (u.info.useConfigurationSet) {
-      p.innerHTML = '<b>UseConfigurationSet=true:</b> Windows Setup sucht den <code>$OEM$</code>-Ordner neben der ' +
+      p.innerHTML = T('<b>UseConfigurationSet=true:</b> Windows Setup sucht den <code>$OEM$</code>-Ordner neben der ' +
         'Antwortdatei, also im <b>Wurzelverzeichnis</b> des Mediums – nicht unter <code>sources\\</code>. ' +
-        'Die Ablage steht deshalb auf „beide Orte“.';
+        'Die Ablage steht deshalb auf „beide Orte“.');
       p.style.color = 'var(--warn)';
     } else {
       p.textContent = T('Die Aufrufe werden mit fortlaufender Order in die vorhandenen Blöcke eingefügt; ' +
@@ -664,10 +664,10 @@
           sb.innerHTML = '<p class="hint">' + T('Der Generator trägt <code>SourcePath</code> automatisch in die Configuration.xml ein und legt den Ordner sowie das Hilfsskript an:') + '</p>' +
             '<pre class="tree">' + esc(
               '$OEM$\\$1\\' + rel + '\\Office\\\n' +
-              '  ├─ setup.exe                   (ODT – selbst ablegen)\n' +
+              T('  ├─ setup.exe                   (ODT – selbst ablegen)') + '\n' +
               '  ├─ Configuration.xml           SourcePath=' + state.paths.installRoot.replace(/\\+$/, '') + '\\Office\\' + folder + '\n' +
-              '  ├─ Download-Quelle.ps1         erzeugt die Quelle auf diesem Rechner\n' +
-              '  └─ ' + folder + '\\                      hierhin kommt Office\\Data\\…'
+              T('  ├─ Download-Quelle.ps1         erzeugt die Quelle auf diesem Rechner') + '\n' +
+              '  └─ ' + folder + T('\\                      hierhin kommt Office\\Data\\…')
             ) + '</pre>' +
             '<p class="hint">' + T('Die Quelle selbst wird <b>nicht</b> ins ZIP gepackt – mehrere Gigabyte ' +
             'durch den Browser zu schleusen ist nicht praktikabel. Nach dem Entpacken ' +
@@ -757,7 +757,7 @@
         name, target: name, run: /\.msi$/i.test(name) ? '/qn /norestart' : '',
         phase: 'firstlogon', enabled: true, dest: 'files', blob: bytes, blobPresent: true
       });
-      logImport('Datei übernommen: ' + name + ' (' + Math.round(bytes.length / 1024) + ' KB)');
+      logImport(F('Datei übernommen: {0} ({1} KB)', name, Math.round(bytes.length / 1024)));
       renderFiles(); refresh();
       return;
     }
@@ -774,11 +774,12 @@
       }
       case 'bundle': {
         const pkgs = Importers.parseBundle(text, name);
-        if (!pkgs.length) { logImport('Keine Pakete gefunden in ' + name, 'warnl'); toast(T('Keine Pakete gefunden.'), 'warn'); return; }
+        if (!pkgs.length) { logImport(F('Keine Pakete gefunden in {0}', name), 'warnl'); toast(T('Keine Pakete gefunden.'), 'warn'); return; }
         const r = addPackages(pkgs, !!opts.replace);
         state.apps.enabled = true;
-        logImport('Bundle ' + name + ': ' + r.added + ' Pakete übernommen' + (r.skipped ? ', ' + r.skipped + ' Duplikate übersprungen' : ''));
-        toast(r.added + ' Pakete importiert.', 'ok');
+        logImport(F('Bundle {0}: {1} Pakete übernommen', name, r.added) +
+          (r.skipped ? F(', {0} Duplikate übersprungen', r.skipped) : ''));
+        toast(F('{0} Pakete importiert.', r.added), 'ok');
         renderAll();
         return;
       }
@@ -790,7 +791,7 @@
           const cfg = Importers.parseOfficeConfig(text);
           info = ' (' + cfg.products.map((p) => p.id).join(', ') + ')';
         } catch (e) { /* Zusammenfassung optional */ }
-        logImport('Office-Konfiguration übernommen: ' + name + info);
+        logImport(F('Office-Konfiguration übernommen: {0}', name) + info);
         toast(T('Configuration.xml importiert.'), 'ok');
         renderAll();
         return;
@@ -799,21 +800,21 @@
         const res = Importers.parseSetupComplete(text);
         if (res.packages.length) {
           const r = addPackages(res.packages, false);
-          logImport(name + ': ' + res.packages.length + ' winget-Aufrufe erkannt (' + r.added +
-            ' neu' + (r.skipped ? ', ' + r.skipped + ' bereits vorhanden' : '') + ')');
+          logImport(F('{0}: {1} winget-Aufrufe erkannt ({2} neu', name, res.packages.length, r.added) +
+            (r.skipped ? F(', {0} bereits vorhanden', r.skipped) : '') + ')');
         }
         if (res.officeConfigName) {
           state.office.enabled = true;
-          logImport(name + ': Office-Aufruf erkannt – Configuration.xml separat importieren', 'warnl');
+          logImport(F('{0}: Office-Aufruf erkannt – Configuration.xml separat importieren', name), 'warnl');
         }
         if (res.custom.length) {
           state.custom.cmd = (state.custom.cmd ? state.custom.cmd + '\n' : '') + res.custom.join('\n');
           state.custom.cmdEnabled = true;
-          logImport(name + ': ' + res.custom.length + ' eigene Befehlszeilen übernommen');
+          logImport(F('{0}: {1} eigene Befehlszeilen übernommen', name, res.custom.length));
         }
         res.notes.forEach((n) => logImport(name + ': ' + n, 'warnl'));
         if (!res.packages.length && !res.custom.length && !res.officeConfigName) {
-          logImport(name + ': nichts Verwertbares gefunden', 'warnl');
+          logImport(F('{0}: nichts Verwertbares gefunden', name), 'warnl');
         }
         toast(T('SetupComplete.cmd analysiert.'), 'ok');
         renderAll();
@@ -825,10 +826,10 @@
           name, target: name, run: '', phase: 'setup', enabled: true, dest: 'files', blob: bytes, blobPresent: true
         });
         state.custom.ps = (state.custom.ps ? state.custom.ps + '\n' : '') +
-          '# Importiertes Skript ausführen\n' +
+          T('# Importiertes Skript ausführen') + '\n' +
           '& (Join-Path $Global:OemRoot ' + "'Files\\" + name + "')";
         state.custom.psEnabled = true;
-        logImport('PowerShell-Skript übernommen und Aufruf ergänzt: ' + name);
+        logImport(F('PowerShell-Skript übernommen und Aufruf ergänzt: {0}', name));
         toast(T('PowerShell-Skript importiert.'), 'ok');
         renderAll();
         return;
@@ -840,10 +841,10 @@
         state.unattend = { xml: text, name: name, info: info };
         if (state.options.trigger === 'setupcomplete') state.options.trigger = 'both';
         if (info.useConfigurationSet && state.paths.zipRoot === 'sources') state.paths.zipRoot = 'both';
-        logImport('autounattend.xml übernommen: ' + name + ' – ' + info.commandCount +
-          ' vorhandene Befehle, UseConfigurationSet=' + (info.useConfigurationSet ? 'true' : 'false'));
+        logImport(F('autounattend.xml übernommen: {0} – {1} vorhandene Befehle, UseConfigurationSet={2}',
+          name, info.commandCount, info.useConfigurationSet ? 'true' : 'false'));
         if (info.useConfigurationSet) {
-          logImport('UseConfigurationSet=true erkannt: $OEM$ gehört ins Wurzelverzeichnis des Mediums – Ablage auf „beide Orte“ gestellt.', 'warnl');
+          logImport(T('UseConfigurationSet=true erkannt: $OEM$ gehört ins Wurzelverzeichnis des Mediums – Ablage auf „beide Orte“ gestellt.'), 'warnl');
         }
         toast(T('autounattend.xml wird ergänzt statt ersetzt.'), 'ok');
         renderAll();
@@ -852,7 +853,7 @@
       default: {
         const bytes = new TextEncoder().encode(text);
         state.files.items.push({ name, target: name, run: '', phase: 'firstlogon', enabled: true, dest: 'files', blob: bytes, blobPresent: true });
-        logImport('Als Datei übernommen: ' + name, 'warnl');
+        logImport(F('Als Datei übernommen: {0}', name), 'warnl');
         renderFiles(); refresh();
       }
     }
@@ -908,18 +909,18 @@
   async function exportZip() {
     if (!previewFiles.length) previewFiles = Templates.build(state);
     const btn = $('#btnExport');
-    btn.disabled = true; btn.textContent = 'Erzeuge …';
+    btn.disabled = true; btn.textContent = T('Erzeuge …');
     try {
       const entries = previewFiles.map((f) => ({ path: f.path, data: f.data }));
       entries.push({ path: (state.meta.name || 'Projekt').replace(/[^\w.-]+/g, '_') + '.oemproj.json', data: projectJson() });
       const blob = await MiniZip.createZip(entries);
       download(blob, (state.meta.name || 'OEM').replace(/[^\w.-]+/g, '_') + '-OEM.zip');
-      toast('ZIP mit ' + entries.length + ' Dateien erstellt.', 'ok');
+      toast(F('ZIP mit {0} Dateien erstellt.', entries.length), 'ok');
     } catch (e) {
       console.error(e);
-      toast('Export fehlgeschlagen: ' + e.message, 'err');
+      toast(F('Export fehlgeschlagen: {0}', e.message), 'err');
     } finally {
-      btn.disabled = false; btn.textContent = 'ZIP erzeugen';
+      btn.disabled = false; btn.textContent = T('ZIP erzeugen');
     }
   }
 
@@ -956,13 +957,13 @@
         const pkgs = Importers.parseBundle(txt, 'einfuegen.json');
         const r = addPackages(pkgs, $('#bundleReplace').checked);
         state.apps.enabled = true;
-        logImport('Eingefügtes Bundle: ' + r.added + ' Pakete übernommen');
-        toast(r.added + ' Pakete importiert.', 'ok');
+        logImport(F('Eingefügtes Bundle: {0} Pakete übernommen', r.added));
+        toast(F('{0} Pakete importiert.', r.added), 'ok');
         renderAll();
-      } catch (e) { toast('Konnte nicht gelesen werden: ' + e.message, 'err'); }
+      } catch (e) { toast(F('Konnte nicht gelesen werden: {0}', e.message), 'err'); }
     });
     $('#btnClearLog').addEventListener('click', () => {
-      $('#importLog').innerHTML = '<li class="muted">Noch nichts importiert.</li>';
+      $('#importLog').innerHTML = '<li class="muted">' + T('Noch nichts importiert.') + '</li>';
     });
 
     /* Drag & Drop global */
@@ -1018,7 +1019,7 @@
       });
       state.bloat.enabled = true;
       renderAll();
-      toast(state.bloat.selected.length + ' Pakete zum Entfernen ausgewählt.', 'ok');
+      toast(F('{0} Pakete zum Entfernen ausgewählt.', state.bloat.selected.length), 'ok');
     });
     $('#btnBloatAdd').addEventListener('click', () => {
       const id = prompt(T('AppX-Paketname (z. B. Microsoft.BingNews):'));
