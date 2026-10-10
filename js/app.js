@@ -631,6 +631,9 @@
         toast('Fehler beim Erzeugen: ' + e.message, 'err');
         previewFiles = [];
       }
+      /* Erst uebersetzen, dann die dynamischen Werte setzen - apply() schreibt
+         ganze Elementinhalte neu und wuerde sie sonst wieder ueberbuegeln. */
+      I18n.apply();
       $('#badgeApps').textContent = state.apps.items.filter((p) => p.enabled).length;
       $('#badgeTweaks').textContent = state.tweaks.selected.length;
       $('#badgeBloat').textContent = state.bloat.selected.length;
@@ -713,7 +716,6 @@
           T(' – die Dateien unter „Eigene Dateien“ mit Zielordner „Setup\\Scripts“ hinzufügen.')
         : '';
       $('#customCmdRefHint').style.color = missing.length ? 'var(--warn)' : '';
-      I18n.apply();
       if ($('#view-preview').classList.contains('active')) renderPreview();
       if ($('#view-overview').classList.contains('active')) renderOverview();
     }, 60);

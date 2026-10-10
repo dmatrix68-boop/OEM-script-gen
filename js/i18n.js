@@ -36,16 +36,16 @@
     'projektdatei-oemproj-json-laden': 'Load project file (.oemproj.json)',
     'projektdatei-speichern': 'Save project file',
     'komplette-oem-struktur-als-zip': 'Download the complete OEM structure as a ZIP',
-    'uebersicht': '<span class="ico">▦</span>Overview',
-    'import': '<span class="ico">↧</span>Import',
-    'anwendungen0': '<span class="ico">▣</span>Applications<span class="badge" id="badgeApps">0</span>',
-    'office-odt': '<span class="ico">◫</span>Office / ODT',
-    'tweaks0': '<span class="ico">⚙</span>Tweaks<span class="badge" id="badgeTweaks">0</span>',
-    'bloatware0': '<span class="ico">✂</span>Bloatware<span class="badge" id="badgeBloat">0</span>',
-    'eigene-dateien0': '<span class="ico">🗀</span>Own files<span class="badge" id="badgeFiles">0</span>',
-    'eigene-befehle': '<span class="ico">›_</span>Own commands',
-    'einstellungen': '<span class="ico">⚒</span>Settings',
-    'vorschau': '<span class="ico">◲</span>Preview',
+    'nav-uebersicht': 'Overview',
+    'nav-import': 'Import',
+    'nav-anwendungen': 'Applications',
+    'nav-office-odt': 'Office / ODT',
+    'nav-tweaks': 'Tweaks',
+    'nav-bloatware': 'Bloatware',
+    'nav-eigene-dateien': 'Own files',
+    'nav-eigene-befehle': 'Own commands',
+    'nav-einstellungen': 'Settings',
+    'nav-vorschau': 'Preview',
     'dateien-irgendwo-ablegen-zum-importieren':
       'Drop files anywhere to import<br><small>.ubundle · .cmd · .ps1 · .xml · .json</small>',
 
@@ -115,9 +115,10 @@
     'lokal-mitgelieferte-quelle-offline': 'locally supplied source (offline)',
     'ordner-der-quelle-unter-office': 'Source folder (below Office\\)',
     'ueberspringen-wenn-office-bereits-installiert': 'Skip if Office is already installed',
-    'bei-mitliefern-muss-setup-exe':
-      'When shipping it along, <code>setup.exe</code> (Office Deployment Tool) has to be placed at ' +
-      '<span class="mono" id="officeSetupPath"></span> – the generator leaves a placeholder note there.',
+    'bei-mitliefern-muss-setup-exe-1':
+      'When shipping it along, <code>setup.exe</code> (Office Deployment Tool) has to be placed at ',
+    'bei-mitliefern-muss-setup-exe-2':
+      ' – the generator leaves a placeholder note there.',
     'configuration-xml': 'Configuration.xml',
     'xml-importieren': 'Import XML',
     'vorlage-einfuegen': 'Insert template',
@@ -141,9 +142,9 @@
 
     /* Eigene Dateien */
     'eigene-dateien-amp-installer': 'Own files &amp; installers',
-    'beliebige-dateien-in-die-oem':
+    'beliebige-dateien-in-die-oem-1':
       'Include arbitrary files in the OEM structure: setup files (.exe/.msi) with silent switches, scripts, ' +
-      'configurations, drivers. The default target folder is <span class="mono" id="filesTargetPath"></span>.',
+      'configurations, drivers. The default target folder is ',
     'dateien-hinzufuegen': 'Add files',
     'binaerdateien-werden-nur-im-zip':
       'Binary files are only shipped inside the ZIP, never stored in the project file.',
@@ -537,6 +538,8 @@
     apply,
     setLanguage,
     detect,
-    get lang() { return current; }
+    get lang() { return current; },
+    /* nur fuer tools/check-i18n.js */
+    dict: (lang) => DICTS[lang]
   };
 })(window);

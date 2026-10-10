@@ -27,16 +27,18 @@
 
 <div class="layout">
   <nav class="sidebar">
-    <button class="nav-item active" data-view="overview" data-i18n="uebersicht"><span class="ico">▦</span>Übersicht</button>
-    <button class="nav-item" data-view="import" data-i18n="import"><span class="ico">↧</span>Import</button>
-    <button class="nav-item" data-view="apps" data-i18n="anwendungen0"><span class="ico">▣</span>Anwendungen<span class="badge" id="badgeApps">0</span></button>
-    <button class="nav-item" data-view="office" data-i18n="office-odt"><span class="ico">◫</span>Office / ODT</button>
-    <button class="nav-item" data-view="tweaks" data-i18n="tweaks0"><span class="ico">⚙</span>Tweaks<span class="badge" id="badgeTweaks">0</span></button>
-    <button class="nav-item" data-view="bloat" data-i18n="bloatware0"><span class="ico">✂</span>Bloatware<span class="badge" id="badgeBloat">0</span></button>
-    <button class="nav-item" data-view="files" data-i18n="eigene-dateien0"><span class="ico">🗀</span>Eigene Dateien<span class="badge" id="badgeFiles">0</span></button>
-    <button class="nav-item" data-view="custom" data-i18n="eigene-befehle"><span class="ico">›_</span>Eigene Befehle</button>
-    <button class="nav-item" data-view="settings" data-i18n="einstellungen"><span class="ico">⚒</span>Einstellungen</button>
-    <button class="nav-item" data-view="preview" data-i18n="vorschau"><span class="ico">◲</span>Vorschau</button>
+    <!-- Die Uebersetzungsmarke sitzt am Beschriftungs-span, nicht am Knopf:
+         sonst wuerde jedes I18n.apply() die Zaehler mit ueberschreiben. -->
+    <button class="nav-item active" data-view="overview"><span class="ico">▦</span><span data-i18n="nav-uebersicht">Übersicht</span></button>
+    <button class="nav-item" data-view="import"><span class="ico">↧</span><span data-i18n="nav-import">Import</span></button>
+    <button class="nav-item" data-view="apps"><span class="ico">▣</span><span data-i18n="nav-anwendungen">Anwendungen</span><span class="badge" id="badgeApps">0</span></button>
+    <button class="nav-item" data-view="office"><span class="ico">◫</span><span data-i18n="nav-office-odt">Office / ODT</span></button>
+    <button class="nav-item" data-view="tweaks"><span class="ico">⚙</span><span data-i18n="nav-tweaks">Tweaks</span><span class="badge" id="badgeTweaks">0</span></button>
+    <button class="nav-item" data-view="bloat"><span class="ico">✂</span><span data-i18n="nav-bloatware">Bloatware</span><span class="badge" id="badgeBloat">0</span></button>
+    <button class="nav-item" data-view="files"><span class="ico">🗀</span><span data-i18n="nav-eigene-dateien">Eigene Dateien</span><span class="badge" id="badgeFiles">0</span></button>
+    <button class="nav-item" data-view="custom"><span class="ico">›_</span><span data-i18n="nav-eigene-befehle">Eigene Befehle</span></button>
+    <button class="nav-item" data-view="settings"><span class="ico">⚒</span><span data-i18n="nav-einstellungen">Einstellungen</span></button>
+    <button class="nav-item" data-view="preview"><span class="ico">◲</span><span data-i18n="nav-vorschau">Vorschau</span></button>
     <div class="sidebar-foot">
       <div id="dropHint" class="drop-hint" data-i18n="dateien-irgendwo-ablegen-zum-importieren">Dateien irgendwo ablegen zum Importieren<br><small>.ubundle · .cmd · .ps1 · .xml · .json</small></div>
     </div>
@@ -209,7 +211,7 @@
           <label class="chk"><input type="checkbox" id="officeCheckInstalled" checked> <span data-i18n="ueberspringen-wenn-office-bereits-installiert">Überspringen, wenn Office bereits installiert ist</span></label>
         </div>
         <p class="hint" id="officePhaseHint"></p>
-        <p class="hint" data-i18n="bei-mitliefern-muss-setup-exe">Bei „mitliefern“ muss <code>setup.exe</code> (Office Deployment Tool) unter <span class="mono" id="officeSetupPath"></span> abgelegt werden – der Generator legt dafür einen Platzhalter-Hinweis ab.</p>
+        <p class="hint"><span data-i18n="bei-mitliefern-muss-setup-exe-1">Bei „mitliefern“ muss <code>setup.exe</code> (Office Deployment Tool) unter </span><span class="mono" id="officeSetupPath"></span><span data-i18n="bei-mitliefern-muss-setup-exe-2"> abgelegt werden – der Generator legt dafür einen Platzhalter-Hinweis ab.</span></p>
       </div>
 
       <div class="grid2">
@@ -289,8 +291,8 @@
     <!-- EIGENE DATEIEN -->
     <section class="view" id="view-files">
       <h2 data-i18n="eigene-dateien-amp-installer">Eigene Dateien &amp; Installer</h2>
-      <p class="lead" data-i18n="beliebige-dateien-in-die-oem">Beliebige Dateien in die OEM-Struktur aufnehmen: Setup-Dateien (.exe/.msi) mit Silent-Parametern,
-      Skripte, Konfigurationen, Treiber. Zielordner ist standardmäßig <span class="mono" id="filesTargetPath"></span>.</p>
+      <p class="lead"><span data-i18n="beliebige-dateien-in-die-oem-1">Beliebige Dateien in die OEM-Struktur aufnehmen: Setup-Dateien (.exe/.msi) mit Silent-Parametern,
+      Skripte, Konfigurationen, Treiber. Zielordner ist standardmäßig </span><span class="mono" id="filesTargetPath"></span>.</p>
       <div class="panel">
         <div class="row">
           <button class="btn" id="btnFilesAdd" data-i18n="dateien-hinzufuegen">Dateien hinzufügen</button>
