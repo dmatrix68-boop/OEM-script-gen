@@ -35,6 +35,7 @@
     <button class="nav-item" data-view="office"><span class="ico">◫</span><span data-i18n="nav-office-odt">Office / ODT</span></button>
     <button class="nav-item" data-view="tweaks"><span class="ico">⚙</span><span data-i18n="nav-tweaks">Tweaks</span><span class="badge" id="badgeTweaks">0</span></button>
     <button class="nav-item" data-view="bloat"><span class="ico">✂</span><span data-i18n="nav-bloatware">Bloatware</span><span class="badge" id="badgeBloat">0</span></button>
+    <button class="nav-item" data-view="features"><span class="ico">⊞</span><span data-i18n="nav-komponenten">Windows-Komponenten</span><span class="badge" id="badgeFeatures">0</span></button>
     <button class="nav-item" data-view="files"><span class="ico">🗀</span><span data-i18n="nav-eigene-dateien">Eigene Dateien</span><span class="badge" id="badgeFiles">0</span></button>
     <button class="nav-item" data-view="custom"><span class="ico">›_</span><span data-i18n="nav-eigene-befehle">Eigene Befehle</span></button>
     <button class="nav-item" data-view="settings"><span class="ico">⚒</span><span data-i18n="nav-einstellungen">Einstellungen</span></button>
@@ -285,6 +286,42 @@
           <button class="btn small" id="btnBloatAdd" data-i18n="eigenes-paket">Eigenes Paket</button>
         </div>
         <div id="bloatList" class="bloat"></div>
+      </div>
+    </section>
+
+    <!-- WINDOWS-KOMPONENTEN -->
+    <section class="view" id="view-features">
+      <h2 data-i18n="windows-komponenten">Windows-Komponenten</h2>
+      <p class="lead" data-i18n="optionale-features-und-features-on-demand">Optionale Features (Windows Sandbox, Hyper-V, WSL, .NET&nbsp;3.5 …) und Features on Demand
+      (OpenSSH, RSAT …) gleich mit zuschalten – über <code>Enable-WindowsOptionalFeature</code> bzw.
+      <code>Add-WindowsCapability</code>.</p>
+      <label class="switch"><input type="checkbox" id="featuresEnabled"><span></span><span data-i18n="modul-aktiv">Modul aktiv</span></label>
+
+      <div class="panel">
+        <div class="row wrap">
+          <label class="field">
+            <span><span data-i18n="ausfuehrungsphase">Ausführungsphase</span></span>
+            <select id="featuresPhase">
+              <option value="firstlogon" data-i18n="phase-2-nach-erster-anmeldung-3">Phase 2 – nach erster Anmeldung (empfohlen)</option>
+              <option value="setup" data-i18n="phase-1-setupcomplete-system-2">Phase 1 – SetupComplete (SYSTEM)</option>
+            </select>
+          </label>
+          <label class="field">
+            <span><span data-i18n="zeitgrenze-je-komponente-minuten">Zeitgrenze je Komponente (Minuten)</span></span>
+            <input type="number" id="featuresTimeout" min="1" max="120" value="20">
+          </label>
+        </div>
+        <p class="hint" id="featuresPhaseHint"></p>
+        <p class="hint" id="featuresRebootHint"></p>
+      </div>
+
+      <div class="panel">
+        <div class="toolbar">
+          <input type="search" id="featuresFilter" data-i18n-ph="komponenten-filtern" placeholder="Komponenten filtern…">
+          <span class="spacer"></span>
+          <button class="btn small" id="btnFeaturesNone" data-i18n="auswahl-leeren-3">Auswahl leeren</button>
+        </div>
+        <div id="featuresList" class="tweaks"></div>
       </div>
     </section>
 

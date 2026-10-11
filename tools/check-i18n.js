@@ -38,6 +38,22 @@ for (const key of Object.keys(EN)) {
   if (!used.has(key)) problems.push('verwaist im Woerterbuch: ' + key);
 }
 
+/*  Doppelte Schluessel sind in einem Objektliteral stillschweigend erlaubt -
+    der letzte gewinnt und verschiebt die erste Uebersetzung unbemerkt. */
+for (const name of ['EN', 'TERMS_EN']) {
+  const src = fs.readFileSync(path.join(root, 'js', 'i18n.js'), 'utf8');
+  const start = src.indexOf('const ' + name + ' = {');
+  if (start < 0) continue;
+  const body = src.slice(start, src.indexOf('\n  };', start));
+  const seen = new Set();
+  const keyRe = /^\s{4}'((?:[^'\\]|\\.)*)':/gm;
+  let k;
+  while ((k = keyRe.exec(body)) !== null) {
+    if (seen.has(k[1])) problems.push('doppelter Schluessel in ' + name + ': ' + k[1]);
+    seen.add(k[1]);
+  }
+}
+
 /* Ein uebersetzter Bereich darf keine id mitbringen. */
 for (const [key, value] of Object.entries(EN)) {
   if (/\bid\s*=/.test(value)) problems.push('enthaelt eine id (wird bei jedem apply() neu geschrieben): ' + key);

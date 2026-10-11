@@ -33,6 +33,8 @@ Sprache bestimmt auch, ob im erzeugten Archiv `LIESMICH.txt` oder `README.txt` l
   Einstellungen, die einen laufenden Netzwerk- oder Dienststack brauchen, werden
   automatisch in Phase 2 nachgeholt (siehe unten).
 * **Bloatware** – Auswahl vorinstallierter AppX-Pakete inkl. Provisioning-Entfernung.
+* **Windows-Komponenten** – Windows Sandbox, Hyper-V, WSL, .NET 3.5, OpenSSH, RSAT und
+  weitere Features gleich mit zuschalten (siehe unten).
 * **Eigene Dateien** – Installer und Skripte mitliefern, wahlweise nach
   `Install\Files` (wird ausgeführt) oder neben `SetupComplete.cmd` in
   `Setup\Scripts` (über `%~dp0` erreichbar).
@@ -173,6 +175,35 @@ am Ende die belegte Größe. Danach kommt der gefüllte Ordner mit aufs Medium.
 entfernt es `SourcePath` aus einer Arbeitskopie der Antwortdatei und installiert
 online weiter, statt an einem leeren Ordner zu scheitern.
 
+### Windows-Komponenten
+
+Optionale Features (`Enable-WindowsOptionalFeature`) und Features on Demand
+(`Add-WindowsCapability`) lassen sich mit zuschalten – Windows Sandbox, Hyper-V,
+WSL, Container, .NET 3.5, Telnet, IIS, ProjFS, OpenSSH und die RSAT-Werkzeuge.
+Das Modul steht standardmäßig auf Phase 2 und prüft vor jedem Aufruf:
+
+| Prüfung | Verhalten |
+|---|---|
+| bereits aktiv bzw. installiert | wird übersprungen, kein DISM-Aufruf |
+| Edition (`EditionID` beginnt mit `Core`) | Sandbox, Hyper-V und Container entfallen auf Home |
+| Virtualisierung (`HypervisorPresent` / `VirtualizationFirmwareEnabled`) | wird trotzdem zugeschaltet, aber protokolliert |
+| Netzwerk | Features on Demand werden ohne Verbindung übersprungen |
+
+Jeder Aufruf läuft über `Invoke-WithTimeout` mit eigener Zeitgrenze
+(voreingestellt 20 Minuten) – ein hängendes DISM kann den Ablauf also nicht
+blockieren. Das zählt doppelt, wenn das Modul doch in Phase 1 läuft: dort wartet
+Windows Setup auf jeden Aufruf.
+
+`.NET Framework 3.5` liegt nicht im installierten Image. Das Modul sucht
+`sources\sxs` auf allen Laufwerken – liegt das Installationsmedium noch im
+Rechner, wird daraus installiert, sonst über Windows Update. Features on Demand
+(OpenSSH, RSAT) kommen immer von Windows Update; eine WSUS-Richtlinie ohne
+Freigabe für Features on Demand lässt sie scheitern.
+
+Komponenten, die einen Neustart brauchen, setzen
+`HKLM\SOFTWARE\OEM-Setup\RestartNeeded = 1`. Mit *Einstellungen → Abschluss →
+Neustart* erledigt sich das von selbst.
+
 ### winget braucht einen Benutzerkontext
 
 `winget.exe` ist Teil eines MSIX-Pakets. Erreichbar ist es über den
@@ -221,8 +252,9 @@ sources/$OEM$/  bzw.  $OEM$/
     ├── Diagnose.ps1                       Fehlersuche nach der Installation
     ├── Lib/OEM-Common.ps1                 Logging, Registry-Helfer, winget-Auflösung
     ├── Modules/                            Set-Tweaks, Remove-Bloatware,
-    │                                       Install-Office, Install-Apps,
-    │                                       Install-Files-P1/P2, Invoke-Custom
+    │                                       Install-Features, Install-Office,
+    │                                       Install-Apps, Install-Files-P1/P2,
+    │                                       Invoke-Custom
     ├── Office/Configuration.xml
     ├── Apps/  Paketliste.csv, packages.json, *.ubundle
     └── Logs/                              Protokolle und Transcripts
@@ -323,7 +355,7 @@ index.html        Oberfläche
 css/app.css       Layout
 js/i18n.js        Wörterbuch Deutsch/Englisch und Sprachumschaltung
 js/zip.js         ZIP-Writer (Deflate über CompressionStream, sonst „stored“)
-js/catalog.js     Tweak- und Bloatware-Katalog, Paketmanager-Definitionen
+js/catalog.js     Katalog für Tweaks, Bloatware und Windows-Komponenten, Paketmanager
 js/importers.js   Parser für Bundles, SetupComplete.cmd und ODT-XML
 js/templates.js   Erzeugung sämtlicher Skripte
 js/app.js         Zustand, Oberfläche, Import/Export

@@ -494,6 +494,9 @@ function Invoke-OemProcess {
     if (st.tweaks.enabled && st.tweaks.phase === phase && st.tweaks.selected.length) mods.push(['Set-Tweaks.ps1', 'System-Tweaks']);
     if (phase === 'firstlogon' && hasLateTweaks(st)) mods.push(['Set-Tweaks-Spaet.ps1', 'Tweaks mit Netzwerkbedarf']);
     if (st.bloat.enabled && st.bloat.phase === phase && st.bloat.selected.length) mods.push(['Remove-Bloatware.ps1', 'Bloatware entfernen']);
+    if (st.features.enabled && st.features.phase === phase && st.features.selected.length) {
+      mods.push(['Install-Features.ps1', 'Windows-Komponenten']);
+    }
     if (st.office.enabled && st.office.phase === phase) mods.push(['Install-Office.ps1', 'Microsoft Office (ODT)']);
     if (st.apps.enabled && st.apps.phase === phase && st.apps.items.some((p) => p.enabled)) mods.push(['Install-Apps.ps1', 'Anwendungen']);
     if (st.files.items.some((f) => f.enabled && f.dest !== 'scripts' && f.phase === phase && f.run)) {
@@ -1282,6 +1285,184 @@ Write-Log 'Bloatware-Bereinigung abgeschlossen.'
     return s;
   }
 
+  /* ---------- Modules/Install-Features.ps1 ---------- */
+
+  /*  Windows-Komponenten zuschalten. Laeuft bewusst ueber Invoke-WithTimeout:
+      DISM-Aufrufe koennen haengen, und in Phase 1 wuerde das das gesamte
+      Windows-Setup anhalten. Der Block kennt dort die Funktionen aus
+      OEM-Common.ps1 nicht, darf also nur native Cmdlets verwenden. */
+  function featuresModule(st) {
+    const sel = Catalog.FEATURES.filter((f) => st.features.selected.includes(f.id));
+    const timeout = Math.max(60, (st.features.timeoutMin || 20) * 60);
+
+    const row = (f) => '    [pscustomobject]@{ ' + [
+      'Id = ' + psq(f.id),
+      'Kind = ' + psq(f.kind),
+      'Label = ' + psq(f.label),
+      'Pro = $' + (f.pro ? 'true' : 'false'),
+      'Vt = $' + (f.vt ? 'true' : 'false'),
+      'Reboot = $' + (f.reboot ? 'true' : 'false'),
+      'Payload = $' + (f.payload ? 'true' : 'false'),
+      'Net = $' + (f.net ? 'true' : 'false'),
+      'Post = ' + (f.post ? psq(f.post) : "''")
+    ].join('; ') + ' }';
+
+    let s = banner('Schaltet Windows-Komponenten zu (optionale Features und Features on Demand).', st.meta.name);
+    s += bootstrapHeader('Install-Features');
+    s += toCRLF(`
+$items = @(
+${sel.map(row).join(NL)}
+)
+
+$timeout = ${timeout}
+$restartNeeded = $false
+$ok = 0
+$skip = 0
+$fail = 0
+
+# Edition: auf Home fehlen Sandbox, Hyper-V und die Containerfeatures ganz.
+$edition = ''
+try {
+    $edition = (Get-ItemProperty -Path 'HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion' -Name EditionID -ErrorAction Stop).EditionID
+} catch { }
+$isHome = ($edition -match '^Core')
+
+# Virtualisierung: entweder laeuft schon ein Hypervisor oder die Firmware bietet sie an.
+$vtReady = $true
+try {
+    $cs = Get-CimInstance -ClassName Win32_ComputerSystem -ErrorAction Stop
+    $cpu = Get-CimInstance -ClassName Win32_Processor -ErrorAction Stop | Select-Object -First 1
+    $vtReady = [bool]$cs.HypervisorPresent -or [bool]$cpu.VirtualizationFirmwareEnabled
+} catch { }
+
+Write-Log ('Edition: ' + $(if ($edition) { $edition } else { 'unbekannt' }) +
+    ', Virtualisierung: ' + $(if ($vtReady) { 'verfuegbar' } else { 'nicht verfuegbar' }) +
+    ', Komponenten: ' + $items.Count)
+`);
+
+    /* Quelle fuer .NET 3.5 nur erzeugen, wenn sie gebraucht wird. */
+    if (sel.some((f) => f.payload)) {
+      s += toCRLF(`
+<#  .NET 3.5 liegt nicht im installierten Image. Die Dateien stehen unter
+    sources\\sxs auf dem Installationsmedium - der Laufwerksbuchstabe wechselt,
+    also wird danach gesucht. Ohne Fund bleibt Windows Update als Quelle. #>
+$sxs = $null
+foreach ($drive in (Get-PSDrive -PSProvider FileSystem -ErrorAction SilentlyContinue)) {
+    if (-not $drive.Root) { continue }
+    $candidate = Join-Path $drive.Root 'sources\\sxs'
+    try {
+        if (Test-Path -LiteralPath $candidate) { $sxs = $candidate; break }
+    } catch { }
+}
+if ($sxs) { Write-Log ('Quelle fuer .NET 3.5 gefunden: ' + $sxs) }
+else { Write-Log 'Keine lokale Quelle fuer .NET 3.5 gefunden - Bezug ueber Windows Update.' -Level Warn }
+`);
+    } else {
+      s += toCRLF(`
+$sxs = $null
+`);
+    }
+
+    /* Netzwerkpruefung nur, wenn Features on Demand dabei sind. */
+    if (sel.some((f) => f.net)) {
+      s += toCRLF(`
+# Features on Demand laedt Windows Update nach; ohne Netz ist das zwecklos.
+$online = Test-OemInternet
+if (-not $online) {
+    Write-Log 'Keine Internetverbindung - nachzuladende Komponenten werden uebersprungen.' -Level Warn
+}
+`);
+    } else {
+      s += toCRLF(`
+$online = $true
+`);
+    }
+
+    s += toCRLF(`
+foreach ($item in $items) {
+    if ($item.Pro -and $isHome) {
+        Write-Log ('Uebersprungen (in dieser Edition nicht enthalten): ' + $item.Label) -Level Warn
+        $skip++
+        continue
+    }
+    if ($item.Net -and -not $online) {
+        Write-Log ('Uebersprungen (kein Netzwerk): ' + $item.Label) -Level Warn
+        $skip++
+        continue
+    }
+    if ($item.Vt -and -not $vtReady) {
+        Write-Log ('Virtualisierung ist nicht aktiv - ' + $item.Label +
+            ' wird zugeschaltet, laesst sich aber erst nach dem Einschalten im BIOS/UEFI nutzen.') -Level Warn
+    }
+
+    # Schon vorhanden? Dann gar nicht erst anfassen.
+    $state = $null
+    try {
+        if ($item.Kind -eq 'feature') {
+            $state = (Get-WindowsOptionalFeature -Online -FeatureName $item.Id -ErrorAction Stop).State
+            if ($state -eq 'Enabled') {
+                Write-Log ('Bereits aktiv: ' + $item.Label)
+                $skip++
+                continue
+            }
+        } else {
+            $state = (Get-WindowsCapability -Online -Name $item.Id -ErrorAction Stop).State
+            if ($state -eq 'Installed') {
+                Write-Log ('Bereits vorhanden: ' + $item.Label)
+                $skip++
+                continue
+            }
+        }
+    } catch {
+        Write-Log ('Nicht verfuegbar: {0} ({1})' -f $item.Label, $_.Exception.Message) -Level Warn
+        $fail++
+        continue
+    }
+
+    Write-Log ('Schalte zu: {0} [{1}]' -f $item.Label, $item.Id)
+    $id = $item.Id
+    $useSxs = ($item.Payload -and $sxs)
+    $source = $sxs
+    $body = if ($item.Kind -eq 'feature') {
+        if ($useSxs) {
+            [scriptblock]::Create("Enable-WindowsOptionalFeature -Online -FeatureName '$id' -All -NoRestart -LimitAccess -Source '$source' -ErrorAction Stop | Out-Null")
+        } else {
+            [scriptblock]::Create("Enable-WindowsOptionalFeature -Online -FeatureName '$id' -All -NoRestart -ErrorAction Stop | Out-Null")
+        }
+    } else {
+        [scriptblock]::Create("Add-WindowsCapability -Online -Name '$id' -ErrorAction Stop | Out-Null")
+    }
+
+    if (Invoke-WithTimeout -Name $item.Label -Body $body -TimeoutSeconds $timeout) {
+        $ok++
+        if ($item.Reboot) { $restartNeeded = $true }
+        Write-Log ('Zugeschaltet: ' + $item.Label)
+        if ($item.Post) {
+            try {
+                Invoke-Expression $item.Post
+                Write-Log ('Nachbereitet: ' + $item.Label)
+            } catch {
+                Write-Log ('Nachbereitung fehlgeschlagen: {0} ({1})' -f $item.Label, $_.Exception.Message) -Level Warn
+            }
+        }
+    } else {
+        $fail++
+    }
+}
+
+Write-Log ('Komponenten: {0} zugeschaltet, {1} uebersprungen, {2} fehlgeschlagen.' -f $ok, $skip, $fail)
+if ($restartNeeded) {
+    Write-Log 'Mindestens eine Komponente wird erst nach einem Neustart nutzbar.' -Level Warn
+    $key = 'HKLM:\\SOFTWARE\\OEM-Setup'
+    try {
+        if (-not (Test-Path -LiteralPath $key)) { New-Item -Path $key -Force -ErrorAction Stop | Out-Null }
+        New-ItemProperty -LiteralPath $key -Name 'RestartNeeded' -PropertyType DWord -Value 1 -Force -ErrorAction Stop | Out-Null
+    } catch { Write-Log ('Markierung nicht gesetzt: ' + $_.Exception.Message) -Level Warn }
+}
+`);
+    return s;
+  }
+
   /* ---------- Modules/Install-Files.ps1 ---------- */
 
   function filesModule(st, phase) {
@@ -1979,6 +2160,7 @@ Write-Host ''
     if (all.has('Set-Tweaks.ps1')) add(inst + '/Modules/Set-Tweaks.ps1', tweaksModule(st, 'main'));
     if (all.has('Set-Tweaks-Spaet.ps1')) add(inst + '/Modules/Set-Tweaks-Spaet.ps1', tweaksModule(st, 'late'));
     if (all.has('Remove-Bloatware.ps1')) add(inst + '/Modules/Remove-Bloatware.ps1', bloatModule(st));
+    if (all.has('Install-Features.ps1')) add(inst + '/Modules/Install-Features.ps1', featuresModule(st));
     if (all.has('Install-Office.ps1')) add(inst + '/Modules/Install-Office.ps1', officeModule(st));
     if (all.has('Install-Apps.ps1')) add(inst + '/Modules/Install-Apps.ps1', appsModule(st));
     if (all.has('Install-Files-P1.ps1')) add(inst + '/Modules/Install-Files-P1.ps1', filesModule(st, 'setup'));

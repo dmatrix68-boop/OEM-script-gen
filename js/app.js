@@ -49,6 +49,7 @@
         selected: ['fileExt', 'hiddenFiles', 'launchToThisPC', 'longPaths', 'taskbarSearch', 'clockSeconds']
       },
       bloat: { enabled: false, phase: 'setup', provisioned: true, selected: [] },
+      features: { enabled: false, phase: 'firstlogon', timeoutMin: 20, selected: [] },
       files: { items: [] },
       custom: { cmdEnabled: true, cmd: '', psEnabled: true, psPhase: 'setup', ps: '' }
     };
@@ -112,6 +113,9 @@
     ['bloatEnabled', 'bloat.enabled', 'bool'],
     ['bloatPhase', 'bloat.phase', 'text'],
     ['bloatProvisioned', 'bloat.provisioned', 'bool'],
+    ['featuresEnabled', 'features.enabled', 'bool'],
+    ['featuresPhase', 'features.phase', 'text'],
+    ['featuresTimeout', 'features.timeoutMin', 'num'],
     ['customCmdEnabled', 'custom.cmdEnabled', 'bool'],
     ['customCmd', 'custom.cmd', 'text'],
     ['customPsEnabled', 'custom.psEnabled', 'bool'],
@@ -136,6 +140,7 @@
         set(path, type === 'bool' ? el.checked : type === 'num' ? parseInt(el.value, 10) || 0 : el.value);
         if (id === 'officeXml') renderOfficeSummary();
         if (id === 'tweaksPhase') renderTweaks();
+        if (id === 'featuresPhase') renderFeatureHints();
         refresh();
       });
     }
@@ -518,6 +523,73 @@
     box.appendChild(p);
   }
 
+  /* ---------------- Windows-Komponenten ---------------- */
+
+  function renderFeatures() {
+    const box = $('#featuresList');
+    const filter = ($('#featuresFilter').value || '').toLowerCase();
+    box.innerHTML = '';
+
+    for (const f of Catalog.FEATURES) {
+      const haystack = [f.id, f.label, f.cat, f.desc || '', T(f.label), T(f.cat), T(f.desc || '')]
+        .join(' ').toLowerCase();
+      if (filter && !haystack.includes(filter)) continue;
+      const on = state.features.selected.includes(f.id);
+      const lab = document.createElement('label');
+      lab.className = 'tweak' + (on ? ' sel' : '');
+      const cb = document.createElement('input');
+      cb.type = 'checkbox'; cb.checked = on;
+      cb.addEventListener('change', () => {
+        if (cb.checked) { if (!state.features.selected.includes(f.id)) state.features.selected.push(f.id); }
+        else state.features.selected = state.features.selected.filter((x) => x !== f.id);
+        lab.classList.toggle('sel', cb.checked);
+        renderFeatureHints();
+        refresh();
+      });
+      const marks = [];
+      if (f.pro) marks.push(T('nur Pro/Enterprise'));
+      if (f.vt) marks.push(T('VT im BIOS'));
+      if (f.net) marks.push(T('Netzwerk'));
+      if (f.payload) marks.push(T('Quelle nötig'));
+      if (f.reboot) marks.push(T('Neustart nötig'));
+      const div = document.createElement('div');
+      div.innerHTML = '<div class="cat"></div><div class="t"></div><div class="d"></div>';
+      div.querySelector('.cat').textContent = T(f.cat) + (marks.length ? ' · ' + marks.join(' · ') : '');
+      div.querySelector('.t').textContent = T(f.label);
+      div.querySelector('.d').textContent = (f.desc ? T(f.desc) + ' ' : '') + f.id;
+      lab.appendChild(cb); lab.appendChild(div);
+      box.appendChild(lab);
+    }
+    renderFeatureHints();
+  }
+
+  function renderFeatureHints() {
+    const sel = Catalog.FEATURES.filter((f) => state.features.selected.includes(f.id));
+    const phase = $('#featuresPhaseHint');
+    if (phase) {
+      const needNet = sel.filter((f) => f.net || f.payload);
+      if (state.features.phase === 'setup') {
+        phase.innerHTML = T('In Phase 1 wartet Windows Setup auf jeden DISM-Aufruf – das verlängert die Installation ' +
+          'erheblich, und nachzuladende Komponenten scheitern dort mangels Netzwerk.') +
+          (needNet.length ? ' <b>' + needNet.map((f) => T(f.label)).join(', ') + '</b>' +
+            T(' braucht einen Download und gehört deshalb in Phase 2.') : '');
+        phase.style.color = needNet.length ? 'var(--warn)' : 'var(--acc2)';
+      } else {
+        phase.textContent = T('Empfohlen: DISM läuft dann ohne Zeitdruck, und für Features on Demand steht das Netzwerk bereit.');
+        phase.style.color = '';
+      }
+    }
+    const reb = $('#featuresRebootHint');
+    if (reb) {
+      const need = sel.filter((f) => f.reboot);
+      if (!need.length) { reb.textContent = ''; return; }
+      reb.innerHTML = '<b>' + need.map((f) => T(f.label)).join(', ') + '</b>' +
+        T(' – erst nach einem Neustart nutzbar. Unter Einstellungen → Abschluss lässt sich dafür „Neustart“ ' +
+          'einstellen; andernfalls vermerkt das Modul nur HKLM\\SOFTWARE\\OEM-Setup\\RestartNeeded = 1.');
+      reb.style.color = 'var(--acc2)';
+    }
+  }
+
   /* ---------------- Übersicht ---------------- */
 
   function renderOverview() {
@@ -528,6 +600,7 @@
       { on: state.office.enabled, k: T('Office (ODT)'), v: T(state.office.enabled ? 'aktiv' : 'aus'), d: state.office.enabled ? T(state.office.phase === 'setup' ? 'Phase 1' : 'Phase 2') : '–' },
       { on: state.tweaks.enabled && state.tweaks.selected.length > 0, k: T('Tweaks'), v: state.tweaks.selected.length, d: T(state.tweaks.phase === 'setup' ? 'Phase 1' : 'Phase 2') },
       { on: state.bloat.enabled && state.bloat.selected.length > 0, k: T('Bloatware'), v: state.bloat.selected.length, d: T('AppX-Pakete') },
+      { on: state.features.enabled && state.features.selected.length > 0, k: T('Komponenten'), v: state.features.selected.length, d: T(state.features.phase === 'setup' ? 'Phase 1' : 'Phase 2') },
       { on: state.files.items.some((f) => f.enabled), k: T('Eigene Dateien'), v: state.files.items.filter((f) => f.enabled).length, d: T('im Archiv') }
     ];
     cards.innerHTML = '';
@@ -637,6 +710,7 @@
       $('#badgeApps').textContent = state.apps.items.filter((p) => p.enabled).length;
       $('#badgeTweaks').textContent = state.tweaks.selected.length;
       $('#badgeBloat').textContent = state.bloat.selected.length;
+      $('#badgeFeatures').textContent = state.features.selected.length;
       $('#badgeFiles').textContent = state.files.items.filter((f) => f.enabled).length;
       const rel = Templates.relFromRoot(state.paths.installRoot);
       $('#officeSetupPath').textContent = '$OEM$\\$1\\' + rel + '\\Office\\setup.exe';
@@ -724,7 +798,7 @@
   function renderAll() {
     syncInputs();
     I18n.apply();
-    renderApps(); renderTweaks(); renderBloat(); renderFiles(); renderOfficeSummary(); renderUnattend();
+    renderApps(); renderTweaks(); renderBloat(); renderFeatures(); renderFiles(); renderOfficeSummary(); renderUnattend();
     refresh();
   }
 
@@ -1013,6 +1087,8 @@
     /* Tweaks / Bloatware */
     $('#tweaksFilter').addEventListener('input', renderTweaks);
     $('#btnTweaksNone').addEventListener('click', () => { state.tweaks.selected = []; renderTweaks(); refresh(); });
+    $('#featuresFilter').addEventListener('input', renderFeatures);
+    $('#btnFeaturesNone').addEventListener('click', () => { state.features.selected = []; renderFeatures(); refresh(); });
     $('#bloatFilter').addEventListener('input', renderBloat);
     $('#btnBloatNone').addEventListener('click', () => { state.bloat.selected = []; renderBloat(); refresh(); });
     $('#btnBloatRec').addEventListener('click', () => {
