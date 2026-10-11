@@ -9,6 +9,17 @@
   'use strict';
 
   const EN = {
+    'nav-komponenten': 'Windows components',
+    'windows-komponenten': 'Windows components',
+    'optionale-features-und-features-on-demand':
+      'Turn on optional features (Windows Sandbox, Hyper-V, WSL, .NET&nbsp;3.5 …) and features on demand '
+      + '(OpenSSH, RSAT …) along the way – via <code>Enable-WindowsOptionalFeature</code> and '
+      + '<code>Add-WindowsCapability</code>.',
+    'phase-2-nach-erster-anmeldung-3': 'Phase 2 – after first sign-in (recommended)',
+    'phase-1-setupcomplete-system-2': 'Phase 1 – SetupComplete (SYSTEM)',
+    'zeitgrenze-je-komponente-minuten': 'Time limit per component (minutes)',
+    'auswahl-leeren-3': 'Clear selection',
+    'komponenten-filtern': 'Filter components…',
     'th-name': 'Name',
     'th-paket-id': 'Package ID',
     'th-manager': 'Manager',
@@ -206,6 +217,79 @@
       hier die deutsche Fassung selbst - der Katalog bleibt dadurch unverändert
       lesbar, und ein fehlender Eintrag fällt sofort auf.  */
   const TERMS_EN = {
+    /* Windows-Komponenten */
+    'Windows-Komponenten': 'Windows components',
+    'Komponenten': 'Components',
+    'Virtualisierung': 'Virtualisation',
+    'Laufzeiten': 'Runtimes',
+    'Entwicklung': 'Development',
+    'Fernwartung': 'Remote access',
+    'RSAT': 'RSAT',
+    'Sonstiges': 'Other',
+    'nur Pro/Enterprise': 'Pro/Enterprise only',
+    'Quelle nötig': 'needs a source',
+    'VT im BIOS': 'VT in the firmware',
+    'Neustart nötig': 'needs a restart',
+    'Windows Sandbox': 'Windows Sandbox',
+    'Wegwerf-Desktop zum gefahrlosen Testen; beim Schließen verfällt alles.':
+      'A throwaway desktop for safe testing; everything is discarded on close.',
+    'Hyper-V (vollständig)': 'Hyper-V (complete)',
+    'Hypervisor, Verwaltungswerkzeuge und PowerShell-Modul.':
+      'Hypervisor, management tools and the PowerShell module.',
+    'Plattform für virtuelle Computer': 'Virtual Machine Platform',
+    'Voraussetzung für WSL 2 und das Windows-Subsystem für Android.':
+      'Required for WSL 2 and the Windows Subsystem for Android.',
+    'Windows-Hypervisor-Plattform': 'Windows Hypervisor Platform',
+    'Lässt VirtualBox und VMware neben Hyper-V laufen.':
+      'Lets VirtualBox and VMware run alongside Hyper-V.',
+    'Windows-Subsystem für Linux (WSL)': 'Windows Subsystem for Linux (WSL)',
+    'Nur der Unterbau. Eine Distribution kommt danach über „wsl --install“ oder winget dazu.':
+      'The substrate only. A distribution is added afterwards via "wsl --install" or winget.',
+    'Windows-Container': 'Windows containers',
+    'Containerunterstützung für Docker Desktop im Windows-Modus.':
+      'Container support for Docker Desktop in Windows mode.',
+    '.NET Framework 3.5 (inkl. 2.0 und 3.0)': '.NET Framework 3.5 (including 2.0 and 3.0)',
+    'Liegt nicht im Image. Der Generator sucht sources\\sxs auf allen Laufwerken und weicht sonst auf Windows Update aus.':
+      'Not part of the image. The generator looks for sources\\sxs on every drive and falls back to Windows Update.',
+    'Telnet-Client': 'Telnet client',
+    'Erreichbarkeit einzelner Ports prüfen.': 'Check whether individual ports respond.',
+    'TFTP-Client': 'TFTP client',
+    'Einfache TCP/IP-Dienste': 'Simple TCP/IP services',
+    'Arbeitsordner': 'Work Folders',
+    'Internetinformationsdienste (IIS)': 'Internet Information Services (IIS)',
+    'Webserverrolle mit den Standardkomponenten.': 'The web server role with its default components.',
+    'Projiziertes Dateisystem (ProjFS)': 'Projected File System (ProjFS)',
+    'Von VFS for Git und einigen Build-Werkzeugen vorausgesetzt.':
+      'Required by VFS for Git and some build tools.',
+    'DirectPlay (Legacykomponenten)': 'DirectPlay (legacy components)',
+    'Für ältere Spiele.': 'For older games.',
+    'XPS-Druckdienste': 'XPS printing services',
+    'OpenSSH-Server': 'OpenSSH server',
+    'Dienst wird auf „Automatisch“ gestellt und gestartet; Port 22 öffnet das Setup in der Firewall.':
+      'The service is set to automatic and started; setup opens port 22 in the firewall.',
+    'OpenSSH-Client': 'OpenSSH client',
+    'In aktuellen Windows-Fassungen meist schon vorhanden.':
+      'Usually already present in current Windows builds.',
+    'RSAT: Server-Manager': 'RSAT: Server Manager',
+    'RSAT: Active Directory': 'RSAT: Active Directory',
+    'Benutzer und Computer, AD-Standorte, das PowerShell-Modul ActiveDirectory.':
+      'Users and Computers, AD Sites, and the ActiveDirectory PowerShell module.',
+    'RSAT: Gruppenrichtlinienverwaltung': 'RSAT: Group Policy Management',
+    'RSAT: DNS': 'RSAT: DNS',
+    'RSAT: DHCP': 'RSAT: DHCP',
+    'RSAT: Dateidienste': 'RSAT: File Services',
+    'RSAT: BitLocker-Wiederherstellung': 'RSAT: BitLocker recovery',
+    'Druckverwaltung': 'Print Management',
+    'Windows Media Player (alte Fassung)': 'Windows Media Player (legacy)',
+    'XPS-Viewer': 'XPS Viewer',
+    'In Phase 1 wartet Windows Setup auf jeden DISM-Aufruf – das verlängert die Installation erheblich, und nachzuladende Komponenten scheitern dort mangels Netzwerk.':
+      'In phase 1 Windows Setup waits for every DISM call, which stretches the installation considerably, and components that have to be downloaded fail there for want of a network.',
+    ' braucht einen Download und gehört deshalb in Phase 2.':
+      ' needs a download and therefore belongs in phase 2.',
+    'Empfohlen: DISM läuft dann ohne Zeitdruck, und für Features on Demand steht das Netzwerk bereit.':
+      'Recommended: DISM then runs without holding anything up, and the network is available for features on demand.',
+    ' – erst nach einem Neustart nutzbar. Unter Einstellungen → Abschluss lässt sich dafür „Neustart“ einstellen; andernfalls vermerkt das Modul nur HKLM\\SOFTWARE\\OEM-Setup\\RestartNeeded = 1.':
+      ' – only usable after a restart. Settings → When phase 2 finishes offers "restart" for that; otherwise the module merely records HKLM\\SOFTWARE\\OEM-Setup\\RestartNeeded = 1.',
     /* Hinweise, Protokoll- und Statusmeldungen */
     'Scoop läuft nur im Benutzerkontext – Phase 2 mit RunOnce wählen.':
       'Scoop only runs in the user context – choose phase 2 with RunOnce.',
@@ -217,9 +301,6 @@
       'Install\\Files: executed by the "Custom installers" module.\nSetup\\Scripts: sits next to SetupComplete.cmd and is reachable via %~dp0.',
     ' Bit': '-bit',
     ' – ohne: ': ' – excluding: ',
-    'ja': 'yes',
-    'nein': 'no',
-    'Standard': 'default',
     '{0} Einträge': '{0} entries',
     'Kein <code>&lt;Display Level="None" AcceptEULA="TRUE" /&gt;</code> – die Installation würde eine Oberfläche anzeigen. ':
       'No <code>&lt;Display Level="None" AcceptEULA="TRUE" /&gt;</code> – the installation would show a user interface. ',
@@ -257,7 +338,6 @@
     'ZIP erzeugen': 'Generate ZIP',
     'Eingefügtes Bundle: {0} Pakete übernommen': 'Pasted bundle: {0} packages taken over',
     'Konnte nicht gelesen werden: {0}': 'Could not be read: {0}',
-    'Noch nichts importiert.': 'Nothing imported yet.',
     '{0} Pakete zum Entfernen ausgewählt.': '{0} packages selected for removal.',
     /* Meldungen aus den Importern */
     'Unbekanntes Bundle-Format': 'Unknown bundle format',

@@ -32,6 +32,8 @@ determines whether the generated archive contains `LIESMICH.txt` or `README.txt`
   and therefore apply to new accounts. Settings that need a running network or
   service stack are automatically deferred to phase 2 (see below).
 * **Bloatware** – pick pre-installed AppX packages, provisioning removal included.
+* **Windows components** – turn on Windows Sandbox, Hyper-V, WSL, .NET 3.5, OpenSSH,
+  RSAT and other features along the way (see below).
 * **Custom files** – ship installers and scripts, either to `Install\Files` (where
   they are executed) or next to `SetupComplete.cmd` in `Setup\Scripts` (reachable
   via `%~dp0`).
@@ -162,10 +164,45 @@ The script reads the `Configuration.xml`, downloads exactly the products and
 languages configured in it via `setup.exe /download` into the source folder and
 reports the resulting size at the end. The filled folder then goes onto the medium.
 
+The Deployment Tool's exit code is not the only verdict: after the installation
+`Install-Office.ps1` reads
+`HKLM\SOFTWARE\Microsoft\Office\ClickToRun\Configuration` and treats a deviating
+exit code as a warning when Office is there afterwards. If it is not, the module
+aborts with an exception, so that the summary at the end of the run does not
+report `OK` regardless.
+
 `Install-Office.ps1` checks at runtime whether `Office\Data` really exists under
 `SourcePath`. If the source is missing — because it was not copied along, for
 instance — it removes `SourcePath` from a working copy of the answer file and
 continues installing online instead of failing on an empty folder.
+
+### Windows components
+
+Optional features (`Enable-WindowsOptionalFeature`) and features on demand
+(`Add-WindowsCapability`) can be turned on along the way – Windows Sandbox,
+Hyper-V, WSL, containers, .NET 3.5, Telnet, IIS, ProjFS, OpenSSH and the RSAT
+tools. The module defaults to phase 2 and checks before every call:
+
+| Check | Behaviour |
+|---|---|
+| already enabled or installed | skipped, no DISM call |
+| edition (`EditionID` starts with `Core`) | Sandbox, Hyper-V and containers are dropped on Home |
+| virtualisation (`HypervisorPresent` / `VirtualizationFirmwareEnabled`) | turned on anyway, but logged |
+| network | features on demand are skipped without a connection |
+
+Every call runs through `Invoke-WithTimeout` with its own time limit (20 minutes
+by default) – so a hanging DISM cannot block the sequence. That counts double if
+the module does run in phase 1, because Windows Setup waits for every call there.
+
+`.NET Framework 3.5` is not part of the installed image. The module looks for
+`sources\sxs` on every drive – if the installation medium is still in the
+machine it installs from there, otherwise via Windows Update. Features on demand
+(OpenSSH, RSAT) always come from Windows Update; a WSUS policy that does not
+allow features on demand makes them fail.
+
+Components that need a restart set
+`HKLM\SOFTWARE\OEM-Setup\RestartNeeded = 1`. *Settings → When phase 2 finishes →
+restart* takes care of that by itself.
 
 ### winget needs a user context
 
@@ -212,8 +249,9 @@ sources/$OEM$/  or  $OEM$/
     ├── Diagnose.ps1                       troubleshooting after the installation
     ├── Lib/OEM-Common.ps1                 logging, registry helpers, winget resolution
     ├── Modules/                            Set-Tweaks, Remove-Bloatware,
-    │                                       Install-Office, Install-Apps,
-    │                                       Install-Files-P1/P2, Invoke-Custom
+    │                                       Install-Features, Install-Office,
+    │                                       Install-Apps, Install-Files-P1/P2,
+    │                                       Invoke-Custom
     ├── Office/Configuration.xml
     ├── Apps/  Paketliste.csv, packages.json, *.ubundle
     └── Logs/                              logs and transcripts
@@ -307,6 +345,13 @@ for it:
 node tools/check-i18n.js
 ```
 
+Processes are started through `ProcessStartInfo`, not through
+`Start-Process -PassThru`: that process object returns an empty `ExitCode` after
+`WaitForExit()`, because PowerShell does not keep the handle open. It made the
+Office Deployment Tool look like a failure despite a successful installation.
+Output is read asynchronously – waiting first and reading afterwards hangs as
+soon as the program writes more than fits in the buffer.
+
 ## Project layout
 
 ```
@@ -314,7 +359,7 @@ index.html        interface
 css/app.css       layout
 js/i18n.js        German/English dictionary and language switching
 js/zip.js         ZIP writer (deflate via CompressionStream, otherwise "stored")
-js/catalog.js     tweak and bloatware catalog, package manager definitions
+js/catalog.js     catalog of tweaks, bloatware and Windows components, package managers
 js/importers.js   parsers for bundles, SetupComplete.cmd and ODT XML
 js/templates.js   generation of every script
 js/app.js         state, interface, import/export

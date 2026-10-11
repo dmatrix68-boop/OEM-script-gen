@@ -208,6 +208,86 @@
   ];
 
   /* Paketmanager, die aus UniGetUI-Bundles kommen können */
+  /*  Windows-Komponenten. Zwei Arten, die DISM unterschiedlich behandelt:
+
+      kind 'feature'    – optionales Feature, Enable-WindowsOptionalFeature.
+                          Steckt im Image, braucht in der Regel keinen Download.
+      kind 'capability' – Feature on Demand, Add-WindowsCapability. Wird von
+                          Windows Update nachgeladen, braucht also Netzwerk.
+
+      pro     – nur Pro/Enterprise/Education, auf Home nicht vorhanden.
+      vt      – braucht im BIOS/UEFI aktivierte Virtualisierung.
+      reboot  – wird erst nach einem Neustart nutzbar.
+      payload – Installationsdateien liegen nicht im Image (.NET 3.5).
+      post    – wird nach dem Aktivieren ausgefuehrt.  */
+  const FEATURES = [
+    { id: 'Containers-DisposableClientVM', kind: 'feature', cat: 'Virtualisierung',
+      label: 'Windows Sandbox', pro: true, vt: true, reboot: true,
+      desc: 'Wegwerf-Desktop zum gefahrlosen Testen; beim Schließen verfällt alles.' },
+    { id: 'Microsoft-Hyper-V-All', kind: 'feature', cat: 'Virtualisierung',
+      label: 'Hyper-V (vollständig)', pro: true, vt: true, reboot: true,
+      desc: 'Hypervisor, Verwaltungswerkzeuge und PowerShell-Modul.' },
+    { id: 'VirtualMachinePlatform', kind: 'feature', cat: 'Virtualisierung',
+      label: 'Plattform für virtuelle Computer', vt: true, reboot: true,
+      desc: 'Voraussetzung für WSL 2 und das Windows-Subsystem für Android.' },
+    { id: 'HypervisorPlatform', kind: 'feature', cat: 'Virtualisierung',
+      label: 'Windows-Hypervisor-Plattform', vt: true, reboot: true,
+      desc: 'Lässt VirtualBox und VMware neben Hyper-V laufen.' },
+    { id: 'Microsoft-Windows-Subsystem-Linux', kind: 'feature', cat: 'Virtualisierung',
+      label: 'Windows-Subsystem für Linux (WSL)', reboot: true,
+      desc: 'Nur der Unterbau. Eine Distribution kommt danach über „wsl --install“ oder winget dazu.' },
+    { id: 'Containers', kind: 'feature', cat: 'Virtualisierung',
+      label: 'Windows-Container', pro: true, reboot: true,
+      desc: 'Containerunterstützung für Docker Desktop im Windows-Modus.' },
+
+    { id: 'NetFx3', kind: 'feature', cat: 'Laufzeiten',
+      label: '.NET Framework 3.5 (inkl. 2.0 und 3.0)', payload: true,
+      desc: 'Liegt nicht im Image. Der Generator sucht sources\\sxs auf allen Laufwerken und weicht sonst auf Windows Update aus.' },
+
+    { id: 'TelnetClient', kind: 'feature', cat: 'Netzwerk', label: 'Telnet-Client',
+      desc: 'Erreichbarkeit einzelner Ports prüfen.' },
+    { id: 'TFTP', kind: 'feature', cat: 'Netzwerk', label: 'TFTP-Client' },
+    { id: 'SimpleTCP', kind: 'feature', cat: 'Netzwerk', label: 'Einfache TCP/IP-Dienste' },
+    { id: 'WorkFolders-Client', kind: 'feature', cat: 'Netzwerk', label: 'Arbeitsordner', reboot: true },
+    { id: 'IIS-WebServerRole', kind: 'feature', cat: 'Netzwerk', label: 'Internetinformationsdienste (IIS)',
+      desc: 'Webserverrolle mit den Standardkomponenten.' },
+
+    { id: 'Client-ProjFS', kind: 'feature', cat: 'Entwicklung',
+      label: 'Projiziertes Dateisystem (ProjFS)', reboot: true,
+      desc: 'Von VFS for Git und einigen Build-Werkzeugen vorausgesetzt.' },
+    { id: 'DirectPlay', kind: 'feature', cat: 'Sonstiges', label: 'DirectPlay (Legacykomponenten)',
+      desc: 'Für ältere Spiele.' },
+    { id: 'Printing-XPSServices-Features', kind: 'feature', cat: 'Sonstiges', label: 'XPS-Druckdienste' },
+
+    { id: 'OpenSSH.Server~~~~0.0.1.0', kind: 'capability', cat: 'Fernwartung',
+      label: 'OpenSSH-Server', net: true,
+      desc: 'Dienst wird auf „Automatisch“ gestellt und gestartet; Port 22 öffnet das Setup in der Firewall.',
+      post: "Set-Service -Name sshd -StartupType Automatic -ErrorAction Stop\n    Start-Service -Name sshd -ErrorAction Stop" },
+    { id: 'OpenSSH.Client~~~~0.0.1.0', kind: 'capability', cat: 'Fernwartung',
+      label: 'OpenSSH-Client', net: true, desc: 'In aktuellen Windows-Fassungen meist schon vorhanden.' },
+
+    { id: 'Rsat.ServerManager.Tools~~~~0.0.1.0', kind: 'capability', cat: 'RSAT',
+      label: 'RSAT: Server-Manager', net: true },
+    { id: 'Rsat.ActiveDirectory.DS-LDS.Tools~~~~0.0.1.0', kind: 'capability', cat: 'RSAT',
+      label: 'RSAT: Active Directory', net: true,
+      desc: 'Benutzer und Computer, AD-Standorte, das PowerShell-Modul ActiveDirectory.' },
+    { id: 'Rsat.GroupPolicy.Management.Tools~~~~0.0.1.0', kind: 'capability', cat: 'RSAT',
+      label: 'RSAT: Gruppenrichtlinienverwaltung', net: true },
+    { id: 'Rsat.Dns.Tools~~~~0.0.1.0', kind: 'capability', cat: 'RSAT', label: 'RSAT: DNS', net: true },
+    { id: 'Rsat.DHCP.Tools~~~~0.0.1.0', kind: 'capability', cat: 'RSAT', label: 'RSAT: DHCP', net: true },
+    { id: 'Rsat.FileServices.Tools~~~~0.0.1.0', kind: 'capability', cat: 'RSAT',
+      label: 'RSAT: Dateidienste', net: true },
+    { id: 'Rsat.BitLocker.Recovery.Tools~~~~0.0.1.0', kind: 'capability', cat: 'RSAT',
+      label: 'RSAT: BitLocker-Wiederherstellung', net: true },
+
+    { id: 'Print.Management.Console~~~~0.0.1.0', kind: 'capability', cat: 'Sonstiges',
+      label: 'Druckverwaltung', net: true },
+    { id: 'Media.WindowsMediaPlayer~~~~0.0.12.0', kind: 'capability', cat: 'Sonstiges',
+      label: 'Windows Media Player (alte Fassung)', net: true },
+    { id: 'XPS.Viewer~~~~0.0.1.0', kind: 'capability', cat: 'Sonstiges',
+      label: 'XPS-Viewer', net: true }
+  ];
+
   const MANAGERS = {
     winget: {
       label: 'WinGet',
@@ -231,5 +311,5 @@
     powershell: { label: 'PowerShell Gallery', cmd: 'powershell', install: (p) => p.id }
   };
 
-  global.Catalog = { TWEAKS, BLOAT, MANAGERS };
+  global.Catalog = { TWEAKS, BLOAT, FEATURES, MANAGERS };
 })(window);

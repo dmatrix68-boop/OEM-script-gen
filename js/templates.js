@@ -388,52 +388,112 @@ function Clear-OemRunning {
     try { Remove-ItemProperty -Path $Key -Name $Name -ErrorAction SilentlyContinue } catch { }
 }
 
+<#  Baut die Befehlszeile fuer ProcessStartInfo. Windows PowerShell 5.1 kennt
+    ArgumentList noch nicht, es gibt nur eine einzige Zeichenkette - und die
+    muss nach den Regeln der C-Laufzeit zusammengesetzt sein: Backslashes
+    unmittelbar vor einem Anfuehrungszeichen zaehlen doppelt, das
+    Anfuehrungszeichen selbst wird mit Backslash entwertet. #>
+function ConvertTo-OemArgLine {
+    param([string[]]$Arguments)
+    $parts = @()
+    foreach ($a in $Arguments) {
+        if ([string]::IsNullOrEmpty($a)) { continue }
+        if ($a -notmatch '[ \\t"]') { $parts += $a; continue }
+        $sb = New-Object System.Text.StringBuilder
+        [void]$sb.Append('"')
+        $slashes = 0
+        foreach ($ch in $a.ToCharArray()) {
+            if ($ch -eq '\\') { $slashes++; continue }
+            if ($ch -eq '"') {
+                [void]$sb.Append('\\' * (2 * $slashes + 1))
+                [void]$sb.Append('"')
+            } else {
+                if ($slashes -gt 0) { [void]$sb.Append('\\' * $slashes) }
+                [void]$sb.Append($ch)
+            }
+            $slashes = 0
+        }
+        if ($slashes -gt 0) { [void]$sb.Append('\\' * (2 * $slashes)) }
+        [void]$sb.Append('"')
+        $parts += $sb.ToString()
+    }
+    return ($parts -join ' ')
+}
+
+<#  Startet einen Prozess und liefert seinen Exitcode.
+
+    Bewusst ueber ProcessStartInfo statt Start-Process -PassThru: dessen
+    Prozessobjekt liefert nach WaitForExit() einen leeren ExitCode, weil
+    PowerShell das Handle nicht offen haelt. Das Office Deployment Tool
+    wurde dadurch trotz erfolgreicher Installation als Fehler gemeldet.
+
+    Die Ausgabe wird asynchron gelesen. Wer erst wartet und dann liest,
+    haengt, sobald das Programm mehr schreibt als in den Puffer passt. #>
 function Invoke-OemProcess {
     param(
         [Parameter(Mandatory)][string]$FilePath,
         [string[]]$Arguments = @(),
         [int[]]$SuccessCodes = @(0),
         [int]$TimeoutSeconds = 3600,
-        # Schneidet stdout/stderr mit, damit eine Fehlermeldung ins Protokoll kann
         [switch]$CaptureOutput
     )
-    Write-Log ('Starte: "{0}" {1}' -f $FilePath, ($Arguments -join ' ')) -Level Debug
-    $startArgs = @{ FilePath = $FilePath; PassThru = $true; WindowStyle = 'Hidden'; ErrorAction = 'Stop' }
-    if ($Arguments -and $Arguments.Count -gt 0) { $startArgs['ArgumentList'] = $Arguments }
-    $outFile = $null
-    $errFile = $null
+    $argLine = ConvertTo-OemArgLine -Arguments $Arguments
+    Write-Log ('Starte: "{0}" {1}' -f $FilePath, $argLine) -Level Debug
+
+    $psi = New-Object System.Diagnostics.ProcessStartInfo
+    $psi.FileName = $FilePath
+    $psi.Arguments = $argLine
+    $psi.UseShellExecute = $false
+    $psi.CreateNoWindow = $true
     if ($CaptureOutput) {
-        $outFile = [IO.Path]::GetTempFileName()
-        $errFile = [IO.Path]::GetTempFileName()
-        $startArgs['RedirectStandardOutput'] = $outFile
-        $startArgs['RedirectStandardError'] = $errFile
+        $psi.RedirectStandardOutput = $true
+        $psi.RedirectStandardError = $true
     }
-    $p = Start-Process @startArgs
+
+    $proc = $null
+    try {
+        $proc = [System.Diagnostics.Process]::Start($psi)
+    } catch {
+        Write-Log ('Prozess konnte nicht gestartet werden: {0} ({1})' -f $FilePath, $_.Exception.Message) -Level Error
+        return [pscustomobject]@{ ExitCode = -1; Success = $false; TimedOut = $false; Output = '' }
+    }
+    if (-not $proc) {
+        Write-Log ('Prozess konnte nicht gestartet werden: ' + $FilePath) -Level Error
+        return [pscustomobject]@{ ExitCode = -1; Success = $false; TimedOut = $false; Output = '' }
+    }
+
+    $outTask = $null
+    $errTask = $null
+    if ($CaptureOutput) {
+        $outTask = $proc.StandardOutput.ReadToEndAsync()
+        $errTask = $proc.StandardError.ReadToEndAsync()
+    }
     $readOutput = {
         $text = ''
-        foreach ($f in @($outFile, $errFile)) {
-            if ($f -and (Test-Path -LiteralPath $f)) {
-                $text += (Get-Content -LiteralPath $f -Raw -ErrorAction SilentlyContinue)
-                Remove-Item -LiteralPath $f -Force -ErrorAction SilentlyContinue
-            }
+        foreach ($task in @($outTask, $errTask)) {
+            if (-not $task) { continue }
+            try {
+                if ($task.Wait(5000)) { $text += [string]$task.Result }
+            } catch { }
         }
         return ($text -replace '\\s+', ' ').Trim()
     }
 
-    if (-not $p) {
-        Write-Log ('Prozess konnte nicht gestartet werden: ' + $FilePath) -Level Error
-        return [pscustomobject]@{ ExitCode = -1; Success = $false; TimedOut = $false; Output = (& $readOutput) }
-    }
-    if (-not $p.WaitForExit($TimeoutSeconds * 1000)) {
+    if (-not $proc.WaitForExit($TimeoutSeconds * 1000)) {
         Write-Log ('Zeitueberschreitung nach {0} s - Prozess wird beendet.' -f $TimeoutSeconds) -Level Error
-        try { $p.Kill() } catch { }
-        try { $p.WaitForExit(5000) | Out-Null } catch { }
-        return [pscustomobject]@{ ExitCode = -1; Success = $false; TimedOut = $true; Output = (& $readOutput) }
+        try { $proc.Kill() } catch { }
+        try { $proc.WaitForExit(5000) | Out-Null } catch { }
+        $out = & $readOutput
+        $proc.Dispose()
+        return [pscustomobject]@{ ExitCode = -1; Success = $false; TimedOut = $true; Output = $out }
     }
-    $code = $p.ExitCode
+
+    $code = $proc.ExitCode
+    $out = & $readOutput
+    $proc.Dispose()
     $ok = $SuccessCodes -contains $code
     if (-not $ok) { Write-Log ('Exitcode {0} von {1}' -f $code, (Split-Path -Leaf $FilePath)) -Level Warn }
-    return [pscustomobject]@{ ExitCode = $code; Success = $ok; TimedOut = $false; Output = (& $readOutput) }
+    return [pscustomobject]@{ ExitCode = $code; Success = $ok; TimedOut = $false; Output = $out }
 }
 `);
   }
@@ -494,6 +554,9 @@ function Invoke-OemProcess {
     if (st.tweaks.enabled && st.tweaks.phase === phase && st.tweaks.selected.length) mods.push(['Set-Tweaks.ps1', 'System-Tweaks']);
     if (phase === 'firstlogon' && hasLateTweaks(st)) mods.push(['Set-Tweaks-Spaet.ps1', 'Tweaks mit Netzwerkbedarf']);
     if (st.bloat.enabled && st.bloat.phase === phase && st.bloat.selected.length) mods.push(['Remove-Bloatware.ps1', 'Bloatware entfernen']);
+    if (st.features.enabled && st.features.phase === phase && st.features.selected.length) {
+      mods.push(['Install-Features.ps1', 'Windows-Komponenten']);
+    }
     if (st.office.enabled && st.office.phase === phase) mods.push(['Install-Office.ps1', 'Microsoft Office (ODT)']);
     if (st.apps.enabled && st.apps.phase === phase && st.apps.items.some((p) => p.enabled)) mods.push(['Install-Apps.ps1', 'Anwendungen']);
     if (st.files.items.some((f) => f.enabled && f.dest !== 'scripts' && f.phase === phase && f.run)) {
@@ -913,6 +976,8 @@ foreach ($pkg in $packages) {
 if ($failed.Count -gt 0) {
     Write-Log ('Nicht installiert: ' + ($failed -join ', ')) -Level Error
     $failed | Set-Content -LiteralPath (Join-Path $Global:OemLogDir 'apps-fehlgeschlagen.txt') -Encoding UTF8
+    # Weiterreichen, sonst stuende in der Zusammenfassung trotzdem OK.
+    throw ('{0} von {1} Paketen nicht installiert' -f $failed.Count, $packages.Count)
 } else {
     Write-Log 'Alle Pakete erfolgreich verarbeitet.'
 }
@@ -944,8 +1009,9 @@ if (-not (Test-Path -LiteralPath $setupExe)) {
         $setupExe = $alt
     }
 }
-if (Test-Path -LiteralPath (Join-Path $officeDir 'HIER-setup.exe-ABLEGEN.txt')) {
-    Write-Log 'Die Platzhalterdatei im Office-Ordner ist noch vorhanden - wurde die ODT-setup.exe abgelegt?' -Level Warn
+if ((-not (Test-Path -LiteralPath $setupExe)) -and
+    (Test-Path -LiteralPath (Join-Path $officeDir 'HIER-setup.exe-ABLEGEN.txt'))) {
+    Write-Log 'Nur die Platzhalterdatei liegt im Office-Ordner - die setup.exe des Deployment Tools fehlt.' -Level Warn
 }
 
 if (-not (Test-Path -LiteralPath $configXml)) {
@@ -1023,15 +1089,23 @@ if ($installed -and $installed.ProductReleaseIds) {
 Write-Log 'Starte Office-Installation (kann einige Minuten dauern) ...'
 $res = Invoke-OemProcess -FilePath $setupExe -Arguments @('/configure', $configToUse) -SuccessCodes @(0, 3010, 1641) -TimeoutSeconds 7200 -CaptureOutput
 if ($configToUse -ne $configXml) { Remove-Item -LiteralPath $configToUse -Force -ErrorAction SilentlyContinue }
+<#  Der Exitcode allein genuegt nicht: das Deployment Tool liefert auch dann
+    gelegentlich etwas anderes als 0, wenn Office danach vorhanden ist. Also
+    gegenpruefen, was tatsaechlich auf der Platte steht. #>
+$nachher = Get-ItemProperty 'HKLM:\\SOFTWARE\\Microsoft\\Office\\ClickToRun\\Configuration' -ErrorAction SilentlyContinue
 if ($res.Success) {
     Write-Log 'Office-Installation abgeschlossen.'
+    if ($nachher -and $nachher.ProductReleaseIds) { Write-Log ('Installiert: ' + $nachher.ProductReleaseIds) }
+} elseif ($nachher -and $nachher.ProductReleaseIds) {
+    Write-Log ('Exitcode {0}, aber Office ist vorhanden: {1}' -f $res.ExitCode, $nachher.ProductReleaseIds) -Level Warn
 } else {
-    Write-Log ('Office-Installation meldete Exitcode ' + $res.ExitCode) -Level Error
     if ($res.Output) {
         $hint = $res.Output
         if ($hint.Length -gt 400) { $hint = $hint.Substring(0, 400) }
         Write-Log ('Meldung des Deployment Tools: ' + $hint) -Level Error
     }
+    Write-Log 'Protokolle des Deployment Tools liegen unter %TEMP% und %WINDIR%\\Temp.' -Level Error
+    throw ('Office-Installation fehlgeschlagen (Exitcode {0})' -f $res.ExitCode)
 }
 `);
     return s;
@@ -1282,6 +1356,184 @@ Write-Log 'Bloatware-Bereinigung abgeschlossen.'
     return s;
   }
 
+  /* ---------- Modules/Install-Features.ps1 ---------- */
+
+  /*  Windows-Komponenten zuschalten. Laeuft bewusst ueber Invoke-WithTimeout:
+      DISM-Aufrufe koennen haengen, und in Phase 1 wuerde das das gesamte
+      Windows-Setup anhalten. Der Block kennt dort die Funktionen aus
+      OEM-Common.ps1 nicht, darf also nur native Cmdlets verwenden. */
+  function featuresModule(st) {
+    const sel = Catalog.FEATURES.filter((f) => st.features.selected.includes(f.id));
+    const timeout = Math.max(60, (st.features.timeoutMin || 20) * 60);
+
+    const row = (f) => '    [pscustomobject]@{ ' + [
+      'Id = ' + psq(f.id),
+      'Kind = ' + psq(f.kind),
+      'Label = ' + psq(f.label),
+      'Pro = $' + (f.pro ? 'true' : 'false'),
+      'Vt = $' + (f.vt ? 'true' : 'false'),
+      'Reboot = $' + (f.reboot ? 'true' : 'false'),
+      'Payload = $' + (f.payload ? 'true' : 'false'),
+      'Net = $' + (f.net ? 'true' : 'false'),
+      'Post = ' + (f.post ? psq(f.post) : "''")
+    ].join('; ') + ' }';
+
+    let s = banner('Schaltet Windows-Komponenten zu (optionale Features und Features on Demand).', st.meta.name);
+    s += bootstrapHeader('Install-Features');
+    s += toCRLF(`
+$items = @(
+${sel.map(row).join(NL)}
+)
+
+$timeout = ${timeout}
+$restartNeeded = $false
+$ok = 0
+$skip = 0
+$fail = 0
+
+# Edition: auf Home fehlen Sandbox, Hyper-V und die Containerfeatures ganz.
+$edition = ''
+try {
+    $edition = (Get-ItemProperty -Path 'HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion' -Name EditionID -ErrorAction Stop).EditionID
+} catch { }
+$isHome = ($edition -match '^Core')
+
+# Virtualisierung: entweder laeuft schon ein Hypervisor oder die Firmware bietet sie an.
+$vtReady = $true
+try {
+    $cs = Get-CimInstance -ClassName Win32_ComputerSystem -ErrorAction Stop
+    $cpu = Get-CimInstance -ClassName Win32_Processor -ErrorAction Stop | Select-Object -First 1
+    $vtReady = [bool]$cs.HypervisorPresent -or [bool]$cpu.VirtualizationFirmwareEnabled
+} catch { }
+
+Write-Log ('Edition: ' + $(if ($edition) { $edition } else { 'unbekannt' }) +
+    ', Virtualisierung: ' + $(if ($vtReady) { 'verfuegbar' } else { 'nicht verfuegbar' }) +
+    ', Komponenten: ' + $items.Count)
+`);
+
+    /* Quelle fuer .NET 3.5 nur erzeugen, wenn sie gebraucht wird. */
+    if (sel.some((f) => f.payload)) {
+      s += toCRLF(`
+<#  .NET 3.5 liegt nicht im installierten Image. Die Dateien stehen unter
+    sources\\sxs auf dem Installationsmedium - der Laufwerksbuchstabe wechselt,
+    also wird danach gesucht. Ohne Fund bleibt Windows Update als Quelle. #>
+$sxs = $null
+foreach ($drive in (Get-PSDrive -PSProvider FileSystem -ErrorAction SilentlyContinue)) {
+    if (-not $drive.Root) { continue }
+    $candidate = Join-Path $drive.Root 'sources\\sxs'
+    try {
+        if (Test-Path -LiteralPath $candidate) { $sxs = $candidate; break }
+    } catch { }
+}
+if ($sxs) { Write-Log ('Quelle fuer .NET 3.5 gefunden: ' + $sxs) }
+else { Write-Log 'Keine lokale Quelle fuer .NET 3.5 gefunden - Bezug ueber Windows Update.' -Level Warn }
+`);
+    } else {
+      s += toCRLF(`
+$sxs = $null
+`);
+    }
+
+    /* Netzwerkpruefung nur, wenn Features on Demand dabei sind. */
+    if (sel.some((f) => f.net)) {
+      s += toCRLF(`
+# Features on Demand laedt Windows Update nach; ohne Netz ist das zwecklos.
+$online = Test-OemInternet
+if (-not $online) {
+    Write-Log 'Keine Internetverbindung - nachzuladende Komponenten werden uebersprungen.' -Level Warn
+}
+`);
+    } else {
+      s += toCRLF(`
+$online = $true
+`);
+    }
+
+    s += toCRLF(`
+foreach ($item in $items) {
+    if ($item.Pro -and $isHome) {
+        Write-Log ('Uebersprungen (in dieser Edition nicht enthalten): ' + $item.Label) -Level Warn
+        $skip++
+        continue
+    }
+    if ($item.Net -and -not $online) {
+        Write-Log ('Uebersprungen (kein Netzwerk): ' + $item.Label) -Level Warn
+        $skip++
+        continue
+    }
+    if ($item.Vt -and -not $vtReady) {
+        Write-Log ('Virtualisierung ist nicht aktiv - ' + $item.Label +
+            ' wird zugeschaltet, laesst sich aber erst nach dem Einschalten im BIOS/UEFI nutzen.') -Level Warn
+    }
+
+    # Schon vorhanden? Dann gar nicht erst anfassen.
+    $state = $null
+    try {
+        if ($item.Kind -eq 'feature') {
+            $state = (Get-WindowsOptionalFeature -Online -FeatureName $item.Id -ErrorAction Stop).State
+            if ($state -eq 'Enabled') {
+                Write-Log ('Bereits aktiv: ' + $item.Label)
+                $skip++
+                continue
+            }
+        } else {
+            $state = (Get-WindowsCapability -Online -Name $item.Id -ErrorAction Stop).State
+            if ($state -eq 'Installed') {
+                Write-Log ('Bereits vorhanden: ' + $item.Label)
+                $skip++
+                continue
+            }
+        }
+    } catch {
+        Write-Log ('Nicht verfuegbar: {0} ({1})' -f $item.Label, $_.Exception.Message) -Level Warn
+        $fail++
+        continue
+    }
+
+    Write-Log ('Schalte zu: {0} [{1}]' -f $item.Label, $item.Id)
+    $id = $item.Id
+    $useSxs = ($item.Payload -and $sxs)
+    $source = $sxs
+    $body = if ($item.Kind -eq 'feature') {
+        if ($useSxs) {
+            [scriptblock]::Create("Enable-WindowsOptionalFeature -Online -FeatureName '$id' -All -NoRestart -LimitAccess -Source '$source' -ErrorAction Stop | Out-Null")
+        } else {
+            [scriptblock]::Create("Enable-WindowsOptionalFeature -Online -FeatureName '$id' -All -NoRestart -ErrorAction Stop | Out-Null")
+        }
+    } else {
+        [scriptblock]::Create("Add-WindowsCapability -Online -Name '$id' -ErrorAction Stop | Out-Null")
+    }
+
+    if (Invoke-WithTimeout -Name $item.Label -Body $body -TimeoutSeconds $timeout) {
+        $ok++
+        if ($item.Reboot) { $restartNeeded = $true }
+        Write-Log ('Zugeschaltet: ' + $item.Label)
+        if ($item.Post) {
+            try {
+                Invoke-Expression $item.Post
+                Write-Log ('Nachbereitet: ' + $item.Label)
+            } catch {
+                Write-Log ('Nachbereitung fehlgeschlagen: {0} ({1})' -f $item.Label, $_.Exception.Message) -Level Warn
+            }
+        }
+    } else {
+        $fail++
+    }
+}
+
+Write-Log ('Komponenten: {0} zugeschaltet, {1} uebersprungen, {2} fehlgeschlagen.' -f $ok, $skip, $fail)
+if ($restartNeeded) {
+    Write-Log 'Mindestens eine Komponente wird erst nach einem Neustart nutzbar.' -Level Warn
+    $key = 'HKLM:\\SOFTWARE\\OEM-Setup'
+    try {
+        if (-not (Test-Path -LiteralPath $key)) { New-Item -Path $key -Force -ErrorAction Stop | Out-Null }
+        New-ItemProperty -LiteralPath $key -Name 'RestartNeeded' -PropertyType DWord -Value 1 -Force -ErrorAction Stop | Out-Null
+    } catch { Write-Log ('Markierung nicht gesetzt: ' + $_.Exception.Message) -Level Warn }
+}
+`);
+    return s;
+  }
+
   /* ---------- Modules/Install-Files.ps1 ---------- */
 
   function filesModule(st, phase) {
@@ -1290,6 +1542,7 @@ Write-Log 'Bloatware-Bereinigung abgeschlossen.'
     s += bootstrapHeader('Install-Files');
     s += toCRLF(`
 $fileDir = Join-Path $Global:OemRoot 'Files'
+$fehler = @()
 $items = @(
 ${items.map((f) => '    [pscustomobject]@{ Name = ' + psq(f.name) + '; Path = ' + psq(f.target) + '; Args = ' + psq(f.run) + ' }').join(NL)}
 )
@@ -1309,11 +1562,20 @@ foreach ($item in $items) {
             $argList = @($item.Args -split ' +' | Where-Object { $_ })
             $res = Invoke-OemProcess -FilePath $full -Arguments $argList -SuccessCodes @(0, 3010, 1641)
         }
-        if ($res.Success) { Write-Log ('OK: ' + $item.Name) } else { Write-Log ('Exitcode {0}: {1}' -f $res.ExitCode, $item.Name) -Level Error }
+        if ($res.Success) {
+            Write-Log ('OK: ' + $item.Name)
+        } else {
+            Write-Log ('Exitcode {0}: {1}' -f $res.ExitCode, $item.Name) -Level Error
+            $fehler += $item.Name
+        }
     } catch {
         Write-Log ('Fehler bei {0}: {1}' -f $item.Name, $_.Exception.Message) -Level Error
+        $fehler += $item.Name
     }
 }
+
+# Weiterreichen, sonst stuende in der Zusammenfassung trotzdem OK.
+if ($fehler.Count -gt 0) { throw ('Nicht ausgefuehrt: ' + ($fehler -join ', ')) }
 `);
     return s;
   }
@@ -1979,6 +2241,7 @@ Write-Host ''
     if (all.has('Set-Tweaks.ps1')) add(inst + '/Modules/Set-Tweaks.ps1', tweaksModule(st, 'main'));
     if (all.has('Set-Tweaks-Spaet.ps1')) add(inst + '/Modules/Set-Tweaks-Spaet.ps1', tweaksModule(st, 'late'));
     if (all.has('Remove-Bloatware.ps1')) add(inst + '/Modules/Remove-Bloatware.ps1', bloatModule(st));
+    if (all.has('Install-Features.ps1')) add(inst + '/Modules/Install-Features.ps1', featuresModule(st));
     if (all.has('Install-Office.ps1')) add(inst + '/Modules/Install-Office.ps1', officeModule(st));
     if (all.has('Install-Apps.ps1')) add(inst + '/Modules/Install-Apps.ps1', appsModule(st));
     if (all.has('Install-Files-P1.ps1')) add(inst + '/Modules/Install-Files-P1.ps1', filesModule(st, 'setup'));
