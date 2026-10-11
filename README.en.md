@@ -164,6 +164,13 @@ The script reads the `Configuration.xml`, downloads exactly the products and
 languages configured in it via `setup.exe /download` into the source folder and
 reports the resulting size at the end. The filled folder then goes onto the medium.
 
+The Deployment Tool's exit code is not the only verdict: after the installation
+`Install-Office.ps1` reads
+`HKLM\SOFTWARE\Microsoft\Office\ClickToRun\Configuration` and treats a deviating
+exit code as a warning when Office is there afterwards. If it is not, the module
+aborts with an exception, so that the summary at the end of the run does not
+report `OK` regardless.
+
 `Install-Office.ps1` checks at runtime whether `Office\Data` really exists under
 `SourcePath`. If the source is missing — because it was not copied along, for
 instance — it removes `SourcePath` from a working copy of the answer file and
@@ -337,6 +344,13 @@ for it:
 ```bash
 node tools/check-i18n.js
 ```
+
+Processes are started through `ProcessStartInfo`, not through
+`Start-Process -PassThru`: that process object returns an empty `ExitCode` after
+`WaitForExit()`, because PowerShell does not keep the handle open. It made the
+Office Deployment Tool look like a failure despite a successful installation.
+Output is read asynchronously – waiting first and reading afterwards hangs as
+soon as the program writes more than fits in the buffer.
 
 ## Project layout
 

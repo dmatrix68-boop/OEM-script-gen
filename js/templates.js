@@ -388,52 +388,112 @@ function Clear-OemRunning {
     try { Remove-ItemProperty -Path $Key -Name $Name -ErrorAction SilentlyContinue } catch { }
 }
 
+<#  Baut die Befehlszeile fuer ProcessStartInfo. Windows PowerShell 5.1 kennt
+    ArgumentList noch nicht, es gibt nur eine einzige Zeichenkette - und die
+    muss nach den Regeln der C-Laufzeit zusammengesetzt sein: Backslashes
+    unmittelbar vor einem Anfuehrungszeichen zaehlen doppelt, das
+    Anfuehrungszeichen selbst wird mit Backslash entwertet. #>
+function ConvertTo-OemArgLine {
+    param([string[]]$Arguments)
+    $parts = @()
+    foreach ($a in $Arguments) {
+        if ([string]::IsNullOrEmpty($a)) { continue }
+        if ($a -notmatch '[ \\t"]') { $parts += $a; continue }
+        $sb = New-Object System.Text.StringBuilder
+        [void]$sb.Append('"')
+        $slashes = 0
+        foreach ($ch in $a.ToCharArray()) {
+            if ($ch -eq '\\') { $slashes++; continue }
+            if ($ch -eq '"') {
+                [void]$sb.Append('\\' * (2 * $slashes + 1))
+                [void]$sb.Append('"')
+            } else {
+                if ($slashes -gt 0) { [void]$sb.Append('\\' * $slashes) }
+                [void]$sb.Append($ch)
+            }
+            $slashes = 0
+        }
+        if ($slashes -gt 0) { [void]$sb.Append('\\' * (2 * $slashes)) }
+        [void]$sb.Append('"')
+        $parts += $sb.ToString()
+    }
+    return ($parts -join ' ')
+}
+
+<#  Startet einen Prozess und liefert seinen Exitcode.
+
+    Bewusst ueber ProcessStartInfo statt Start-Process -PassThru: dessen
+    Prozessobjekt liefert nach WaitForExit() einen leeren ExitCode, weil
+    PowerShell das Handle nicht offen haelt. Das Office Deployment Tool
+    wurde dadurch trotz erfolgreicher Installation als Fehler gemeldet.
+
+    Die Ausgabe wird asynchron gelesen. Wer erst wartet und dann liest,
+    haengt, sobald das Programm mehr schreibt als in den Puffer passt. #>
 function Invoke-OemProcess {
     param(
         [Parameter(Mandatory)][string]$FilePath,
         [string[]]$Arguments = @(),
         [int[]]$SuccessCodes = @(0),
         [int]$TimeoutSeconds = 3600,
-        # Schneidet stdout/stderr mit, damit eine Fehlermeldung ins Protokoll kann
         [switch]$CaptureOutput
     )
-    Write-Log ('Starte: "{0}" {1}' -f $FilePath, ($Arguments -join ' ')) -Level Debug
-    $startArgs = @{ FilePath = $FilePath; PassThru = $true; WindowStyle = 'Hidden'; ErrorAction = 'Stop' }
-    if ($Arguments -and $Arguments.Count -gt 0) { $startArgs['ArgumentList'] = $Arguments }
-    $outFile = $null
-    $errFile = $null
+    $argLine = ConvertTo-OemArgLine -Arguments $Arguments
+    Write-Log ('Starte: "{0}" {1}' -f $FilePath, $argLine) -Level Debug
+
+    $psi = New-Object System.Diagnostics.ProcessStartInfo
+    $psi.FileName = $FilePath
+    $psi.Arguments = $argLine
+    $psi.UseShellExecute = $false
+    $psi.CreateNoWindow = $true
     if ($CaptureOutput) {
-        $outFile = [IO.Path]::GetTempFileName()
-        $errFile = [IO.Path]::GetTempFileName()
-        $startArgs['RedirectStandardOutput'] = $outFile
-        $startArgs['RedirectStandardError'] = $errFile
+        $psi.RedirectStandardOutput = $true
+        $psi.RedirectStandardError = $true
     }
-    $p = Start-Process @startArgs
+
+    $proc = $null
+    try {
+        $proc = [System.Diagnostics.Process]::Start($psi)
+    } catch {
+        Write-Log ('Prozess konnte nicht gestartet werden: {0} ({1})' -f $FilePath, $_.Exception.Message) -Level Error
+        return [pscustomobject]@{ ExitCode = -1; Success = $false; TimedOut = $false; Output = '' }
+    }
+    if (-not $proc) {
+        Write-Log ('Prozess konnte nicht gestartet werden: ' + $FilePath) -Level Error
+        return [pscustomobject]@{ ExitCode = -1; Success = $false; TimedOut = $false; Output = '' }
+    }
+
+    $outTask = $null
+    $errTask = $null
+    if ($CaptureOutput) {
+        $outTask = $proc.StandardOutput.ReadToEndAsync()
+        $errTask = $proc.StandardError.ReadToEndAsync()
+    }
     $readOutput = {
         $text = ''
-        foreach ($f in @($outFile, $errFile)) {
-            if ($f -and (Test-Path -LiteralPath $f)) {
-                $text += (Get-Content -LiteralPath $f -Raw -ErrorAction SilentlyContinue)
-                Remove-Item -LiteralPath $f -Force -ErrorAction SilentlyContinue
-            }
+        foreach ($task in @($outTask, $errTask)) {
+            if (-not $task) { continue }
+            try {
+                if ($task.Wait(5000)) { $text += [string]$task.Result }
+            } catch { }
         }
         return ($text -replace '\\s+', ' ').Trim()
     }
 
-    if (-not $p) {
-        Write-Log ('Prozess konnte nicht gestartet werden: ' + $FilePath) -Level Error
-        return [pscustomobject]@{ ExitCode = -1; Success = $false; TimedOut = $false; Output = (& $readOutput) }
-    }
-    if (-not $p.WaitForExit($TimeoutSeconds * 1000)) {
+    if (-not $proc.WaitForExit($TimeoutSeconds * 1000)) {
         Write-Log ('Zeitueberschreitung nach {0} s - Prozess wird beendet.' -f $TimeoutSeconds) -Level Error
-        try { $p.Kill() } catch { }
-        try { $p.WaitForExit(5000) | Out-Null } catch { }
-        return [pscustomobject]@{ ExitCode = -1; Success = $false; TimedOut = $true; Output = (& $readOutput) }
+        try { $proc.Kill() } catch { }
+        try { $proc.WaitForExit(5000) | Out-Null } catch { }
+        $out = & $readOutput
+        $proc.Dispose()
+        return [pscustomobject]@{ ExitCode = -1; Success = $false; TimedOut = $true; Output = $out }
     }
-    $code = $p.ExitCode
+
+    $code = $proc.ExitCode
+    $out = & $readOutput
+    $proc.Dispose()
     $ok = $SuccessCodes -contains $code
     if (-not $ok) { Write-Log ('Exitcode {0} von {1}' -f $code, (Split-Path -Leaf $FilePath)) -Level Warn }
-    return [pscustomobject]@{ ExitCode = $code; Success = $ok; TimedOut = $false; Output = (& $readOutput) }
+    return [pscustomobject]@{ ExitCode = $code; Success = $ok; TimedOut = $false; Output = $out }
 }
 `);
   }
@@ -916,6 +976,8 @@ foreach ($pkg in $packages) {
 if ($failed.Count -gt 0) {
     Write-Log ('Nicht installiert: ' + ($failed -join ', ')) -Level Error
     $failed | Set-Content -LiteralPath (Join-Path $Global:OemLogDir 'apps-fehlgeschlagen.txt') -Encoding UTF8
+    # Weiterreichen, sonst stuende in der Zusammenfassung trotzdem OK.
+    throw ('{0} von {1} Paketen nicht installiert' -f $failed.Count, $packages.Count)
 } else {
     Write-Log 'Alle Pakete erfolgreich verarbeitet.'
 }
@@ -947,8 +1009,9 @@ if (-not (Test-Path -LiteralPath $setupExe)) {
         $setupExe = $alt
     }
 }
-if (Test-Path -LiteralPath (Join-Path $officeDir 'HIER-setup.exe-ABLEGEN.txt')) {
-    Write-Log 'Die Platzhalterdatei im Office-Ordner ist noch vorhanden - wurde die ODT-setup.exe abgelegt?' -Level Warn
+if ((-not (Test-Path -LiteralPath $setupExe)) -and
+    (Test-Path -LiteralPath (Join-Path $officeDir 'HIER-setup.exe-ABLEGEN.txt'))) {
+    Write-Log 'Nur die Platzhalterdatei liegt im Office-Ordner - die setup.exe des Deployment Tools fehlt.' -Level Warn
 }
 
 if (-not (Test-Path -LiteralPath $configXml)) {
@@ -1026,15 +1089,23 @@ if ($installed -and $installed.ProductReleaseIds) {
 Write-Log 'Starte Office-Installation (kann einige Minuten dauern) ...'
 $res = Invoke-OemProcess -FilePath $setupExe -Arguments @('/configure', $configToUse) -SuccessCodes @(0, 3010, 1641) -TimeoutSeconds 7200 -CaptureOutput
 if ($configToUse -ne $configXml) { Remove-Item -LiteralPath $configToUse -Force -ErrorAction SilentlyContinue }
+<#  Der Exitcode allein genuegt nicht: das Deployment Tool liefert auch dann
+    gelegentlich etwas anderes als 0, wenn Office danach vorhanden ist. Also
+    gegenpruefen, was tatsaechlich auf der Platte steht. #>
+$nachher = Get-ItemProperty 'HKLM:\\SOFTWARE\\Microsoft\\Office\\ClickToRun\\Configuration' -ErrorAction SilentlyContinue
 if ($res.Success) {
     Write-Log 'Office-Installation abgeschlossen.'
+    if ($nachher -and $nachher.ProductReleaseIds) { Write-Log ('Installiert: ' + $nachher.ProductReleaseIds) }
+} elseif ($nachher -and $nachher.ProductReleaseIds) {
+    Write-Log ('Exitcode {0}, aber Office ist vorhanden: {1}' -f $res.ExitCode, $nachher.ProductReleaseIds) -Level Warn
 } else {
-    Write-Log ('Office-Installation meldete Exitcode ' + $res.ExitCode) -Level Error
     if ($res.Output) {
         $hint = $res.Output
         if ($hint.Length -gt 400) { $hint = $hint.Substring(0, 400) }
         Write-Log ('Meldung des Deployment Tools: ' + $hint) -Level Error
     }
+    Write-Log 'Protokolle des Deployment Tools liegen unter %TEMP% und %WINDIR%\\Temp.' -Level Error
+    throw ('Office-Installation fehlgeschlagen (Exitcode {0})' -f $res.ExitCode)
 }
 `);
     return s;
@@ -1471,6 +1542,7 @@ if ($restartNeeded) {
     s += bootstrapHeader('Install-Files');
     s += toCRLF(`
 $fileDir = Join-Path $Global:OemRoot 'Files'
+$fehler = @()
 $items = @(
 ${items.map((f) => '    [pscustomobject]@{ Name = ' + psq(f.name) + '; Path = ' + psq(f.target) + '; Args = ' + psq(f.run) + ' }').join(NL)}
 )
@@ -1490,11 +1562,20 @@ foreach ($item in $items) {
             $argList = @($item.Args -split ' +' | Where-Object { $_ })
             $res = Invoke-OemProcess -FilePath $full -Arguments $argList -SuccessCodes @(0, 3010, 1641)
         }
-        if ($res.Success) { Write-Log ('OK: ' + $item.Name) } else { Write-Log ('Exitcode {0}: {1}' -f $res.ExitCode, $item.Name) -Level Error }
+        if ($res.Success) {
+            Write-Log ('OK: ' + $item.Name)
+        } else {
+            Write-Log ('Exitcode {0}: {1}' -f $res.ExitCode, $item.Name) -Level Error
+            $fehler += $item.Name
+        }
     } catch {
         Write-Log ('Fehler bei {0}: {1}' -f $item.Name, $_.Exception.Message) -Level Error
+        $fehler += $item.Name
     }
 }
+
+# Weiterreichen, sonst stuende in der Zusammenfassung trotzdem OK.
+if ($fehler.Count -gt 0) { throw ('Nicht ausgefuehrt: ' + ($fehler -join ', ')) }
 `);
     return s;
   }
