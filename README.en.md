@@ -13,6 +13,24 @@ The interface is bilingual — German and English. The switch sits in the header
 (**DE** / **EN**); on first start the browser language decides. The language also
 determines whether the generated archive contains `LIESMICH.txt` or `README.txt`.
 
+## Screenshots
+
+![Overview with the run sequence and target layout](docs/screenshots/en-overview.png)
+
+| | |
+|---|---|
+| ![Applications from winget, Chocolatey & co.](docs/screenshots/en-apps.png) | ![Microsoft Office via the Deployment Tool](docs/screenshots/en-office.png) |
+| **Applications** – packages from bundles and scripts, each with manager and version | **Office / ODT** – analyse and check Configuration.xml |
+| ![System tweaks](docs/screenshots/en-tweaks.png) | ![Windows components with help links and VT note](docs/screenshots/en-features.png) |
+| **Tweaks** – settings with phase and network needs | **Windows components** – with help link and virtualisation check |
+| ![Settings: paths, trigger, sequence](docs/screenshots/en-settings.png) | ![Preview of every generated file](docs/screenshots/en-preview.png) |
+| **Settings** – trigger, phase 2, completion | **Preview** – every generated file before export |
+
+## Download
+
+The ready-made package is under [Releases](https://github.com/dmatrix68-boop/OEM-script-gen/releases):
+unpack the ZIP and open `index.html`. Inside the package the screenshots are links only.
+
 ## Features
 
 * **Import of existing scripts** – `SetupComplete.cmd`/`.bat` is analysed:
@@ -368,4 +386,20 @@ js/app.js         state, interface, import/export
 samples/          sample files for testing the import function
 tools/            check-escapes.js – checks the template literals for swallowed escapes
                   check-i18n.js    – checks the dictionary against the interface
+                  build-release.js – builds the release package
+docs/screenshots/ images for the README (not in the release package)
+docs/releases/    release notes per version
+```
+
+### Creating a release
+
+A `v*` tag starts the workflow `.github/workflows/release.yml`. It runs both
+checks, builds the package `dist/OEM-Script-Generator-<tag>.zip` with
+`node tools/build-release.js <tag>` and creates the GitHub release. The release
+notes come from `docs/releases/<tag>.md`. Inside the package the script replaces
+the embedded screenshots in both READMEs with links to the repository at the
+same tag.
+
+```bash
+git tag v1.00 && git push origin v1.00
 ```

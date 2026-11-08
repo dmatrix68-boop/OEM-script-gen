@@ -1,0 +1,45 @@
+name: Release
+
+# Ein Tag v* (z. B. v1.00) baut das Paket und legt das GitHub-Release an.
+# Alternativ von Hand starten: Actions -> Release -> Run workflow; der Tag wird
+# dann auf dem gewaehlten Branch erzeugt.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag des Releases, z. B. v1.00'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ github.event_name == 'push' && github.ref_name || inputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pruefungen
+        run: |
+          node tools/check-escapes.js
+          node tools/check-i18n.js
+
+      - name: Paket schnueren
+        run: node tools/build-release.js "$TAG"
+
+      - name: Release anlegen
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          notes="docs/releases/$TAG.md"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/*.zip --clobber
+          elif [ -f "$notes" ]; then
+            gh release create "$TAG" dist/*.zip --target "$GITHUB_SHA" --title "OEM Script Generator ${TAG^}" --notes-file "$notes"
+          else
+            gh release create "$TAG" dist/*.zip --target "$GITHUB_SHA" --title "OEM Script Generator ${TAG^}" --generate-notes
+          fi
