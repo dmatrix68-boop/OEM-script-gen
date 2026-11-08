@@ -187,6 +187,8 @@ online weiter, statt an einem leeren Ordner zu scheitern.
 Optionale Features (`Enable-WindowsOptionalFeature`) und Features on Demand
 (`Add-WindowsCapability`) lassen sich mit zuschalten – Windows Sandbox, Hyper-V,
 WSL, Container, .NET 3.5, Telnet, IIS, ProjFS, OpenSSH und die RSAT-Werkzeuge.
+Das **?** neben jeder Komponente öffnet die passende Hilfeseite bei Microsoft –
+auf Deutsch oder Englisch, je nach eingestellter Oberflächensprache.
 Das Modul steht standardmäßig auf Phase 2 und prüft vor jedem Aufruf:
 
 | Prüfung | Verhalten |

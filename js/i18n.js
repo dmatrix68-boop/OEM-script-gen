@@ -230,6 +230,7 @@
     'Quelle nötig': 'needs a source',
     'VT im BIOS': 'VT in the firmware',
     'Neustart nötig': 'needs a restart',
+    'Hilfe bei Microsoft': 'Microsoft help',
     'Windows Sandbox': 'Windows Sandbox',
     'Wegwerf-Desktop zum gefahrlosen Testen; beim Schließen verfällt alles.':
       'A throwaway desktop for safe testing; everything is discarded on close.',

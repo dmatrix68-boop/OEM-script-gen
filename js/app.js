@@ -556,11 +556,28 @@
       div.innerHTML = '<div class="cat"></div><div class="t"></div><div class="d"></div>';
       div.querySelector('.cat').textContent = T(f.cat) + (marks.length ? ' · ' + marks.join(' · ') : '');
       div.querySelector('.t').textContent = T(f.label);
+      if (f.help) {
+        /* Ein Link in einem <label> löst kein Umschalten der Checkbox aus. */
+        const a = document.createElement('a');
+        a.className = 'help-link';
+        a.href = helpUrl(f.help);
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        a.textContent = '?';
+        a.title = T('Hilfe bei Microsoft');
+        a.setAttribute('aria-label', T('Hilfe bei Microsoft') + ': ' + T(f.label));
+        div.querySelector('.t').appendChild(a);
+      }
       div.querySelector('.d').textContent = (f.desc ? T(f.desc) + ' ' : '') + f.id;
       lab.appendChild(cb); lab.appendChild(div);
       box.appendChild(lab);
     }
     renderFeatureHints();
+  }
+
+  /* Microsoft-Hilfeseiten in der Sprache der Oberfläche. */
+  function helpUrl(url) {
+    return url.replace('{loc}', I18n.lang === 'en' ? 'en-us' : 'de-de');
   }
 
   function renderFeatureHints() {
