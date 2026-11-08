@@ -1398,16 +1398,55 @@ try {
 } catch { }
 $isHome = ($edition -match '^Core')
 
-# Virtualisierung: entweder laeuft schon ein Hypervisor oder die Firmware bietet sie an.
-$vtReady = $true
+<#  Virtualisierung. Ohne sie bleibt der Neustart nach Hyper-V, Sandbox,
+    VM-Plattform oder Hypervisor-Plattform haengen - diese Komponenten werden
+    dann uebersprungen.
+    - Laeuft kein Hypervisor, sind die VT-Merkmale von Win32_Processor
+      aussagekraeftig: Prozessor kann es, Firmware hat es eingeschaltet, SLAT.
+    - Laeuft einer, stehen diese Merkmale immer auf False. HypervisorPresent
+      allein genuegt aber nicht: in einer VM ohne verschachtelte
+      Virtualisierung ist er ebenfalls gesetzt. Verlass ist nur auf den
+      Windows-eigenen Hypervisor - VBS laeuft oder Hyper-V ist schon aktiv;
+      beides setzt funktionierende VT-Erweiterungen voraus.
+    - Schlaegt die Pruefung fehl, gilt Virtualisierung als nicht verfuegbar. #>
+$vtReady = $false
+$vtReason = 'unbekannt'
 try {
     $cs = Get-CimInstance -ClassName Win32_ComputerSystem -ErrorAction Stop
     $cpu = Get-CimInstance -ClassName Win32_Processor -ErrorAction Stop | Select-Object -First 1
-    $vtReady = [bool]$cs.HypervisorPresent -or [bool]$cpu.VirtualizationFirmwareEnabled
-} catch { }
+    if (-not $cs.HypervisorPresent) {
+        if (-not $cpu.VMMonitorModeExtensions) {
+            $vtReason = 'Prozessor ohne VT-x/AMD-V'
+        } elseif (-not $cpu.VirtualizationFirmwareEnabled) {
+            $vtReason = 'im BIOS/UEFI abgeschaltet'
+        } elseif (-not $cpu.SecondLevelAddressTranslationExtensions) {
+            $vtReason = 'Prozessor ohne SLAT'
+        } else {
+            $vtReady = $true
+            $vtReason = 'im BIOS/UEFI eingeschaltet'
+        }
+    } else {
+        $vbs = 0
+        try {
+            $vbs = (Get-CimInstance -Namespace 'root\\Microsoft\\Windows\\DeviceGuard' -ClassName Win32_DeviceGuard -ErrorAction Stop).VirtualizationBasedSecurityStatus
+        } catch { }
+        $hv = $null
+        try {
+            $hv = (Get-WindowsOptionalFeature -Online -FeatureName 'Microsoft-Hyper-V-Hypervisor' -ErrorAction Stop).State
+        } catch { }
+        if ($vbs -eq 2 -or $hv -eq 'Enabled') {
+            $vtReady = $true
+            $vtReason = 'Windows-Hypervisor laeuft'
+        } else {
+            $vtReason = ('fremder Hypervisor ({0} {1}) - VM ohne verschachtelte Virtualisierung?' -f $cs.Manufacturer, $cs.Model).Trim()
+        }
+    }
+} catch {
+    $vtReason = 'Pruefung fehlgeschlagen: ' + $_.Exception.Message
+}
 
 Write-Log ('Edition: ' + $(if ($edition) { $edition } else { 'unbekannt' }) +
-    ', Virtualisierung: ' + $(if ($vtReady) { 'verfuegbar' } else { 'nicht verfuegbar' }) +
+    ', Virtualisierung: ' + $(if ($vtReady) { 'verfuegbar' } else { 'nicht verfuegbar' }) + ' (' + $vtReason + ')' +
     ', Komponenten: ' + $items.Count)
 `);
 
@@ -1461,11 +1500,6 @@ foreach ($item in $items) {
         $skip++
         continue
     }
-    if ($item.Vt -and -not $vtReady) {
-        Write-Log ('Virtualisierung ist nicht aktiv - ' + $item.Label +
-            ' wird zugeschaltet, laesst sich aber erst nach dem Einschalten im BIOS/UEFI nutzen.') -Level Warn
-    }
-
     # Schon vorhanden? Dann gar nicht erst anfassen.
     $state = $null
     try {
@@ -1487,6 +1521,13 @@ foreach ($item in $items) {
     } catch {
         Write-Log ('Nicht verfuegbar: {0} ({1})' -f $item.Label, $_.Exception.Message) -Level Warn
         $fail++
+        continue
+    }
+
+    # Erst nach der Statuspruefung: ein schon aktives Feature bleibt unangetastet.
+    if ($item.Vt -and -not $vtReady) {
+        Write-Log ('Uebersprungen (Virtualisierung nicht verfuegbar: {0}): {1} - zugeschaltet bliebe der Neustart haengen.' -f $vtReason, $item.Label) -Level Warn
+        $skip++
         continue
     }
 

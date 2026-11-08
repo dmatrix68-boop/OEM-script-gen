@@ -189,7 +189,7 @@ phase 2 and checks before every call:
 |---|---|
 | already enabled or installed | skipped, no DISM call |
 | edition (`EditionID` starts with `Core`) | Sandbox, Hyper-V and containers are dropped on Home |
-| virtualisation (`HypervisorPresent` / `VirtualizationFirmwareEnabled`) | turned on anyway, but logged |
+| virtualisation (VT-x/AMD-V, firmware, SLAT; with a hypervisor running: VBS or Hyper-V active) | Sandbox, Hyper-V, Virtual Machine Platform and Hypervisor Platform are skipped without virtualisation – otherwise the restart would hang. A VM without nested virtualisation counts as "not available" |
 | network | features on demand are skipped without a connection |
 
 Every call runs through `Invoke-WithTimeout` with its own time limit (20 minutes

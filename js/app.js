@@ -596,6 +596,17 @@
         phase.style.color = '';
       }
     }
+    const vt = $('#featuresVtHint');
+    if (vt) {
+      const need = sel.filter((f) => f.vt);
+      if (!need.length) vt.textContent = '';
+      else {
+        vt.innerHTML = '<b>' + need.map((f) => T(f.label)).join(', ') + '</b>' +
+          T(' – brauchen eingeschaltete Virtualisierung. Fehlt sie (BIOS/UEFI, oder eine VM ohne verschachtelte ' +
+            'Virtualisierung), überspringt das Modul diese Komponenten, sonst bliebe der Neustart hängen.');
+        vt.style.color = 'var(--warn)';
+      }
+    }
     const reb = $('#featuresRebootHint');
     if (reb) {
       const need = sel.filter((f) => f.reboot);
