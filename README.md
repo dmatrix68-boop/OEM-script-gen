@@ -187,13 +187,15 @@ online weiter, statt an einem leeren Ordner zu scheitern.
 Optionale Features (`Enable-WindowsOptionalFeature`) und Features on Demand
 (`Add-WindowsCapability`) lassen sich mit zuschalten – Windows Sandbox, Hyper-V,
 WSL, Container, .NET 3.5, Telnet, IIS, ProjFS, OpenSSH und die RSAT-Werkzeuge.
+Das **?** neben jeder Komponente öffnet die passende Hilfeseite bei Microsoft –
+auf Deutsch oder Englisch, je nach eingestellter Oberflächensprache.
 Das Modul steht standardmäßig auf Phase 2 und prüft vor jedem Aufruf:
 
 | Prüfung | Verhalten |
 |---|---|
 | bereits aktiv bzw. installiert | wird übersprungen, kein DISM-Aufruf |
 | Edition (`EditionID` beginnt mit `Core`) | Sandbox, Hyper-V und Container entfallen auf Home |
-| Virtualisierung (`HypervisorPresent` / `VirtualizationFirmwareEnabled`) | wird trotzdem zugeschaltet, aber protokolliert |
+| Virtualisierung (VT-x/AMD-V, Firmware, SLAT – auch in einer VM mit verschachtelter Virtualisierung; alternativ VBS bzw. Hyper-V schon aktiv) | Sandbox, Hyper-V, VM- und Hypervisor-Plattform werden ohne Virtualisierung übersprungen – sonst bliebe der Neustart hängen. Die Rohwerte stehen im Protokoll |
 | Netzwerk | Features on Demand werden ohne Verbindung übersprungen |
 
 Jeder Aufruf läuft über `Invoke-WithTimeout` mit eigener Zeitgrenze

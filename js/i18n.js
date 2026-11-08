@@ -230,6 +230,9 @@
     'Quelle nötig': 'needs a source',
     'VT im BIOS': 'VT in the firmware',
     'Neustart nötig': 'needs a restart',
+    'Hilfe bei Microsoft': 'Microsoft help',
+    ' – brauchen eingeschaltete Virtualisierung. Fehlt sie (BIOS/UEFI, oder eine VM ohne verschachtelte Virtualisierung), überspringt das Modul diese Komponenten, sonst bliebe der Neustart hängen.':
+      ' – need virtualisation turned on. If it is missing (firmware setting, or a VM without nested virtualisation), the module skips these components, otherwise the restart would hang.',
     'Windows Sandbox': 'Windows Sandbox',
     'Wegwerf-Desktop zum gefahrlosen Testen; beim Schließen verfällt alles.':
       'A throwaway desktop for safe testing; everything is discarded on close.',

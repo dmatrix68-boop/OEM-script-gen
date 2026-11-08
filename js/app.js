@@ -556,11 +556,28 @@
       div.innerHTML = '<div class="cat"></div><div class="t"></div><div class="d"></div>';
       div.querySelector('.cat').textContent = T(f.cat) + (marks.length ? ' · ' + marks.join(' · ') : '');
       div.querySelector('.t').textContent = T(f.label);
+      if (f.help) {
+        /* Ein Link in einem <label> löst kein Umschalten der Checkbox aus. */
+        const a = document.createElement('a');
+        a.className = 'help-link';
+        a.href = helpUrl(f.help);
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        a.textContent = '?';
+        a.title = T('Hilfe bei Microsoft');
+        a.setAttribute('aria-label', T('Hilfe bei Microsoft') + ': ' + T(f.label));
+        div.querySelector('.t').appendChild(a);
+      }
       div.querySelector('.d').textContent = (f.desc ? T(f.desc) + ' ' : '') + f.id;
       lab.appendChild(cb); lab.appendChild(div);
       box.appendChild(lab);
     }
     renderFeatureHints();
+  }
+
+  /* Microsoft-Hilfeseiten in der Sprache der Oberfläche. */
+  function helpUrl(url) {
+    return url.replace('{loc}', I18n.lang === 'en' ? 'en-us' : 'de-de');
   }
 
   function renderFeatureHints() {
@@ -577,6 +594,17 @@
       } else {
         phase.textContent = T('Empfohlen: DISM läuft dann ohne Zeitdruck, und für Features on Demand steht das Netzwerk bereit.');
         phase.style.color = '';
+      }
+    }
+    const vt = $('#featuresVtHint');
+    if (vt) {
+      const need = sel.filter((f) => f.vt);
+      if (!need.length) vt.textContent = '';
+      else {
+        vt.innerHTML = '<b>' + need.map((f) => T(f.label)).join(', ') + '</b>' +
+          T(' – brauchen eingeschaltete Virtualisierung. Fehlt sie (BIOS/UEFI, oder eine VM ohne verschachtelte ' +
+            'Virtualisierung), überspringt das Modul diese Komponenten, sonst bliebe der Neustart hängen.');
+        vt.style.color = 'var(--warn)';
       }
     }
     const reb = $('#featuresRebootHint');

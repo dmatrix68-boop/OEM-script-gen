@@ -155,6 +155,10 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--acc)}
 .tweak.sel{border-color:var(--ok);background:rgba(34,197,94,.07)}
 .tweak input{margin-top:2px;accent-color:var(--acc)}
 .tweak .t{font-size:13px}
+.tweak .help-link{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;margin-left:6px;
+  border:1px solid var(--muted);border-radius:50%;font-size:10px;font-weight:600;line-height:1;color:var(--muted);
+  text-decoration:none;vertical-align:1px}
+.tweak .help-link:hover,.tweak .help-link:focus-visible{color:var(--acc);border-color:var(--acc)}
 .tweak .d{font-size:11.5px;color:var(--muted);margin-top:2px}
 .tweak .cat{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--acc2)}
 .bloat{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:6px;max-height:60vh;overflow:auto}
