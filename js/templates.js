@@ -1401,45 +1401,49 @@ $isHome = ($edition -match '^Core')
 <#  Virtualisierung. Ohne sie bleibt der Neustart nach Hyper-V, Sandbox,
     VM-Plattform oder Hypervisor-Plattform haengen - diese Komponenten werden
     dann uebersprungen.
-    - Laeuft kein Hypervisor, sind die VT-Merkmale von Win32_Processor
-      aussagekraeftig: Prozessor kann es, Firmware hat es eingeschaltet, SLAT.
-    - Laeuft einer, stehen diese Merkmale immer auf False. HypervisorPresent
-      allein genuegt aber nicht: in einer VM ohne verschachtelte
-      Virtualisierung ist er ebenfalls gesetzt. Verlass ist nur auf den
-      Windows-eigenen Hypervisor - VBS laeuft oder Hyper-V ist schon aktiv;
-      beides setzt funktionierende VT-Erweiterungen voraus.
-    - Schlaegt die Pruefung fehl, gilt Virtualisierung als nicht verfuegbar. #>
+    1. Die VT-Merkmale von Win32_Processor (VT-x/AMD-V, Firmware-Schalter,
+       SLAT) gelten fuer den Prozessor, den dieses Windows sieht: auf echter
+       Hardware den physischen, in einer VM den virtuellen. Eine VM mit
+       verschachtelter Virtualisierung meldet sie deshalb ebenfalls.
+    2. Laeuft der Windows-eigene Hypervisor (VBS oder Hyper-V schon aktiv),
+       stehen diese Merkmale auf False, obwohl VT vorhanden ist - er setzt
+       sie ja voraus.
+    3. Sonst gilt Virtualisierung als nicht verfuegbar; das betrifft auch
+       eine VM ohne verschachtelte Virtualisierung.
+    Die Rohwerte landen im Protokoll, damit sich eine Fehlentscheidung
+    nachvollziehen laesst. #>
 $vtReady = $false
 $vtReason = 'unbekannt'
 try {
     $cs = Get-CimInstance -ClassName Win32_ComputerSystem -ErrorAction Stop
     $cpu = Get-CimInstance -ClassName Win32_Processor -ErrorAction Stop | Select-Object -First 1
-    if (-not $cs.HypervisorPresent) {
-        if (-not $cpu.VMMonitorModeExtensions) {
-            $vtReason = 'Prozessor ohne VT-x/AMD-V'
-        } elseif (-not $cpu.VirtualizationFirmwareEnabled) {
-            $vtReason = 'im BIOS/UEFI abgeschaltet'
-        } elseif (-not $cpu.SecondLevelAddressTranslationExtensions) {
-            $vtReason = 'Prozessor ohne SLAT'
-        } else {
-            $vtReady = $true
-            $vtReason = 'im BIOS/UEFI eingeschaltet'
-        }
+    $vbs = 0
+    try {
+        $vbs = [int](Get-CimInstance -Namespace 'root\\Microsoft\\Windows\\DeviceGuard' -ClassName Win32_DeviceGuard -ErrorAction Stop).VirtualizationBasedSecurityStatus
+    } catch { }
+    $hv = $null
+    try {
+        $hv = (Get-WindowsOptionalFeature -Online -FeatureName 'Microsoft-Hyper-V-Hypervisor' -ErrorAction Stop).State
+    } catch { }
+    Write-Log ('VT-Rohwerte: HypervisorPresent={0}, VMMonitorModeExtensions={1}, VirtualizationFirmwareEnabled={2}, SLAT={3}, VBS-Status={4}, Hyper-V-Hypervisor={5}, System={6} {7}' -f
+        $cs.HypervisorPresent, $cpu.VMMonitorModeExtensions, $cpu.VirtualizationFirmwareEnabled,
+        $cpu.SecondLevelAddressTranslationExtensions, $vbs, $(if ($hv) { $hv } else { '-' }), $cs.Manufacturer, $cs.Model) -Level Debug
+
+    $inVm = [bool]$cs.HypervisorPresent
+    if ($cpu.VMMonitorModeExtensions -and $cpu.VirtualizationFirmwareEnabled -and $cpu.SecondLevelAddressTranslationExtensions) {
+        $vtReady = $true
+        $vtReason = $(if ($inVm) { 'verschachtelte Virtualisierung' } else { 'im BIOS/UEFI eingeschaltet' })
+    } elseif ($vbs -eq 2 -or $hv -eq 'Enabled') {
+        $vtReady = $true
+        $vtReason = 'Windows-Hypervisor laeuft'
+    } elseif ($inVm) {
+        $vtReason = ('VM ohne verschachtelte Virtualisierung ({0} {1})' -f $cs.Manufacturer, $cs.Model)
+    } elseif (-not $cpu.VMMonitorModeExtensions) {
+        $vtReason = 'Prozessor ohne VT-x/AMD-V'
+    } elseif (-not $cpu.VirtualizationFirmwareEnabled) {
+        $vtReason = 'im BIOS/UEFI abgeschaltet'
     } else {
-        $vbs = 0
-        try {
-            $vbs = (Get-CimInstance -Namespace 'root\\Microsoft\\Windows\\DeviceGuard' -ClassName Win32_DeviceGuard -ErrorAction Stop).VirtualizationBasedSecurityStatus
-        } catch { }
-        $hv = $null
-        try {
-            $hv = (Get-WindowsOptionalFeature -Online -FeatureName 'Microsoft-Hyper-V-Hypervisor' -ErrorAction Stop).State
-        } catch { }
-        if ($vbs -eq 2 -or $hv -eq 'Enabled') {
-            $vtReady = $true
-            $vtReason = 'Windows-Hypervisor laeuft'
-        } else {
-            $vtReason = ('fremder Hypervisor ({0} {1}) - VM ohne verschachtelte Virtualisierung?' -f $cs.Manufacturer, $cs.Model).Trim()
-        }
+        $vtReason = 'Prozessor ohne SLAT'
     }
 } catch {
     $vtReason = 'Pruefung fehlgeschlagen: ' + $_.Exception.Message
@@ -1535,14 +1539,16 @@ foreach ($item in $items) {
     $id = $item.Id
     $useSxs = ($item.Payload -and $sxs)
     $source = $sxs
+    # -NoRestart laesst DISM eine Neustart-Warnung ausgeben. Die stimmt hier nicht:
+    # den Neustart regelt Einstellungen -> Abschluss, vermerkt wird er unten.
     $body = if ($item.Kind -eq 'feature') {
         if ($useSxs) {
-            [scriptblock]::Create("Enable-WindowsOptionalFeature -Online -FeatureName '$id' -All -NoRestart -LimitAccess -Source '$source' -ErrorAction Stop | Out-Null")
+            [scriptblock]::Create("Enable-WindowsOptionalFeature -Online -FeatureName '$id' -All -NoRestart -LimitAccess -Source '$source' -WarningAction SilentlyContinue -ErrorAction Stop | Out-Null")
         } else {
-            [scriptblock]::Create("Enable-WindowsOptionalFeature -Online -FeatureName '$id' -All -NoRestart -ErrorAction Stop | Out-Null")
+            [scriptblock]::Create("Enable-WindowsOptionalFeature -Online -FeatureName '$id' -All -NoRestart -WarningAction SilentlyContinue -ErrorAction Stop | Out-Null")
         }
     } else {
-        [scriptblock]::Create("Add-WindowsCapability -Online -Name '$id' -ErrorAction Stop | Out-Null")
+        [scriptblock]::Create("Add-WindowsCapability -Online -Name '$id' -WarningAction SilentlyContinue -ErrorAction Stop | Out-Null")
     }
 
     if (Invoke-WithTimeout -Name $item.Label -Body $body -TimeoutSeconds $timeout) {

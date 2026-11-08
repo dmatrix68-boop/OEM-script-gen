@@ -162,7 +162,7 @@
       ps: 'Get-NetConnectionProfile -ErrorAction SilentlyContinue | Set-NetConnectionProfile -NetworkCategory Private -ErrorAction SilentlyContinue' },
     { id: 'smb1Off', cat: 'Netzwerk', label: 'SMBv1 sicher deaktiviert lassen',
       deferPs: true, deferReason: 'network', timeout: 600,
-      ps: 'Disable-WindowsOptionalFeature -Online -FeatureName SMB1Protocol -NoRestart -ErrorAction SilentlyContinue | Out-Null' }
+      ps: 'Disable-WindowsOptionalFeature -Online -FeatureName SMB1Protocol -NoRestart -WarningAction SilentlyContinue -ErrorAction SilentlyContinue | Out-Null' }
   ];
 
   const BLOAT = [

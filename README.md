@@ -195,7 +195,7 @@ Das Modul steht standardmäßig auf Phase 2 und prüft vor jedem Aufruf:
 |---|---|
 | bereits aktiv bzw. installiert | wird übersprungen, kein DISM-Aufruf |
 | Edition (`EditionID` beginnt mit `Core`) | Sandbox, Hyper-V und Container entfallen auf Home |
-| Virtualisierung (VT-x/AMD-V, Firmware, SLAT; bei laufendem Hypervisor: VBS bzw. Hyper-V aktiv) | Sandbox, Hyper-V, VM- und Hypervisor-Plattform werden ohne Virtualisierung übersprungen – sonst bliebe der Neustart hängen. Eine VM ohne verschachtelte Virtualisierung zählt als „nicht verfügbar“ |
+| Virtualisierung (VT-x/AMD-V, Firmware, SLAT – auch in einer VM mit verschachtelter Virtualisierung; alternativ VBS bzw. Hyper-V schon aktiv) | Sandbox, Hyper-V, VM- und Hypervisor-Plattform werden ohne Virtualisierung übersprungen – sonst bliebe der Neustart hängen. Die Rohwerte stehen im Protokoll |
 | Netzwerk | Features on Demand werden ohne Verbindung übersprungen |
 
 Jeder Aufruf läuft über `Invoke-WithTimeout` mit eigener Zeitgrenze
