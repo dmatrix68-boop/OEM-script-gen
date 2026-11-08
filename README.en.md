@@ -377,6 +377,7 @@ soon as the program writes more than fits in the buffer.
 ```
 index.html        interface
 css/app.css       layout
+js/version.js     version number (the only place)
 js/i18n.js        German/English dictionary and language switching
 js/zip.js         ZIP writer (deflate via CompressionStream, otherwise "stored")
 js/catalog.js     catalog of tweaks, bloatware and Windows components, package managers

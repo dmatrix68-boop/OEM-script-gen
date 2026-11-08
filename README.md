@@ -387,6 +387,7 @@ liest, hängt, sobald das Programm mehr schreibt, als in den Puffer passt.
 ```
 index.html        Oberfläche
 css/app.css       Layout
+js/version.js     Versionsnummer (einzige Stelle)
 js/i18n.js        Wörterbuch Deutsch/Englisch und Sprachumschaltung
 js/zip.js         ZIP-Writer (Deflate über CompressionStream, sonst „stored“)
 js/catalog.js     Katalog für Tweaks, Bloatware und Windows-Komponenten, Paketmanager

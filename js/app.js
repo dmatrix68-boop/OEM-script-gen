@@ -1203,6 +1203,8 @@
   /* ---------------- Start ---------------- */
 
   function init() {
+    const ver = $('#appVersion');
+    if (ver && window.APP_VERSION) ver.textContent = 'V' + window.APP_VERSION;
     bindAll();
     wire();
     I18n.setLanguage(I18n.detect());   /* löst renderAll über das Sprachereignis aus */
