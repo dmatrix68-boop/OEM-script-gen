@@ -185,7 +185,11 @@ function Invoke-Step {
     Write-Log ('--- ' + $Name) -Level Step
     $sw = [Diagnostics.Stopwatch]::StartNew()
     try {
-        & $Body
+        # Out-Host: was das Modul nebenbei ausgibt, landet im Transcript, nicht im
+        # Rueckgabewert. Sonst gaebe die Funktion ein Array aus Ausgabe und $false
+        # zurueck - und ein nicht leeres Array gilt als wahr, die Zusammenfassung
+        # meldete OK, obwohl das Modul gescheitert war.
+        & $Body | Out-Host
         Write-Log ('{0} abgeschlossen ({1:n1} s)' -f $Name, $sw.Elapsed.TotalSeconds)
         return $true
     } catch {
@@ -681,7 +685,7 @@ foreach ($step in $steps) {
         Write-Log ('Modul fehlt: ' + $step.Script) -Level Warn
         continue
     }
-    $ok = Invoke-Step -Name $step.Title -Body { & $path }
+    $ok = (@(Invoke-Step -Name $step.Title -Body { & $path }) | Select-Object -Last 1) -eq $true
     $results += [pscustomobject]@{ Modul = $step.Title; Erfolg = $ok }
 }
 
@@ -1818,6 +1822,21 @@ if ($fehler.Count -gt 0) { throw ('Nicht ausgefuehrt: ' + ($fehler -join ', ')) 
     const cmd = unattendCommands(st);
     const out = [];
 
+    /*  Ohne <UseConfigurationSet>true</UseConfigurationSet> hat Windows Setup
+        $OEM$ auf einem aktuellen Windows 11 (Build 26300) nicht kopiert - weder
+        aus sources\ noch aus dem Wurzelverzeichnis. Mit true sucht Setup den
+        Konfigurationssatz neben der Antwortdatei, also im Wurzelverzeichnis. */
+    if (st.options.configSet !== false) {
+      out.push([
+        '<settings pass="windowsPE">',
+        '  <component name="Microsoft-Windows-Setup" processorArchitecture="amd64"',
+        '             publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">',
+        '    <UseConfigurationSet>true</UseConfigurationSet>',
+        '  </component>',
+        '</settings>'
+      ].map((l) => pad + l).join('\n'));
+    }
+
     if (cmd.setup) {
       out.push([
         '<settings pass="specialize">',
@@ -2022,7 +2041,7 @@ if (Test-Path $panth) {
     $ua = Get-Content $panth -Raw
     $ucs = $ua -match '<UseConfigurationSet>\\s*true\\s*</UseConfigurationSet>'
     Show-Item 'Antwortdatei verwendet' $true $panth
-    Show-Item 'UseConfigurationSet = true' $ucs $(if ($ucs) { '$OEM$ gehoert ins WURZELVERZEICHNIS des Mediums' } else { '$OEM$ gehoert nach sources\\' })
+    Show-Item 'UseConfigurationSet = true' $ucs $(if ($ucs) { '$OEM$ gehoert ins WURZELVERZEICHNIS des Mediums' } else { 'Ohne true kopieren aktuelle Windows-11-Setups $OEM$ oft gar nicht - im Generator aktivieren' })
 } else {
     Write-Host '  C:\\Windows\\Panther\\unattend.xml nicht vorhanden.' -ForegroundColor DarkGray
     Write-Host '  (Manche Antwortdateien loeschen sie am Ende selbst.)' -ForegroundColor DarkGray
@@ -2200,11 +2219,15 @@ Write-Host ''
       '---------------------',
       'Das haengt von der Antwortdatei ab:',
       '',
-      ' * ohne autounattend.xml oder mit UseConfigurationSet = false:',
-      '     <Medium>\\sources\\$OEM$\\...',
-      ' * mit <UseConfigurationSet>true</UseConfigurationSet> in der autounattend.xml:',
+      ' * mit <UseConfigurationSet>true</UseConfigurationSet> in der autounattend.xml',
+      '   (setzt der Generator, empfohlen):',
       '     Setup sucht den Konfigurationssatz NEBEN der Antwortdatei, also',
       '     <Medium>\\$OEM$\\...   (Wurzelverzeichnis, nicht sources\\)',
+      ' * ohne autounattend.xml:',
+      '     <Medium>\\sources\\$OEM$\\...',
+      ' * mit autounattend.xml, aber UseConfigurationSet = false: auf aktuellen',
+      '   Windows-11-Builds kopiert Setup $OEM$ dann unter Umstaenden GAR NICHT -',
+      '   auch nicht aus sources\\. Deshalb setzt der Generator den Wert auf true.',
       '',
       'Wer beides bestueckt, ist auf der sicheren Seite - Setup wertet nur den',
       'passenden Ort aus, der andere Ordner wird ignoriert. Genau dafuer gibt es im',
@@ -2330,11 +2353,15 @@ Write-Host ''
       '------------------------',
       'That depends on the answer file:',
       '',
-      ' * without autounattend.xml, or with UseConfigurationSet = false:',
-      '     <media>\\sources\\$OEM$\\...',
-      ' * with <UseConfigurationSet>true</UseConfigurationSet> in autounattend.xml:',
+      ' * with <UseConfigurationSet>true</UseConfigurationSet> in autounattend.xml',
+      '   (set by the generator, recommended):',
       '     Setup looks for the configuration set NEXT TO the answer file, i.e.',
       '     <media>\\$OEM$\\...   (root directory, not sources\\)',
+      ' * without autounattend.xml:',
+      '     <media>\\sources\\$OEM$\\...',
+      ' * with autounattend.xml but UseConfigurationSet = false: on current',
+      '   Windows 11 builds Setup may then NOT copy $OEM$ AT ALL - not from',
+      '   sources\\ either. That is why the generator sets the value to true.',
       '',
       'Populating both locations is the safe bet - Setup only evaluates the matching',
       'one and ignores the other folder. That is exactly what the generator offers as',
@@ -2448,7 +2475,7 @@ Write-Host ''
       const imported = st.unattend && st.unattend.xml;
       if (imported) {
         try {
-          const res = Importers.patchUnattend(imported, unattendCommands(st));
+          const res = Importers.patchUnattend(imported, unattendCommands(st), { configSet: st.options.configSet !== false });
           add('autounattend.xml', res.xml);
         } catch (e) {
           add('autounattend-FEHLER.txt', toCRLF(

@@ -151,13 +151,22 @@ dafür, dass gar nichts kopiert wird:
 
 | Antwortdatei | Ablageort |
 |---|---|
-| keine, oder `UseConfigurationSet` nicht gesetzt | `<Medium>\sources\$OEM$\…` |
-| `<UseConfigurationSet>true</UseConfigurationSet>` | `<Medium>\$OEM$\…` (Wurzelverzeichnis) |
+| `<UseConfigurationSet>true</UseConfigurationSet>` (setzt der Generator) | `<Medium>\$OEM$\…` (Wurzelverzeichnis) |
+| keine Antwortdatei | `<Medium>\sources\$OEM$\…` |
+| Antwortdatei mit `UseConfigurationSet=false` | auf aktuellen Windows-11-Builds unter Umständen **gar nicht** kopiert |
 
 Bei `UseConfigurationSet=true` sucht Setup den Konfigurationssatz **neben der
-Antwortdatei**. Der Generator erkennt das beim Import und stellt die Ablage auf
-„beide Orte“ – Setup wertet nur den passenden aus, der andere Ordner wird
-ignoriert. Das ist die Voreinstellung.
+Antwortdatei**. Ohne diesen Wert hat Windows Setup (Windows 11, Build 26300) im
+Test `$OEM$` überhaupt nicht kopiert – weder aus `sources\` noch aus dem
+Wurzelverzeichnis; es gab weder Installationsordner noch Phase 2. Der Generator
+schreibt `UseConfigurationSet=true` deshalb in die erzeugte und in eine
+importierte Antwortdatei (*Einstellungen → Auslöser*, abschaltbar) und stellt
+die Ablage auf „beide Orte“ – Setup wertet nur den passenden aus, der andere
+Ordner wird ignoriert.
+
+Setup kopiert mit `true` den Ordner der Antwortdatei nach
+`C:\Windows\ConfigSetRoot`. Auf einem normalen Installationsmedium ist das
+unkritisch; auf Multiboot-Sticks wie Ventoy kann es sehr groß werden.
 
 ### Office braucht ein Netzwerk
 

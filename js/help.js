@@ -399,8 +399,9 @@ Write-Log 'Energiesparplan gesetzt'</pre>`
   <dd>Die häufigste Ursache dafür, dass gar nichts passiert.
     <table>
       <tr><th>Antwortdatei</th><th>Ort</th></tr>
-      <tr><td>keine oder ohne <code>UseConfigurationSet</code></td><td><code>&lt;Medium&gt;\\sources\\$OEM$</code></td></tr>
-      <tr><td><code>UseConfigurationSet=true</code></td><td><code>&lt;Medium&gt;\\$OEM$</code> (Wurzelverzeichnis)</td></tr>
+      <tr><td><code>UseConfigurationSet=true</code> (setzt der Generator)</td><td><code>&lt;Medium&gt;\\$OEM$</code> (Wurzelverzeichnis)</td></tr>
+      <tr><td>keine Antwortdatei</td><td><code>&lt;Medium&gt;\\sources\\$OEM$</code></td></tr>
+      <tr><td>Antwortdatei mit <code>UseConfigurationSet=false</code></td><td>auf aktuellen Windows-11-Builds unter Umständen <b>gar nicht</b> kopiert</td></tr>
     </table>
     <b>beide Orte</b> bestückt beides; Setup nutzt den passenden und ignoriert den anderen.</dd>
 </dl>
@@ -410,6 +411,11 @@ Write-Log 'Energiesparplan gesetzt'</pre>`
 verwendet wird – etwa der im BIOS/UEFI hinterlegte Schlüssel eines Markengeräts (Home und Pro). Die
 <code>autounattend.xml</code> ist davon unabhängig: Phase 1 läuft im <code>specialize</code>-Pass, Phase 2 über
 <code>FirstLogonCommands</code>. Deshalb ist <b>beides</b> voreingestellt; doppelte Läufe werden erkannt.</p>
+<p><b><code>UseConfigurationSet=true</code> schreiben</b> – ohne diesen Wert hat Windows Setup (Windows 11, Build 26300)
+<code>$OEM$</code> im Test gar nicht kopiert: kein Installationsordner, keine Phase 2. Der Generator setzt ihn deshalb in der
+erzeugten und in einer importierten Antwortdatei. Setup kopiert dann den Ordner der Antwortdatei nach
+<code>C:\\Windows\\ConfigSetRoot</code> – auf einem normalen Medium unkritisch, auf Multiboot-Sticks wie Ventoy kann das
+sehr groß werden.</p>
 <p><b>Vorhandene autounattend.xml importieren</b> – etwa aus dem Generator von schneegans.de. Sie wird
 <b>ergänzt statt ersetzt</b>: die Aufrufe kommen mit fortlaufender <code>&lt;Order&gt;</code> in die vorhandenen
 Blöcke, frühere Einträge des Generators werden ersetzt. Die Übersicht darunter zeigt Passes, Befehle,
@@ -848,8 +854,9 @@ Write-Log 'Power plan set'</pre>`
   <dd>The most common reason nothing happens at all.
     <table>
       <tr><th>Answer file</th><th>Location</th></tr>
-      <tr><td>none, or without <code>UseConfigurationSet</code></td><td><code>&lt;medium&gt;\\sources\\$OEM$</code></td></tr>
-      <tr><td><code>UseConfigurationSet=true</code></td><td><code>&lt;medium&gt;\\$OEM$</code> (root)</td></tr>
+      <tr><td><code>UseConfigurationSet=true</code> (set by the generator)</td><td><code>&lt;medium&gt;\\$OEM$</code> (root)</td></tr>
+      <tr><td>no answer file</td><td><code>&lt;medium&gt;\\sources\\$OEM$</code></td></tr>
+      <tr><td>answer file with <code>UseConfigurationSet=false</code></td><td>on current Windows 11 builds possibly <b>not copied at all</b></td></tr>
     </table>
     <b>both places</b> fills both; Setup uses the right one and ignores the other.</dd>
 </dl>
@@ -859,6 +866,10 @@ Write-Log 'Power plan set'</pre>`
 channel – such as the key stored in the BIOS/UEFI of a branded device (Home and Pro). The <code>autounattend.xml</code>
 does not depend on that: phase 1 runs in the <code>specialize</code> pass, phase 2 through
 <code>FirstLogonCommands</code>. That is why <b>both</b> is the default; duplicate runs are detected.</p>
+<p><b>Write <code>UseConfigurationSet=true</code></b> – without this value Windows Setup (Windows 11, build 26300) did not
+copy <code>$OEM$</code> at all in a test: no installation folder, no phase 2. The generator therefore sets it in the generated
+and in an imported answer file. Setup then copies the folder of the answer file to <code>C:\\Windows\\ConfigSetRoot</code> –
+harmless on a normal medium, but on multi-boot sticks such as Ventoy that can get very large.</p>
 <p><b>Import existing autounattend.xml</b> – for instance from the schneegans.de generator. It is <b>extended rather than
 replaced</b>: the calls go into the existing blocks with a continuing <code>&lt;Order&gt;</code>, earlier entries of the
 generator are replaced. The summary below shows passes, commands, <code>UseConfigurationSet</code> and an entered

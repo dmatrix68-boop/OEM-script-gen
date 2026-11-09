@@ -145,13 +145,21 @@ reason why nothing gets copied at all:
 
 | Answer file | Location |
 |---|---|
-| none, or `UseConfigurationSet` not set | `<medium>\sources\$OEM$\…` |
-| `<UseConfigurationSet>true</UseConfigurationSet>` | `<medium>\$OEM$\…` (root directory) |
+| `<UseConfigurationSet>true</UseConfigurationSet>` (set by the generator) | `<medium>\$OEM$\…` (root directory) |
+| no answer file | `<medium>\sources\$OEM$\…` |
+| answer file with `UseConfigurationSet=false` | on current Windows 11 builds possibly **not copied at all** |
 
 With `UseConfigurationSet=true` Setup looks for the configuration set **next to the
-answer file**. The generator detects this on import and sets the location to "both
-places" – Setup only evaluates the matching one, the other folder is ignored. That
-is the default.
+answer file**. Without this value Windows Setup (Windows 11, build 26300) did not
+copy `$OEM$` at all in a test – neither from `sources\` nor from the root; there was
+no installation folder and no phase 2. The generator therefore writes
+`UseConfigurationSet=true` into the generated and into an imported answer file
+(*Settings → Trigger*, can be turned off) and sets the location to "both places" –
+Setup only evaluates the matching one, the other folder is ignored.
+
+With `true` Setup copies the folder of the answer file to `C:\Windows\ConfigSetRoot`.
+On a normal installation medium that is harmless; on multi-boot sticks such as
+Ventoy it can get very large.
 
 ### Office needs a network
 

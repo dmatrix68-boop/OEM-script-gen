@@ -463,6 +463,8 @@
         Markengeräts. Betroffen sind Home und Pro, ausgenommen sind Enterprise und Windows Server. Die
         <code>autounattend.xml</code> ist davon unabhängig und startet Phase 1 im <code>specialize</code>-Pass sowie
         Phase 2 über <code>FirstLogonCommands</code>.</p>
+        <label class="chk"><input type="checkbox" id="setConfigSet" checked> <span data-i18n="useconfigurationset-setzen"><code>UseConfigurationSet=true</code> in die autounattend.xml schreiben – nötig, damit Windows Setup <code>$OEM$</code> kopiert (empfohlen)</span></label>
+        <p class="hint" id="configSetHint"></p>
         <div id="unattendBox" class="summary"></div>
         <div class="row">
           <button class="btn small" id="btnUnattendImport" data-i18n="vorhandene-autounattend-xml-importieren">Vorhandene autounattend.xml importieren</button>

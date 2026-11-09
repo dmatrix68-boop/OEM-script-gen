@@ -30,7 +30,7 @@
       paths: { installRoot: 'C:\\Install', zipRoot: 'both' },
       options: {
         transcript: true, selfDelete: false, cleanupInstall: false,
-        toastOnFinish: false, phase2Runner: 'task', finish: 'none', trigger: 'both'
+        toastOnFinish: false, phase2Runner: 'task', finish: 'none', trigger: 'both', configSet: true
       },
       unattend: { xml: null, name: '', info: null },
       apps: {
@@ -133,7 +133,8 @@
     ['setTranscript', 'options.transcript', 'bool'],
     ['setSelfDelete', 'options.selfDelete', 'bool'],
     ['setKeepInstall', 'options.cleanupInstall', 'bool'],
-    ['setToastOnFinish', 'options.toastOnFinish', 'bool']
+    ['setToastOnFinish', 'options.toastOnFinish', 'bool'],
+    ['setConfigSet', 'options.configSet', 'bool']
   ];
 
   function bindAll() {
@@ -145,6 +146,12 @@
         if (id === 'officeXml') renderOfficeSummary();
         if (id === 'tweaksPhase') renderTweaks();
         if (id === 'featuresPhase') renderFeatureHints();
+        if ((id === 'setConfigSet' || id === 'setTrigger') && configSetActive() && state.paths.zipRoot === 'sources') {
+          state.paths.zipRoot = 'both';
+          syncInputs();
+          toast(T('UseConfigurationSet=true: Setup sucht $OEM$ im Wurzelverzeichnis – Ablage auf „beide Orte“ gestellt.'), 'warn');
+        }
+        if (id === 'setConfigSet' || id === 'setTrigger' || id === 'setZipRoot') renderUnattend();
         refresh();
       });
     }
@@ -676,7 +683,32 @@
     box.appendChild(warn);
   }
 
+  /* UseConfigurationSet wirkt nur, wenn eine autounattend.xml erzeugt wird. */
+  function configSetActive() {
+    return state.options.configSet !== false && state.options.trigger !== 'setupcomplete';
+  }
+
+  function renderConfigSetHint() {
+    const h = $('#configSetHint');
+    if (!h) return;
+    let txt = '', warn = false;
+    if (state.options.trigger === 'setupcomplete') {
+      txt = T('Ohne autounattend.xml ohne Wirkung – $OEM$ gehört dann nach sources\\.');
+    } else if (state.options.configSet === false) {
+      txt = T('Achtung: Ohne UseConfigurationSet hat Windows Setup (Windows 11, Build 26300) $OEM$ im Test gar nicht kopiert – kein Installationsordner, keine Phase 2.');
+      warn = true;
+    } else if (state.paths.zipRoot === 'sources') {
+      txt = T('Achtung: Mit UseConfigurationSet=true sucht Setup $OEM$ im Wurzelverzeichnis – die Ablage „sources“ allein wird ignoriert.');
+      warn = true;
+    } else {
+      txt = T('Setup kopiert den Ordner der Antwortdatei nach C:\\Windows\\ConfigSetRoot. Auf einem normalen Installationsmedium unkritisch; auf Multiboot-Sticks (Ventoy) kann das sehr groß werden.');
+    }
+    h.textContent = txt;
+    h.style.color = warn ? 'var(--warn)' : '';
+  }
+
   function renderUnattend() {
+    renderConfigSetHint();
     const box = $('#unattendBox');
     const drop = $('#btnUnattendDrop');
     box.innerHTML = '';
@@ -704,13 +736,14 @@
     row(T('Importierte Datei'), u.name);
     row(T('Vorhandene Befehle'), String(u.info.commandCount));
     row(T('Passes'), u.info.passes.filter(Boolean).join(', ') || '–');
-    row(T('UseConfigurationSet'), u.info.useConfigurationSet ? 'true' : 'false');
+    row(T('UseConfigurationSet'), (u.info.useConfigurationSet ? 'true' : 'false') +
+      (configSetActive() && !u.info.useConfigurationSet ? ' → true' + T(' (setzt der Generator)') : ''));
     if (u.info.productKey) row(T('Produktschlüssel'), u.info.productKey);
     box.appendChild(dl);
 
     const p = document.createElement('p');
     p.className = 'hint';
-    if (u.info.useConfigurationSet) {
+    if (u.info.useConfigurationSet || configSetActive()) {
       p.innerHTML = T('<b>UseConfigurationSet=true:</b> Windows Setup sucht den <code>$OEM$</code>-Ordner neben der ' +
         'Antwortdatei, also im <b>Wurzelverzeichnis</b> des Mediums – nicht unter <code>sources\\</code>. ' +
         'Die Ablage steht deshalb auf „beide Orte“.');
@@ -1161,9 +1194,12 @@
         catch (e) { logImport(name + ': ' + e.message, 'err'); toast(T('autounattend.xml nicht lesbar.'), 'err'); return; }
         state.unattend = { xml: text, name: name, info: info };
         if (state.options.trigger === 'setupcomplete') state.options.trigger = 'both';
-        if (info.useConfigurationSet && state.paths.zipRoot === 'sources') state.paths.zipRoot = 'both';
+        if ((info.useConfigurationSet || state.options.configSet !== false) && state.paths.zipRoot === 'sources') state.paths.zipRoot = 'both';
         logImport(F('autounattend.xml übernommen: {0} – {1} vorhandene Befehle, UseConfigurationSet={2}',
           name, info.commandCount, info.useConfigurationSet ? 'true' : 'false'));
+        if (!info.useConfigurationSet && state.options.configSet !== false) {
+          logImport(T('UseConfigurationSet=false: Ohne true kopiert ein aktuelles Windows-11-Setup $OEM$ unter Umständen gar nicht – der Generator setzt den Wert beim Export auf true.'), 'warnl');
+        }
         if (info.useConfigurationSet) {
           logImport(T('UseConfigurationSet=true erkannt: $OEM$ gehört ins Wurzelverzeichnis des Mediums – Ablage auf „beide Orte“ gestellt.'), 'warnl');
         }
