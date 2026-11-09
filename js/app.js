@@ -1247,19 +1247,106 @@
       verlangt dafuer eine frische Benutzeraktion. Deshalb erst waehlen lassen,
       dann den Inhalt erzeugen. Ueber "id" merkt sich Chrome den zuletzt
       gewaehlten Ordner getrennt fuer Projektdateien und ZIPs. */
+  /*  Letzter Speicherort. Chrome merkt sich ueber "id" zwar selbst einen Ordner,
+      bei per file:// geoeffneten Seiten aber nicht verlaesslich. Deshalb wird der
+      zuletzt gewaehlte Datei-Handle in IndexedDB abgelegt (Handles lassen sich
+      dort speichern) und beim naechsten Dialog als startIn uebergeben - der
+      Dialog oeffnet dann im Ordner dieser Datei, auch nach einem Neuladen.
+      Projektdatei und ZIP haben je einen eigenen Eintrag; fehlt einer, gilt der
+      andere. Ohne IndexedDB (privates Fenster) bleibt es beim Verhalten des
+      Browsers. */
+  const lastPlace = (function () {
+    let dbp = null;
+    function db() {
+      if (!dbp) {
+        dbp = new Promise((resolve) => {
+          try {
+            const req = indexedDB.open('oemgen', 1);
+            req.onupgradeneeded = () => req.result.createObjectStore('handles');
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => resolve(null);
+          } catch (e) { resolve(null); }
+        });
+      }
+      return dbp;
+    }
+    async function run(mode, fn) {
+      const d = await db();
+      if (!d) return null;
+      return new Promise((resolve) => {
+        try {
+          const tx = d.transaction('handles', mode);
+          const req = fn(tx.objectStore('handles'));
+          tx.oncomplete = () => resolve(req ? req.result : null);
+          tx.onerror = tx.onabort = () => resolve(null);
+        } catch (e) { resolve(null); }
+      });
+    }
+    return {
+      get: (key) => run('readonly', (st) => st.get(key)),
+      set: (key, handle) => run('readwrite', (st) => st.put(handle, key))
+    };
+  })();
+
+  const PLACE_KEYS = ['oem-project', 'oem-zip'];
+
+  async function startInFor(id) {
+    const own = await lastPlace.get(id);
+    if (own) return own;
+    for (const k of PLACE_KEYS) {
+      if (k === id) continue;
+      const other = await lastPlace.get(k);
+      if (other) return other;
+    }
+    return null;
+  }
+
   async function pickSaveTarget(filename, opts) {
     if (typeof window.showSaveFilePicker !== 'function') return null;
+    const startIn = await startInFor(opts.id);
+    const base = { suggestedName: filename, id: opts.id, types: [{ description: opts.description, accept: opts.accept }] };
+    let handle = null;
     try {
-      return await window.showSaveFilePicker({
-        suggestedName: filename,
-        id: opts.id,
-        types: [{ description: opts.description, accept: opts.accept }]
-      });
+      handle = await window.showSaveFilePicker(startIn ? Object.assign({ startIn }, base) : base);
     } catch (e) {
       if (e && e.name === 'AbortError') return false;
-      console.warn('Speichern-Dialog nicht verfuegbar, falle auf Download zurueck:', e);
-      return null;
+      /* Ein veralteter Ort (Datei geloescht, Laufwerk weg) darf den Dialog nicht verhindern. */
+      if (startIn) {
+        try { handle = await window.showSaveFilePicker(base); }
+        catch (e2) {
+          if (e2 && e2.name === 'AbortError') return false;
+          console.warn('Speichern-Dialog nicht verfuegbar, falle auf Download zurueck:', e2);
+          return null;
+        }
+      } else {
+        console.warn('Speichern-Dialog nicht verfuegbar, falle auf Download zurueck:', e);
+        return null;
+      }
     }
+    await lastPlace.set(opts.id, handle);
+    return handle;
+  }
+
+  /*  Projekt laden ueber den Oeffnen-Dialog, im Ordner der zuletzt gespeicherten
+      bzw. geladenen Projektdatei. Ohne die Schnittstelle: das versteckte
+      Datei-Feld wie bisher. */
+  async function openProjectFile() {
+    if (typeof window.showOpenFilePicker !== 'function') { $('#projectInput').click(); return; }
+    const startIn = await startInFor('oem-project');
+    const base = { id: 'oem-project', multiple: false,
+      types: [{ description: T('OEM-Projektdatei'), accept: { 'application/json': ['.json'] } }] };
+    let handles;
+    try {
+      handles = await window.showOpenFilePicker(startIn ? Object.assign({ startIn }, base) : base);
+    } catch (e) {
+      if (e && e.name === 'AbortError') return;
+      try { handles = await window.showOpenFilePicker(base); }
+      catch (e2) { if (!e2 || e2.name !== 'AbortError') $('#projectInput').click(); return; }
+    }
+    const handle = handles && handles[0];
+    if (!handle) return;
+    await lastPlace.set('oem-project', handle);
+    importFile(await handle.getFile(), { forceType: 'project' });
   }
 
   async function writeToHandle(handle, blob) {
@@ -1353,7 +1440,7 @@
 
     $('#btnExport').addEventListener('click', exportZip);
     $('#btnSaveProject').addEventListener('click', saveProject);
-    $('#btnLoadProject').addEventListener('click', () => $('#projectInput').click());
+    $('#btnLoadProject').addEventListener('click', openProjectFile);
     $('#projectInput').addEventListener('change', (e) => {
       if (e.target.files[0]) importFile(e.target.files[0], { forceType: 'project' });
       e.target.value = '';
