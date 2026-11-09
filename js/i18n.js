@@ -25,6 +25,7 @@
     'th-manager': 'Manager',
     'th-version': 'Version',
     'th-zusatzargumente': 'Extra arguments',
+    'spalte-sortieren': 'Click to sort (ascending, descending, off). The installation order does not change.',
     'th-datei': 'File',
     'th-zielordner': 'Target folder',
     'th-zielpfad-relativ': 'Target path (relative)',
@@ -209,7 +210,23 @@
     /* Vorschau */
     'vorschau-2': 'Preview',
     'kopieren': 'Copy',
-    'einzeln-laden': 'Download single file'
+    'einzeln-laden': 'Download single file',
+    'nav-treiber': 'Drivers',
+    'treiber-titel': 'Drivers',
+    'treiber-lead': 'Ship unpacked drivers (INF, SYS, CAT …) along. Every package goes into its own folder and is either installed by <code>Install-Drivers.ps1</code> with <code>pnputil</code> or loaded by Windows Setup itself via <code>$WinPEDriver$</code>. Driver installers as EXE belong under “Own files”.',
+    'treiber-phase-1': 'Phase 1 – SetupComplete (SYSTEM, recommended)',
+    'treiber-phase-2': 'Phase 2 – after first sign-in',
+    'zeitgrenze-je-treiberpaket': 'Time limit per driver package (minutes)',
+    'treiber-ziel-hilfe': '<b>pnputil</b> – for chipset, graphics, audio, Wi-Fi and so on; runs in the selected phase and honours the model filter. <b>Windows Setup ($WinPEDriver$)</b> – for drivers without which Setup cannot see the disk or the network (NVMe/RAID, network); the folder belongs in the root of the medium.',
+    'treiber-modell-hilfe': 'Model filter: separate several patterns with <code>;</code>, <code>*</code> and <code>?</code> are allowed, a pattern without wildcards counts as a substring. It is compared with the model, manufacturer + model, SKU and – for Lenovo – the product name. To show them on the target device: <code>Get-CimInstance Win32_ComputerSystem | Select Manufacturer, Model</code>. Empty = every device.',
+    'treiberordner-hinzufuegen': 'Add driver folder',
+    'treiberdateien-hinzufuegen': 'Single files',
+    'leeres-treiberpaket': 'Empty package (copy files later)',
+    'treiber-nicht-in-projektdatei': 'Driver files go into the ZIP only, not into the project file.',
+    'th-paket': 'Package',
+    'th-inhalt': 'Contents',
+    'th-ziel': 'Target',
+    'th-modelle': 'Models',
   };
 
 
@@ -547,7 +564,26 @@
     'Zeilen': 'lines',
     'Bytes': 'bytes',
     '[Binärdatei – ': '[binary file – ',
-    ' KB – wird unverändert ins Archiv übernommen]': ' KB – copied into the archive unchanged]'
+    ' KB – wird unverändert ins Archiv übernommen]': ' KB – copied into the archive unchanged]',
+    'Treiber': 'Drivers',
+    'Windows Setup': 'Windows Setup',
+    'Noch keine Treiberpakete – Ordner hinzufügen oder leeres Paket anlegen.': 'No driver packages yet – add a folder or create an empty package.',
+    '{0} Dateien · {1} INF': '{0} files · {1} INF',
+    '{0} Datei · {1} INF': '{0} file · {1} INF',
+    'keine INF-Datei: EXE-Installer gehören unter „Eigene Dateien“': 'no INF file: EXE installers belong under “Own files”',
+    'leer': 'empty',
+    'Dateien später in den Ordner kopieren': 'copy the files into the folder later',
+    'pnputil (Phase-Installation)': 'pnputil (phase install)',
+    'Windows Setup ($WinPEDriver$)': 'Windows Setup ($WinPEDriver$)',
+    'Setup wählt selbst nach Hardware': 'Setup picks by hardware itself',
+    'alle Geräte – z. B. Latitude 5440; ThinkPad T14 Gen 3': 'every device – e.g. Latitude 5440; ThinkPad T14 Gen 3',
+    'Zusammen {0} Treiberdateien im ZIP.': '{0} of driver files in the ZIP in total.',
+    'Mit der ZIP-Wurzel „beide Orte“ liegen die pnputil-Pakete doppelt im Archiv.': 'With the ZIP root “both places” the pnputil packages are in the archive twice.',
+    '$WinPEDriver$ liegt im Wurzelverzeichnis des ZIP und gehört ins Wurzelverzeichnis des Mediums.': '$WinPEDriver$ sits in the root of the ZIP and belongs in the root of the medium.',
+    'Windows Setup lädt die Treiber aus <code>$WinPEDriver$</code>': 'Windows Setup loads the drivers from <code>$WinPEDriver$</code>',
+    '{0} Dateien, zusammen {1} – werden unverändert ins Archiv übernommen:': '{0} files, {1} in total – copied into the archive unchanged:',
+    'Treiberpaket „{0}“: {1} Dateien, {2} INF.': 'Driver package “{0}”: {1} files, {2} INF.',
+    'Treiberpaket „{0}“: {1} Datei, {2} INF.': 'Driver package “{0}”: {1} file, {2} INF.',
   };
 
   const DICTS = { de: null, en: EN };

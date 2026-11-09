@@ -41,6 +41,8 @@ ZIP entpacken, `index.html` öffnen. Im Paket sind die Screenshots nur verlinkt.
   Nicht-winget-Manager (Chocolatey, Scoop, npm, pip, Cargo, .NET Tool) werden
   übernommen und passend installiert; Chocolatey wird bei Bedarf nachinstalliert.
   Beim Export entsteht wieder ein `.ubundle`, das UniGetUI einlesen kann.
+  Die Paketliste lässt sich per Klick auf den Spaltenkopf sortieren; die
+  Installationsreihenfolge bleibt davon unberührt.
 * **Microsoft Office (ODT)** – Configuration.xml importieren oder bearbeiten, mit
   Auswertung (Produkte, Sprachen, Kanal) und Prüfung auf unbeaufsichtigte
   Installation. Läuft standardmäßig in Phase 2, weil das Deployment Tool die
@@ -53,6 +55,8 @@ ZIP entpacken, `index.html` öffnen. Im Paket sind die Screenshots nur verlinkt.
 * **Bloatware** – Auswahl vorinstallierter AppX-Pakete inkl. Provisioning-Entfernung.
 * **Windows-Komponenten** – Windows Sandbox, Hyper-V, WSL, .NET 3.5, OpenSSH, RSAT und
   weitere Features gleich mit zuschalten (siehe unten).
+* **Treiber** – entpackte Treiber per `pnputil` einspielen oder über `$WinPEDriver$`
+  schon in Windows Setup laden, optional je Gerätemodell (siehe unten).
 * **Eigene Dateien** – Installer und Skripte mitliefern, wahlweise nach
   `Install\Files` (wird ausgeführt) oder neben `SetupComplete.cmd` in
   `Setup\Scripts` (über `%~dp0` erreichbar).
@@ -230,6 +234,40 @@ Freigabe für Features on Demand lässt sie scheitern.
 Komponenten, die einen Neustart brauchen, setzen
 `HKLM\SOFTWARE\OEM-Setup\RestartNeeded = 1`. Mit *Einstellungen → Abschluss →
 Neustart* erledigt sich das von selbst.
+
+### Treiber
+
+Entpackte Treiber (INF, SYS, CAT …) werden als Pakete mitgeliefert – je Paket ein
+Ordner. Hinzufügen per **Treiberordner hinzufügen** (der Ordnername wird der
+Paketname), als einzelne Dateien oder als **leeres Paket**, dessen Dateien man
+später selbst auf das Medium kopiert. Leere Pakete eignen sich für große
+Treibersammlungen, die man nicht durch den Browser schieben will.
+
+| Ziel | Ablage | Wann | Geeignet für |
+|---|---|---|---|
+| **pnputil** | `$OEM$\$1\Install\Drivers\<Paket>` | in der gewählten Phase (Standard: Phase 1) | Chipsatz, Grafik, Audio, WLAN … |
+| **Windows Setup** | `$WinPEDriver$\<Paket>` im Wurzelverzeichnis des Mediums | Setup lädt sie selbst, vor der Installation | NVMe/RAID, Netzwerk – alles, ohne das Setup nicht weiterkommt |
+
+`Install-Drivers.ps1` ruft je Paket
+`pnputil /add-driver <Paket>\*.inf /subdirs /install` auf, mit eigener
+Zeitgrenze. Exitcode 3010 setzt `RestartNeeded`, 259 bedeutet „im
+Treiberspeicher, aber kein Gerät hat ihn übernommen“ – beides gilt als Erfolg.
+
+**Modellfilter:** Ein Paket lässt sich auf bestimmte Geräte beschränken, damit
+ein Medium mehrere Modelle bedient. Mehrere Muster mit `;` trennen, `*` und `?`
+sind erlaubt, ein Muster ohne Platzhalter gilt als Teilstring. Verglichen wird
+mit Modell, Hersteller + Modell, SKU und – für Lenovo, wo `Model` nur den
+Maschinentyp enthält – dem Produktnamen aus `Win32_ComputerSystemProduct`. Die
+erkannten Werte stehen im Protokoll. Auf dem Zielgerät anzeigen:
+
+```powershell
+Get-CimInstance Win32_ComputerSystem | Select Manufacturer, Model, SystemSKUNumber
+```
+
+Treiberdateien landen nur im ZIP, nicht in der Projektdatei: Nach dem Laden
+eines Projekts sind die Pakete wieder da, aber leer. Mit der ZIP-Wurzel „beide
+Orte“ liegen die pnputil-Pakete doppelt im Archiv. Treiber-Installer als EXE
+gehören weiterhin unter *Eigene Dateien*.
 
 ### winget braucht einen Benutzerkontext
 

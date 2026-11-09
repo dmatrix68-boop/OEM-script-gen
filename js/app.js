@@ -50,6 +50,7 @@
       },
       bloat: { enabled: false, phase: 'setup', provisioned: true, selected: [] },
       features: { enabled: false, phase: 'firstlogon', timeoutMin: 20, selected: [] },
+      drivers: { enabled: false, phase: 'setup', timeoutMin: 10, items: [] },
       files: { items: [] },
       custom: { cmdEnabled: true, cmd: '', psEnabled: true, psPhase: 'setup', ps: '' }
     };
@@ -116,6 +117,9 @@
     ['featuresEnabled', 'features.enabled', 'bool'],
     ['featuresPhase', 'features.phase', 'text'],
     ['featuresTimeout', 'features.timeoutMin', 'num'],
+    ['driversEnabled', 'drivers.enabled', 'bool'],
+    ['driversPhase', 'drivers.phase', 'text'],
+    ['driversTimeout', 'drivers.timeoutMin', 'num'],
     ['customCmdEnabled', 'custom.cmdEnabled', 'bool'],
     ['customCmd', 'custom.cmd', 'text'],
     ['customPsEnabled', 'custom.psEnabled', 'bool'],
@@ -166,13 +170,47 @@
 
   /* ---------------- Anwendungen ---------------- */
 
+  /*  Spaltensortierung. Sie ordnet nur die Anzeige; state.apps.items behaelt
+      seine Reihenfolge, denn in dieser Reihenfolge wird installiert. Ein
+      dritter Klick auf dieselbe Spalte schaltet die Sortierung wieder aus. */
+  let appsSort = { key: null, dir: 1 };
+  const appsCollator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+
+  function appsSortValue(p, key) {
+    if (key === 'manager') return (Catalog.MANAGERS[p.manager] || {}).label || p.manager || '';
+    return p[key] || '';
+  }
+
+  function sortApps(list) {
+    if (!appsSort.key) return list;
+    const key = appsSort.key;
+    return list.slice().sort((a, b) => {
+      const va = appsSortValue(a, key), vb = appsSortValue(b, key);
+      if (!va !== !vb) return va ? -1 : 1;          /* leere Werte immer ans Ende */
+      return appsCollator.compare(va, vb) * appsSort.dir;
+    });
+  }
+
+  function toggleAppsSort(key) {
+    if (appsSort.key !== key) appsSort = { key, dir: 1 };
+    else if (appsSort.dir === 1) appsSort.dir = -1;
+    else appsSort = { key: null, dir: 1 };
+    $$('#appsTable th.sortable').forEach((th) => {
+      const on = th.dataset.sort === appsSort.key;
+      th.classList.toggle('sort-asc', on && appsSort.dir === 1);
+      th.classList.toggle('sort-desc', on && appsSort.dir === -1);
+      th.setAttribute('aria-sort', on ? (appsSort.dir === 1 ? 'ascending' : 'descending') : 'none');
+    });
+    renderApps();
+  }
+
   function renderApps() {
     const tbody = $('#appsTable tbody');
     const filter = ($('#appsFilter').value || '').toLowerCase();
     tbody.innerHTML = '';
 
-    const list = state.apps.items.filter((p) =>
-      !filter || (p.name + ' ' + p.id + ' ' + p.manager).toLowerCase().includes(filter));
+    const list = sortApps(state.apps.items.filter((p) =>
+      !filter || (p.name + ' ' + p.id + ' ' + p.manager).toLowerCase().includes(filter)));
 
     if (!list.length) {
       const tr = document.createElement('tr');
@@ -420,6 +458,123 @@
     }
   }
 
+  /* ---------------- Treiber ---------------- */
+
+  function fmtSize(n) {
+    return n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
+  }
+
+  /* Ordnernamen muessen eindeutig sein - jedes Paket ist ein Verzeichnis. */
+  function uniqueDriverName(name, self) {
+    const base = Templates.driverFolder(name);
+    const taken = new Set(state.drivers.items.filter((d) => d !== self).map((d) => Templates.driverFolder(d.name).toLowerCase()));
+    let n = base, i = 2;
+    while (taken.has(n.toLowerCase())) n = base + ' (' + (i++) + ')';
+    return n;
+  }
+
+  function driverStats(d) {
+    const files = (d.files || []).filter((f) => f.blob);
+    return {
+      count: files.length,
+      inf: files.filter((f) => /\.inf$/i.test(f.rel)).length,
+      size: files.reduce((a, f) => a + f.blob.length, 0)
+    };
+  }
+
+  async function addDriverPackage(name, entries) {
+    const d = { name: uniqueDriverName(name, null), dest: 'pnp', models: '', enabled: true, files: [] };
+    state.drivers.items.push(d);
+    for (const e of entries) d.files.push({ rel: e.rel, blob: await readBytes(e.file) });
+    if (!state.drivers.enabled) state.drivers.enabled = true;
+    return d;
+  }
+
+  function renderDrivers() {
+    const tbody = $('#driversTable tbody');
+    tbody.innerHTML = '';
+    const items = state.drivers.items;
+    if (!items.length) {
+      tbody.innerHTML = '<tr><td colspan="6" class="muted" style="padding:18px;text-align:center">' +
+        T('Noch keine Treiberpakete – Ordner hinzufügen oder leeres Paket anlegen.') + '</td></tr>';
+    }
+    for (const d of items) {
+      const tr = document.createElement('tr');
+      tr.className = d.enabled ? '' : 'off';
+
+      const cbTd = document.createElement('td');
+      const cb = document.createElement('input');
+      cb.type = 'checkbox'; cb.checked = d.enabled;
+      cb.addEventListener('change', () => { d.enabled = cb.checked; tr.className = d.enabled ? '' : 'off'; refresh(); });
+      cbTd.appendChild(cb); tr.appendChild(cbTd);
+
+      const nameTd = document.createElement('td');
+      const ni = document.createElement('input');
+      ni.type = 'text'; ni.value = d.name;
+      ni.addEventListener('change', () => { d.name = uniqueDriverName(ni.value, d); ni.value = d.name; refresh(); });
+      nameTd.appendChild(ni); tr.appendChild(nameTd);
+
+      const st = driverStats(d);
+      const infoTd = document.createElement('td');
+      infoTd.innerHTML = '<span></span><br><span class="muted" style="font-size:11px"></span>';
+      if (st.count) {
+        infoTd.firstChild.textContent = F(st.count === 1 ? '{0} Datei · {1} INF' : '{0} Dateien · {1} INF', st.count, st.inf);
+        infoTd.lastChild.textContent = fmtSize(st.size);
+        if (!st.inf) {
+          infoTd.lastChild.textContent += ' – ' + T('keine INF-Datei: EXE-Installer gehören unter „Eigene Dateien“');
+          infoTd.lastChild.style.color = 'var(--warn)';
+        }
+      } else {
+        infoTd.firstChild.textContent = T('leer');
+        infoTd.lastChild.textContent = T('Dateien später in den Ordner kopieren');
+      }
+      tr.appendChild(infoTd);
+
+      const destTd = document.createElement('td');
+      const ds = document.createElement('select');
+      [['pnp', T('pnputil (Phase-Installation)')], ['winpe', T('Windows Setup ($WinPEDriver$)')]].forEach(([v, l]) => {
+        const o = document.createElement('option'); o.value = v; o.textContent = l;
+        if ((d.dest || 'pnp') === v) o.selected = true; ds.appendChild(o);
+      });
+      ds.addEventListener('change', () => { d.dest = ds.value; renderDrivers(); refresh(); });
+      destTd.appendChild(ds); tr.appendChild(destTd);
+
+      const modTd = document.createElement('td');
+      const mi = document.createElement('input');
+      mi.type = 'text'; mi.value = d.models || '';
+      if (d.dest === 'winpe') {
+        mi.disabled = true; mi.value = ''; mi.placeholder = T('Setup wählt selbst nach Hardware');
+      } else {
+        mi.placeholder = T('alle Geräte – z. B. Latitude 5440; ThinkPad T14 Gen 3');
+      }
+      mi.addEventListener('change', () => { d.models = mi.value; refresh(); });
+      modTd.appendChild(mi); tr.appendChild(modTd);
+
+      const actTd = document.createElement('td');
+      const del = document.createElement('button');
+      del.className = 'btn small icon danger'; del.textContent = '✕'; del.title = T('Entfernen');
+      del.addEventListener('click', () => {
+        state.drivers.items = state.drivers.items.filter((x) => x !== d);
+        renderDrivers(); refresh();
+      });
+      actTd.appendChild(del); tr.appendChild(actTd);
+      tbody.appendChild(tr);
+    }
+
+    const hint = $('#driversHint');
+    const active = items.filter((d) => d.enabled);
+    const total = active.reduce((a, d) => a + driverStats(d).size, 0);
+    const parts = [];
+    if (total) parts.push(F('Zusammen {0} Treiberdateien im ZIP.', fmtSize(total)));
+    if (total && state.paths.zipRoot === 'both' && active.some((d) => d.dest !== 'winpe' && driverStats(d).count)) {
+      parts.push(T('Mit der ZIP-Wurzel „beide Orte“ liegen die pnputil-Pakete doppelt im Archiv.'));
+    }
+    if (active.some((d) => d.dest === 'winpe')) {
+      parts.push(T('$WinPEDriver$ liegt im Wurzelverzeichnis des ZIP und gehört ins Wurzelverzeichnis des Mediums.'));
+    }
+    hint.textContent = parts.join(' ');
+  }
+
   /* ---------------- Office ---------------- */
 
   function renderOfficeSummary() {
@@ -629,6 +784,8 @@
       { on: state.tweaks.enabled && state.tweaks.selected.length > 0, k: T('Tweaks'), v: state.tweaks.selected.length, d: T(state.tweaks.phase === 'setup' ? 'Phase 1' : 'Phase 2') },
       { on: state.bloat.enabled && state.bloat.selected.length > 0, k: T('Bloatware'), v: state.bloat.selected.length, d: T('AppX-Pakete') },
       { on: state.features.enabled && state.features.selected.length > 0, k: T('Komponenten'), v: state.features.selected.length, d: T(state.features.phase === 'setup' ? 'Phase 1' : 'Phase 2') },
+      { on: state.drivers.enabled && state.drivers.items.some((d) => d.enabled), k: T('Treiber'), v: state.drivers.items.filter((d) => d.enabled).length,
+        d: state.drivers.items.some((d) => d.enabled && d.dest !== 'winpe') ? T(state.drivers.phase === 'setup' ? 'Phase 1' : 'Phase 2') : T('Windows Setup') },
       { on: state.files.items.some((f) => f.enabled), k: T('Eigene Dateien'), v: state.files.items.filter((f) => f.enabled).length, d: T('im Archiv') }
     ];
     cards.innerHTML = '';
@@ -646,6 +803,9 @@
     flow.innerHTML = '';
     const steps = [];
     steps.push(['Setup', T('Windows Setup kopiert <code>$OEM$\\$1</code> nach ') + esc(state.paths.installRoot) + T(' und <code>$OEM$\\$$</code> nach <code>%WINDIR%</code>')]);
+    if (state.drivers.enabled && state.drivers.items.some((d) => d.enabled && d.dest === 'winpe')) {
+      steps.push(['Setup', T('Windows Setup lädt die Treiber aus <code>$WinPEDriver$</code>')]);
+    }
     steps.push(['P1', T('<code>SetupComplete.cmd</code> startet <code>Install.ps1 -Phase Setup</code> als SYSTEM')]);
     Templates.moduleList(state, 'setup').forEach((m) => steps.push(['P1', esc(T(m[1]))]));
     if (state.custom.cmdEnabled && state.custom.cmd.trim()) steps.push(['P1', T('Eigene CMD-Befehle')]);
@@ -664,7 +824,7 @@
       flow.appendChild(li);
     });
 
-    $('#overviewTree').textContent = treeFromPaths(previewFiles.map((f) => f.path));
+    $('#overviewTree').textContent = treeFromPaths(Templates.collapseDriverFiles(previewFiles, I18n.lang === 'en').map((e) => e.path));
   }
 
   function esc(s) {
@@ -694,21 +854,32 @@
   function renderPreview() {
     const list = $('#fileList');
     list.innerHTML = '';
-    previewFiles.forEach((f) => {
+    /* Treiberpakete erscheinen als eine Zeile je Paket statt tausender Dateien. */
+    const entries = Templates.collapseDriverFiles(previewFiles, I18n.lang === 'en');
+    entries.forEach((e) => {
       const b = document.createElement('button');
-      b.className = 'f' + (f.path === previewActive ? ' active' : '');
+      b.className = 'f' + (e.path === previewActive ? ' active' : '');
       b.innerHTML = '<span></span>';
-      b.querySelector('span').textContent = f.path;
-      b.title = f.path;
-      b.addEventListener('click', () => { previewActive = f.path; renderPreview(); });
+      b.querySelector('span').textContent = e.path;
+      b.title = e.path;
+      b.addEventListener('click', () => { previewActive = e.path; renderPreview(); });
       list.appendChild(b);
     });
-    if (!previewFiles.some((f) => f.path === previewActive)) {
-      previewActive = previewFiles.length ? previewFiles[0].path : null;
+    if (!entries.some((e) => e.path === previewActive)) {
+      previewActive = entries.length ? entries[0].path : null;
       if (previewActive) return renderPreview();
     }
-    const cur = previewFiles.find((f) => f.path === previewActive);
-    $('#previewPath').textContent = cur ? cur.path : '–';
+    const entry = entries.find((e) => e.path === previewActive);
+    $('#previewPath').textContent = entry ? (entry.pkg || entry.path) : '–';
+    if (entry && entry.pkg) {
+      const size = entry.files.reduce((a, f) => a + f.data.length, 0);
+      const rels = entry.files.map((f) => f.path.slice(entry.pkg.length + 1)).sort();
+      $('#previewBody').textContent = F('{0} Dateien, zusammen {1} – werden unverändert ins Archiv übernommen:', rels.length, fmtSize(size)) +
+        '\n\n' + rels.slice(0, 1000).join('\n') + (rels.length > 1000 ? '\n…' : '');
+      $('#previewSize').textContent = fmtSize(size);
+      return;
+    }
+    const cur = entry && entry.file;
     if (!cur) { $('#previewBody').textContent = ''; $('#previewSize').textContent = ''; return; }
     if (cur.binary) {
       $('#previewBody').textContent = T('[Binärdatei – ') + (cur.data.length / 1024).toFixed(0) + T(' KB – wird unverändert ins Archiv übernommen]');
@@ -739,6 +910,7 @@
       $('#badgeTweaks').textContent = state.tweaks.selected.length;
       $('#badgeBloat').textContent = state.bloat.selected.length;
       $('#badgeFeatures').textContent = state.features.selected.length;
+      $('#badgeDrivers').textContent = state.drivers.items.filter((d) => d.enabled).length;
       $('#badgeFiles').textContent = state.files.items.filter((f) => f.enabled).length;
       const rel = Templates.relFromRoot(state.paths.installRoot);
       $('#officeSetupPath').textContent = '$OEM$\\$1\\' + rel + '\\Office\\setup.exe';
@@ -826,7 +998,7 @@
   function renderAll() {
     syncInputs();
     I18n.apply();
-    renderApps(); renderTweaks(); renderBloat(); renderFeatures(); renderFiles(); renderOfficeSummary(); renderUnattend();
+    renderApps(); renderTweaks(); renderBloat(); renderFeatures(); renderDrivers(); renderFiles(); renderOfficeSummary(); renderUnattend();
     refresh();
   }
 
@@ -975,6 +1147,8 @@
   function projectJson() {
     const clone = JSON.parse(JSON.stringify(state, (k, v) => (k === 'blob' ? undefined : v)));
     clone.files.items.forEach((f) => { f.blobPresent = false; });
+    /* Treiberdateien gehoeren nicht in die Projektdatei - auch nicht als Liste. */
+    clone.drivers.items.forEach((d) => { d.files = []; });
     clone.savedAt = new Date().toISOString();
     return JSON.stringify(clone, null, 2);
   }
@@ -996,8 +1170,12 @@
       phase: f.phase || 'firstlogon', dest: f.dest || 'files',
       enabled: f.enabled !== false, blob: null, blobPresent: false
     }));
+    state.drivers.items = (state.drivers.items || []).map((d) => ({
+      name: d.name || 'Treiber', dest: d.dest === 'winpe' ? 'winpe' : 'pnp', models: d.models || '',
+      enabled: d.enabled !== false, files: []
+    }));
     renderAll();
-    if (state.files.items.length) {
+    if (state.files.items.length || state.drivers.items.length) {
       toast(T('Hinweis: Binärdateien sind nicht Teil der Projektdatei und müssen erneut hinzugefügt werden.'), 'warn');
     }
   }
@@ -1087,6 +1265,7 @@
 
     /* Anwendungen */
     $('#appsFilter').addEventListener('input', renderApps);
+    $$('#appsTable th.sortable').forEach((th) => th.addEventListener('click', () => toggleAppsSort(th.dataset.sort)));
     $('#btnAppsAll').addEventListener('click', () => { state.apps.items.forEach((p) => { p.enabled = true; }); renderApps(); refresh(); });
     $('#btnAppsNone').addEventListener('click', () => { state.apps.items.forEach((p) => { p.enabled = false; }); renderApps(); refresh(); });
     $('#btnAppsClear').addEventListener('click', () => {
@@ -1137,6 +1316,41 @@
 
     /* Dateien */
     $('#btnFilesAdd').addEventListener('click', () => $('#filesInput').click());
+    /* Treiber */
+    $('#btnDriversFolder').addEventListener('click', () => $('#driversFolderInput').click());
+    $('#btnDriversFiles').addEventListener('click', () => $('#driversFilesInput').click());
+    $('#btnDriversEmpty').addEventListener('click', () => {
+      state.drivers.items.push({ name: uniqueDriverName(T('Treiber'), null), dest: 'pnp', models: '', enabled: true, files: [] });
+      state.drivers.enabled = true;
+      syncInputs(); renderDrivers(); refresh();
+    });
+    $('#driversFolderInput').addEventListener('change', async (e) => {
+      /* Ein gewaehlter Ordner wird ein Paket; der Ordnername wird der Paketname. */
+      const groups = new Map();
+      for (const f of Array.from(e.target.files)) {
+        const parts = (f.webkitRelativePath || f.name).split('/');
+        const top = parts.length > 1 ? parts[0] : 'Treiber';
+        const rel = parts.length > 1 ? parts.slice(1).join('/') : f.name;
+        if (!groups.has(top)) groups.set(top, []);
+        groups.get(top).push({ rel, file: f });
+      }
+      e.target.value = '';
+      for (const [name, list] of groups) {
+        const d = await addDriverPackage(name, list);
+        const st = driverStats(d);
+        toast(F(st.count === 1 ? 'Treiberpaket „{0}“: {1} Datei, {2} INF.' : 'Treiberpaket „{0}“: {1} Dateien, {2} INF.', d.name, st.count, st.inf), st.inf ? 'ok' : 'warn');
+      }
+      syncInputs(); renderDrivers(); refresh();
+    });
+    $('#driversFilesInput').addEventListener('change', async (e) => {
+      const list = Array.from(e.target.files).map((f) => ({ rel: f.name, file: f }));
+      e.target.value = '';
+      if (!list.length) return;
+      const inf = list.find((x) => /\.inf$/i.test(x.rel)) || list[0];
+      await addDriverPackage(inf.rel.replace(/\.[^.]+$/, ''), list);
+      syncInputs(); renderDrivers(); refresh();
+    });
+
     $('#filesInput').addEventListener('change', async (e) => {
       for (const f of Array.from(e.target.files)) {
         const bytes = await readBytes(f);

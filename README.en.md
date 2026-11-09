@@ -40,7 +40,8 @@ unpack the ZIP and open `index.html`. Inside the package the screenshots are lin
 * **UniGetUI import** – `.ubundle` (JSON, XML, YAML) and winget `export` files.
   Non-winget managers (Chocolatey, Scoop, npm, pip, Cargo, .NET tool) are taken
   over and installed appropriately; Chocolatey is installed on demand. Export
-  produces a `.ubundle` again that UniGetUI can read back.
+  produces a `.ubundle` again that UniGetUI can read back. The package list can
+  be sorted by clicking a column header; the installation order stays as it is.
 * **Microsoft Office (ODT)** – import or edit Configuration.xml, with an analysis
   (products, languages, channel) and a check for unattended installation. Runs in
   phase 2 by default, because the Deployment Tool downloads the installation files
@@ -52,6 +53,8 @@ unpack the ZIP and open `index.html`. Inside the package the screenshots are lin
 * **Bloatware** – pick pre-installed AppX packages, provisioning removal included.
 * **Windows components** – turn on Windows Sandbox, Hyper-V, WSL, .NET 3.5, OpenSSH,
   RSAT and other features along the way (see below).
+* **Drivers** – install unpacked drivers with `pnputil` or load them in Windows
+  Setup already via `$WinPEDriver$`, optionally per device model (see below).
 * **Custom files** – ship installers and scripts, either to `Install\Files` (where
   they are executed) or next to `SetupComplete.cmd` in `Setup\Scripts` (reachable
   via `%~dp0`).
@@ -223,6 +226,40 @@ allow features on demand makes them fail.
 Components that need a restart set
 `HKLM\SOFTWARE\OEM-Setup\RestartNeeded = 1`. *Settings → When phase 2 finishes →
 restart* takes care of that by itself.
+
+### Drivers
+
+Unpacked drivers (INF, SYS, CAT …) are shipped as packages – one folder per
+package. Add them with **Add driver folder** (the folder name becomes the package
+name), as single files, or as an **empty package** whose files you copy to the
+medium yourself later. Empty packages suit large driver collections you would
+rather not push through the browser.
+
+| Target | Location | When | Suited for |
+|---|---|---|---|
+| **pnputil** | `$OEM$\$1\Install\Drivers\<package>` | in the selected phase (default: phase 1) | chipset, graphics, audio, Wi-Fi … |
+| **Windows Setup** | `$WinPEDriver$\<package>` in the root of the medium | Setup loads them itself, before the installation | NVMe/RAID, network – anything Setup cannot do without |
+
+`Install-Drivers.ps1` calls
+`pnputil /add-driver <package>\*.inf /subdirs /install` per package, with its own
+time limit. Exit code 3010 sets `RestartNeeded`, 259 means "in the driver store,
+but no device took it" – both count as success.
+
+**Model filter:** a package can be limited to certain devices, so one medium
+serves several models. Separate several patterns with `;`, `*` and `?` are
+allowed, a pattern without wildcards counts as a substring. It is compared with
+the model, manufacturer + model, SKU and – for Lenovo, where `Model` only holds
+the machine type – the product name from `Win32_ComputerSystemProduct`. The
+detected values are written to the log. To show them on the target device:
+
+```powershell
+Get-CimInstance Win32_ComputerSystem | Select Manufacturer, Model, SystemSKUNumber
+```
+
+Driver files go into the ZIP only, not into the project file: after loading a
+project the packages are back, but empty. With the ZIP root "both places" the
+pnputil packages are in the archive twice. Driver installers as EXE still belong
+under *Own files* in the interface.
 
 ### winget needs a user context
 
