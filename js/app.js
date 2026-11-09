@@ -411,7 +411,17 @@
       nameTd.querySelector('.mono').textContent = f.name;
       nameTd.querySelector('.muted').textContent = f.blob
         ? (f.blob.length / 1024 > 1024 ? (f.blob.length / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(f.blob.length / 1024)) + ' KB')
-        : T('nicht im Archiv (nur Platzhalter)');
+        : T('fehlt – nicht im Archiv');
+      if (!f.blob) {
+        /* Nach dem Laden einer Projektdatei: Datei neu zuordnen, Einstellungen bleiben. */
+        nameTd.querySelector('.muted').style.color = 'var(--warn)';
+        const pick = document.createElement('button');
+        pick.type = 'button'; pick.className = 'btn small mt-s';
+        pick.textContent = T('Datei wählen …');
+        pick.addEventListener('click', () => pickFileFor(f));
+        nameTd.appendChild(document.createElement('br'));
+        nameTd.appendChild(pick);
+      }
       tr.appendChild(nameTd);
 
       const destTd = document.createElement('td');
@@ -490,6 +500,24 @@
     return d;
   }
 
+  let driverRefill = null;
+
+  /* Datei fuer einen Platzhalter unter "Eigene Dateien" neu waehlen. */
+  function pickFileFor(f) {
+    const inp = document.createElement('input');
+    inp.type = 'file';
+    inp.addEventListener('change', async () => {
+      const file = inp.files[0];
+      if (!file) return;
+      f.blob = await readBytes(file);
+      f.blobPresent = true;
+      if (file.name !== f.name) toast(F('„{0}“ zugeordnet (Eintrag hieß „{1}“).', file.name, f.name), 'warn');
+      else toast(F('„{0}“ zugeordnet.', file.name), 'ok');
+      renderFiles(); refresh();
+    });
+    inp.click();
+  }
+
   function renderDrivers() {
     const tbody = $('#driversTable tbody');
     tbody.innerHTML = '';
@@ -524,9 +552,21 @@
           infoTd.lastChild.textContent += ' – ' + T('keine INF-Datei: EXE-Installer gehören unter „Eigene Dateien“');
           infoTd.lastChild.style.color = 'var(--warn)';
         }
+      } else if (d.missing) {
+        infoTd.firstChild.textContent = F('fehlt – {0} Dateien nicht im Archiv', d.missing);
+        infoTd.firstChild.style.color = 'var(--warn)';
+        infoTd.lastChild.textContent = T('Projektdatei enthält keine Treiberdateien – Ordner neu wählen');
       } else {
         infoTd.firstChild.textContent = T('leer');
         infoTd.lastChild.textContent = T('Dateien später in den Ordner kopieren');
+      }
+      if (!st.count) {
+        const pick = document.createElement('button');
+        pick.type = 'button'; pick.className = 'btn small mt-s';
+        pick.textContent = T('Ordner wählen …');
+        pick.addEventListener('click', () => { driverRefill = d; $('#driversFolderInput').click(); });
+        infoTd.appendChild(document.createElement('br'));
+        infoTd.appendChild(pick);
       }
       tr.appendChild(infoTd);
 
@@ -566,6 +606,10 @@
     const total = active.reduce((a, d) => a + driverStats(d).size, 0);
     const parts = [];
     if (total) parts.push(F('Zusammen {0} Treiberdateien im ZIP.', fmtSize(total)));
+    if (total > 1024 * 1024 * 1024) {
+      parts.push(T('Über 1 GB: Der Browser hält alles im Arbeitsspeicher, und ein ZIP fasst höchstens 4 GB. ' +
+        'Große Pakete besser als „Leeres Paket“ anlegen und die Dateien direkt aufs Medium kopieren.'));
+    }
     if (total && state.paths.zipRoot === 'both' && active.some((d) => d.dest !== 'winpe' && driverStats(d).count)) {
       parts.push(T('Mit der ZIP-Wurzel „beide Orte“ liegen die pnputil-Pakete doppelt im Archiv.'));
     }
@@ -1149,7 +1193,12 @@
     const clone = JSON.parse(JSON.stringify(state, (k, v) => (k === 'blob' ? undefined : v)));
     clone.files.items.forEach((f) => { f.blobPresent = false; });
     /* Treiberdateien gehoeren nicht in die Projektdatei - auch nicht als Liste. */
-    clone.drivers.items.forEach((d) => { d.files = []; });
+    clone.drivers.items.forEach((d, i) => {
+      const n = (state.drivers.items[i].files || []).filter((f) => f.blob).length || state.drivers.items[i].missing || 0;
+      d.files = [];
+      if (n) d.fileCount = n; else delete d.fileCount;
+      delete d.missing;
+    });
     clone.savedAt = new Date().toISOString();
     return JSON.stringify(clone, null, 2);
   }
@@ -1173,11 +1222,12 @@
     }));
     state.drivers.items = (state.drivers.items || []).map((d) => ({
       name: d.name || 'Treiber', dest: d.dest === 'winpe' ? 'winpe' : 'pnp', models: d.models || '',
-      enabled: d.enabled !== false, files: []
+      enabled: d.enabled !== false, files: [], missing: d.fileCount > 0 ? d.fileCount : 0
     }));
     renderAll();
-    if (state.files.items.length || state.drivers.items.length) {
-      toast(T('Hinweis: Binärdateien sind nicht Teil der Projektdatei und müssen erneut hinzugefügt werden.'), 'warn');
+    const lost = missingBinaries();
+    if (lost.length) {
+      toast(F('Die Projektdatei enthält keine Binärdateien. Neu zuordnen: {0}', lost.join(', ')), 'warn');
     }
   }
 
@@ -1238,8 +1288,38 @@
     toast(T('Projektdatei gespeichert.'), 'ok');
   }
 
+  /*  Was ins ZIP gehoert, aber nur als Platzhalter vorliegt - typisch nach dem
+      Laden einer Projektdatei. Bewusst leer angelegte Treiberpakete zaehlen
+      nicht dazu. */
+  function missingBinaries() {
+    const out = [];
+    state.files.items.filter((f) => f.enabled && !f.blob).forEach((f) => out.push(f.name));
+    if (state.drivers.enabled) {
+      state.drivers.items.filter((d) => d.enabled && d.missing && !driverStats(d).count)
+        .forEach((d) => out.push(F('Treiber „{0}“', d.name)));
+    }
+    return out;
+  }
+
+  /*  js/zip.js schreibt kein ZIP64: ueber 4 GB Gesamtgroesse oder 65535
+      Eintraege entstuende ein defektes Archiv. Mit etwas Abstand abbrechen. */
+  const ZIP_MAX_BYTES = 3.8 * 1024 * 1024 * 1024;
+  const ZIP_MAX_ENTRIES = 65000;
+
   async function exportZip() {
     if (!previewFiles.length) previewFiles = Templates.build(state);
+    const total = previewFiles.reduce((a, f) => a + (f.data ? f.data.length : 0), 0);
+    if (total > ZIP_MAX_BYTES || previewFiles.length > ZIP_MAX_ENTRIES) {
+      alert(F('Das ZIP würde {0} mit {1} Dateien groß – mehr, als ein ZIP ohne ZIP64 fassen kann (4 GB, 65535 Dateien).\n\n' +
+        'Große Treiberpakete besser als „Leeres Paket“ anlegen und die Dateien nach dem Entpacken direkt aufs Medium kopieren. ' +
+        'Die Ablage „beide Orte“ verdoppelt die pnputil-Treiber; „sources\\$OEM$“ allein halbiert die Größe.',
+        fmtSize(total), previewFiles.length));
+      return;
+    }
+    const lost = missingBinaries();
+    if (lost.length && !confirm(F('Diese Dateien fehlen und kommen nur als Platzhalter ins ZIP:\n\n{0}\n\n' +
+        'Die Projektdatei enthält keine Binärdateien – nach dem Laden müssen sie unter „Eigene Dateien“ bzw. „Treiber“ ' +
+        'neu zugeordnet werden. Trotzdem erzeugen?', lost.map((x) => '• ' + x).join('\n')))) return;
     const zipName = (state.meta.name || 'OEM').replace(/[^\w.-]+/g, '_') + '-OEM.zip';
     const handle = await pickSaveTarget(zipName, {
       id: 'oem-zip', description: T('ZIP-Archiv'), accept: { 'application/zip': ['.zip'] }
@@ -1391,6 +1471,18 @@
         groups.get(top).push({ rel, file: f });
       }
       e.target.value = '';
+      if (driverRefill) {
+        /* Vorhandenes Paket fuellen: Name, Ziel und Modellfilter bleiben. */
+        const d = driverRefill;
+        driverRefill = null;
+        d.files = [];
+        for (const list of groups.values()) for (const x of list) d.files.push({ rel: x.rel, blob: await readBytes(x.file) });
+        d.missing = 0;
+        const st = driverStats(d);
+        toast(F(st.count === 1 ? 'Treiberpaket „{0}“: {1} Datei, {2} INF.' : 'Treiberpaket „{0}“: {1} Dateien, {2} INF.', d.name, st.count, st.inf), st.inf ? 'ok' : 'warn');
+        renderDrivers(); refresh();
+        return;
+      }
       for (const [name, list] of groups) {
         const d = await addDriverPackage(name, list);
         const st = driverStats(d);

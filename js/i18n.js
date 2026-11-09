@@ -594,6 +594,18 @@
     'Speichern fehlgeschlagen: {0}': 'Saving failed: {0}',
     'ZIP-Archiv': 'ZIP archive',
     'ZIP mit {0} Dateien gespeichert: {1}': 'ZIP with {0} files saved: {1}',
+    'fehlt – nicht im Archiv': 'missing – not in the archive',
+    'Datei wählen …': 'Choose file …',
+    'fehlt – {0} Dateien nicht im Archiv': 'missing – {0} files not in the archive',
+    'Projektdatei enthält keine Treiberdateien – Ordner neu wählen': 'the project file holds no driver files – choose the folder again',
+    'Ordner wählen …': 'Choose folder …',
+    'Die Projektdatei enthält keine Binärdateien. Neu zuordnen: {0}': 'The project file holds no binary files. Assign again: {0}',
+    'Treiber „{0}“': 'Driver “{0}”',
+    'Diese Dateien fehlen und kommen nur als Platzhalter ins ZIP:\n\n{0}\n\nDie Projektdatei enthält keine Binärdateien – nach dem Laden müssen sie unter „Eigene Dateien“ bzw. „Treiber“ neu zugeordnet werden. Trotzdem erzeugen?': 'These files are missing and only go into the ZIP as placeholders:\n\n{0}\n\nThe project file holds no binary files – after loading they have to be assigned again under “Own files” or “Drivers”. Create anyway?',
+    '„{0}“ zugeordnet (Eintrag hieß „{1}“).': '“{0}” assigned (the entry was called “{1}”).',
+    '„{0}“ zugeordnet.': '“{0}” assigned.',
+    'Das ZIP würde {0} mit {1} Dateien groß – mehr, als ein ZIP ohne ZIP64 fassen kann (4 GB, 65535 Dateien).\n\nGroße Treiberpakete besser als „Leeres Paket“ anlegen und die Dateien nach dem Entpacken direkt aufs Medium kopieren. Die Ablage „beide Orte“ verdoppelt die pnputil-Treiber; „sources\\$OEM$“ allein halbiert die Größe.': 'The ZIP would be {0} with {1} files – more than a ZIP without ZIP64 can hold (4 GB, 65535 files).\n\nBetter create large driver packages as “Empty package” and copy the files straight to the medium after unpacking. The location “both places” doubles the pnputil drivers; “sources\\$OEM$” alone halves the size.',
+    'Über 1 GB: Der Browser hält alles im Arbeitsspeicher, und ein ZIP fasst höchstens 4 GB. Große Pakete besser als „Leeres Paket“ anlegen und die Dateien direkt aufs Medium kopieren.': 'Over 1 GB: the browser keeps everything in memory, and a ZIP holds 4 GB at most. Better create large packages as “Empty package” and copy the files straight to the medium.',
   };
 
   const DICTS = { de: null, en: EN };

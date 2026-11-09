@@ -318,6 +318,10 @@ der Maschinentyp (z. B. <code>21AH…</code>); der lesbare Name kommt aus dem Pr
 <ul>
   <li>Treiberdateien stehen nur im ZIP, nicht in der Projektdatei. Nach dem Laden sind die Pakete wieder da, aber leer.</li>
   <li>Mit der ZIP-Wurzel „beide Orte“ liegen pnputil-Pakete doppelt im Archiv.</li>
+  <li><b>Große Pakete</b> (Grafiktreiber haben entpackt oft 1–2 GB): Der Browser hält beim Erzeugen alles im
+  Arbeitsspeicher, und das ZIP fasst höchstens 4 GB bzw. 65535 Dateien – darüber bricht der Generator mit einer
+  Meldung ab. Solche Pakete als <b>Leeres Paket</b> anlegen und den Inhalt nach dem Entpacken direkt in den Ordner auf
+  dem Medium kopieren.</li>
   <li>Damit Windows Update die Treiber nicht wieder ersetzt: Tweak „Keine Treiber über Windows Update“.</li>
 </ul>`
     },
@@ -765,6 +769,9 @@ type (e.g. <code>21AH…</code>); the readable name comes from the product name.
 <ul>
   <li>Driver files are only in the ZIP, not in the project file. After loading, the packages are back but empty.</li>
   <li>With the ZIP root "both places" pnputil packages are in the archive twice.</li>
+  <li><b>Large packages</b> (graphics drivers are often 1–2 GB unpacked): the browser keeps everything in memory while
+  building, and the ZIP holds 4 GB or 65535 files at most – beyond that the generator stops with a message. Create such
+  packages as an <b>Empty package</b> and copy the content straight into the folder on the medium after unpacking.</li>
   <li>To keep Windows Update from replacing the drivers: tweak "No drivers through Windows Update".</li>
 </ul>`
     },
