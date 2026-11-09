@@ -589,6 +589,11 @@
     'Schließen': 'Close',
     'Vollständige Dokumentation im README': 'Full documentation in the README',
     'F1 öffnet die Hilfe, Esc schließt sie': 'F1 opens the help, Esc closes it',
+    'OEM-Projektdatei': 'OEM project file',
+    'Projekt gespeichert: {0}': 'Project saved: {0}',
+    'Speichern fehlgeschlagen: {0}': 'Saving failed: {0}',
+    'ZIP-Archiv': 'ZIP archive',
+    'ZIP mit {0} Dateien gespeichert: {1}': 'ZIP with {0} files saved: {1}',
   };
 
   const DICTS = { de: null, en: EN };

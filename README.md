@@ -69,7 +69,8 @@ ZIP entpacken, `index.html` öffnen. Im Paket sind die Screenshots nur verlinkt.
   öffnet eine ausführliche Beschreibung aller Optionen der Seite, auf Deutsch
   oder Englisch, mit Querverweisen zwischen den Themen.
 * **Vorschau** aller erzeugten Dateien, **Projektdatei** zum Speichern und
-  Weiterarbeiten, ZIP-Export.
+  Weiterarbeiten, ZIP-Export. Chrome und Edge fragen beim Speichern mit einem
+  „Speichern unter“-Dialog nach dem Ziel; Firefox und Safari laden die Datei herunter.
 
 ## Zwei-Phasen-Modell
 

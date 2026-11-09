@@ -54,7 +54,9 @@ startet ein zweiter Auslöser dieselbe Phase, wird sie übersprungen.</p>
 
 <h3>Projekt speichern</h3>
 <p><b>Projekt speichern</b> legt eine <code>.oemproj.json</code> mit allen Einstellungen ab; jedes ZIP enthält sie
-zusätzlich. Binärdateien (Installer, Treiber) stehen nicht darin und müssen nach dem Laden erneut hinzugefügt
+zusätzlich. In Chrome und Edge öffnet sich dafür – wie bei <b>ZIP erzeugen</b> – ein „Speichern unter“-Dialog, der sich
+den zuletzt gewählten Ordner merkt; Firefox und Safari laden die Datei wie gewohnt in den Download-Ordner (dort hilft
+die Browser-Einstellung „Jedes Mal nachfragen, wo eine Datei gespeichert werden soll“). Binärdateien (Installer, Treiber) stehen nicht darin und müssen nach dem Laden erneut hinzugefügt
 werden – die Einträge bleiben als Platzhalter erhalten.</p>
 
 <p class="muted">Tipp: <kbd>F1</kbd> öffnet die Hilfe zur aktuellen Seite.</p>`
@@ -500,7 +502,10 @@ skipped.</p>
 </ul>
 
 <h3>Saving the project</h3>
-<p><b>Save project</b> writes an <code>.oemproj.json</code> with every setting; each ZIP contains it as well. Binary
+<p><b>Save project</b> writes an <code>.oemproj.json</code> with every setting; each ZIP contains it as well. In Chrome
+and Edge a "Save as" dialog opens for it – just like for <b>Create ZIP</b> – and remembers the folder chosen last;
+Firefox and Safari download the file to the downloads folder as usual (the browser setting "Always ask where to save
+files" helps there). Binary
 files (installers, drivers) are not part of it and have to be added again after loading – the entries stay as
 placeholders.</p>
 

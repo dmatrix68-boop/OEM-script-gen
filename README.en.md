@@ -67,7 +67,8 @@ unpack the ZIP and open `index.html`. Inside the package the screenshots are lin
   opens a detailed description of every option on the page, in German or
   English, with cross references between the topics.
 * **Preview** of every generated file, a **project file** to save and continue
-  working, ZIP export.
+  working, ZIP export. Chrome and Edge ask for the target with a "Save as" dialog;
+  Firefox and Safari download the file.
 
 ## Two-phase model
 

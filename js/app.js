@@ -1189,16 +1189,75 @@
     setTimeout(() => URL.revokeObjectURL(url), 4000);
   }
 
+  /*  "Speichern unter"-Dialog ueber die File System Access API (Chrome, Edge -
+      auch per file://). Ergebnis: ein Datei-Handle, false bei Abbruch durch den
+      Benutzer, null wenn der Browser den Dialog nicht kennt (Firefox, Safari)
+      oder ihn verweigert - dann bleibt es beim gewohnten Download.
+      Der Dialog muss direkt aus dem Klick heraus geoeffnet werden; Chrome
+      verlangt dafuer eine frische Benutzeraktion. Deshalb erst waehlen lassen,
+      dann den Inhalt erzeugen. Ueber "id" merkt sich Chrome den zuletzt
+      gewaehlten Ordner getrennt fuer Projektdateien und ZIPs. */
+  async function pickSaveTarget(filename, opts) {
+    if (typeof window.showSaveFilePicker !== 'function') return null;
+    try {
+      return await window.showSaveFilePicker({
+        suggestedName: filename,
+        id: opts.id,
+        types: [{ description: opts.description, accept: opts.accept }]
+      });
+    } catch (e) {
+      if (e && e.name === 'AbortError') return false;
+      console.warn('Speichern-Dialog nicht verfuegbar, falle auf Download zurueck:', e);
+      return null;
+    }
+  }
+
+  async function writeToHandle(handle, blob) {
+    const w = await handle.createWritable();
+    try { await w.write(blob); } finally { await w.close(); }
+  }
+
+  async function saveProject() {
+    const name = (state.meta.name || 'Projekt').replace(/[^\w.-]+/g, '_') + '.oemproj.json';
+    const handle = await pickSaveTarget(name, {
+      id: 'oem-project', description: T('OEM-Projektdatei'), accept: { 'application/json': ['.json'] }
+    });
+    if (handle === false) return;
+    const blob = new Blob([projectJson()], { type: 'application/json' });
+    if (handle) {
+      try {
+        await writeToHandle(handle, blob);
+        toast(F('Projekt gespeichert: {0}', handle.name), 'ok');
+      } catch (e) {
+        console.error(e);
+        toast(F('Speichern fehlgeschlagen: {0}', e.message), 'err');
+      }
+      return;
+    }
+    download(blob, name);
+    toast(T('Projektdatei gespeichert.'), 'ok');
+  }
+
   async function exportZip() {
     if (!previewFiles.length) previewFiles = Templates.build(state);
+    const zipName = (state.meta.name || 'OEM').replace(/[^\w.-]+/g, '_') + '-OEM.zip';
+    const handle = await pickSaveTarget(zipName, {
+      id: 'oem-zip', description: T('ZIP-Archiv'), accept: { 'application/zip': ['.zip'] }
+    });
+    if (handle === false) return;
     const btn = $('#btnExport');
     btn.disabled = true; btn.textContent = T('Erzeuge …');
     try {
       const entries = previewFiles.map((f) => ({ path: f.path, data: f.data }));
       entries.push({ path: (state.meta.name || 'Projekt').replace(/[^\w.-]+/g, '_') + '.oemproj.json', data: projectJson() });
       const blob = await MiniZip.createZip(entries);
-      download(blob, (state.meta.name || 'OEM').replace(/[^\w.-]+/g, '_') + '-OEM.zip');
-      toast(F('ZIP mit {0} Dateien erstellt.', entries.length), 'ok');
+      if (handle) {
+        await writeToHandle(handle, blob);
+        toast(F('ZIP mit {0} Dateien gespeichert: {1}', entries.length, handle.name), 'ok');
+      } else {
+        download(blob, zipName);
+        toast(F('ZIP mit {0} Dateien erstellt.', entries.length), 'ok');
+      }
     } catch (e) {
       console.error(e);
       toast(F('Export fehlgeschlagen: {0}', e.message), 'err');
@@ -1213,11 +1272,7 @@
     $$('.nav-item').forEach((b) => b.addEventListener('click', () => setView(b.dataset.view)));
 
     $('#btnExport').addEventListener('click', exportZip);
-    $('#btnSaveProject').addEventListener('click', () => {
-      download(new Blob([projectJson()], { type: 'application/json' }),
-        (state.meta.name || 'Projekt').replace(/[^\w.-]+/g, '_') + '.oemproj.json');
-      toast(T('Projektdatei gespeichert.'), 'ok');
-    });
+    $('#btnSaveProject').addEventListener('click', saveProject);
     $('#btnLoadProject').addEventListener('click', () => $('#projectInput').click());
     $('#projectInput').addEventListener('change', (e) => {
       if (e.target.files[0]) importFile(e.target.files[0], { forceType: 'project' });
