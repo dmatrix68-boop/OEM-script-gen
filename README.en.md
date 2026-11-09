@@ -63,6 +63,9 @@ unpack the ZIP and open `index.html`. Inside the package the screenshots are lin
   the existing blocks with a continuing `<Order>`.
 * **Diagnose.ps1** – ships inside the generated package and answers, after the
   installation, why nothing ran.
+* **Help on every page** – the *Help* button in the page header (or <kbd>F1</kbd>)
+  opens a detailed description of every option on the page, in German or
+  English, with cross references between the topics.
 * **Preview** of every generated file, a **project file** to save and continue
   working, ZIP export.
 
@@ -415,6 +418,7 @@ soon as the program writes more than fits in the buffer.
 index.html        interface
 css/app.css       layout
 js/version.js     version number (the only place)
+js/help.js        help texts per page (German/English)
 js/i18n.js        German/English dictionary and language switching
 js/zip.js         ZIP writer (deflate via CompressionStream, otherwise "stored")
 js/catalog.js     catalog of tweaks, bloatware and Windows components, package managers

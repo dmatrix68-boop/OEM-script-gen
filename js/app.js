@@ -910,6 +910,7 @@
       $('#badgeTweaks').textContent = state.tweaks.selected.length;
       $('#badgeBloat').textContent = state.bloat.selected.length;
       $('#badgeFeatures').textContent = state.features.selected.length;
+      labelHelp();
       $('#badgeDrivers').textContent = state.drivers.items.filter((d) => d.enabled).length;
       $('#badgeFiles').textContent = state.files.items.filter((f) => f.enabled).length;
       const rel = Templates.relFromRoot(state.paths.installRoot);
@@ -1414,6 +1415,78 @@
     });
   }
 
+  /* ---------------- Hilfe ---------------- */
+
+  /*  Jede Seite bekommt im Kopf einen Hilfe-Knopf. Das h2 traegt data-i18n und
+      wird bei jedem Sprachwechsel neu beschrieben - der Knopf darf deshalb
+      nicht darin liegen, sondern daneben in einem eigenen Kopfbereich. */
+  let helpTopic = null;
+
+  function setupHelp() {
+    $$('section.view').forEach((sec) => {
+      const h2 = sec.querySelector(':scope > h2');
+      if (!h2) return;
+      const view = sec.id.replace(/^view-/, '');
+      if (!Help.get(view, 'de')) return;
+      const head = document.createElement('div');
+      head.className = 'view-head';
+      sec.insertBefore(head, h2);
+      head.appendChild(h2);
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn small help-btn';
+      btn.dataset.helpView = view;
+      btn.innerHTML = '<span class="q">?</span><span class="lbl"></span>';
+      btn.addEventListener('click', () => openHelp(view));
+      head.appendChild(btn);
+    });
+    $('#helpClose').addEventListener('click', () => $('#helpDialog').close());
+    /* Klick auf den abgedunkelten Hintergrund schliesst ebenfalls. */
+    $('#helpDialog').addEventListener('click', (e) => { if (e.target === e.currentTarget) e.currentTarget.close(); });
+    $('#helpBody').addEventListener('click', (e) => {
+      const a = e.target.closest('a[data-help]');
+      if (!a) return;
+      e.preventDefault();
+      openHelp(a.dataset.help);
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'F1') return;
+      e.preventDefault();
+      const active = document.querySelector('section.view.active');
+      if (active) openHelp(active.id.replace(/^view-/, ''));
+    });
+  }
+
+  function labelHelp() {
+    $$('.help-btn').forEach((b) => {
+      b.querySelector('.lbl').textContent = T('Hilfe');
+      b.title = T('Hilfe zu dieser Seite (F1)');
+    });
+    $('#helpClose').title = T('Schließen');
+    $('#helpClose').setAttribute('aria-label', T('Schließen'));
+    const en = I18n.lang === 'en';
+    $('#helpReadme').textContent = T('Vollständige Dokumentation im README');
+    $('#helpReadme').href = 'https://github.com/dmatrix68-boop/OEM-script-gen/blob/main/' + (en ? 'README.en.md' : 'README.md');
+    $('#helpKeys').textContent = T('F1 öffnet die Hilfe, Esc schließt sie');
+    if (helpTopic && $('#helpDialog').open) renderHelp();
+  }
+
+  function renderHelp() {
+    const doc = Help.get(helpTopic, I18n.lang);
+    if (!doc) return;
+    $('#helpTitle').textContent = doc.title;
+    $('#helpBody').innerHTML = doc.html;
+    $('#helpBody').scrollTop = 0;
+  }
+
+  function openHelp(view) {
+    if (!Help.get(view, 'de')) return;
+    helpTopic = view;
+    renderHelp();
+    const dlg = $('#helpDialog');
+    if (!dlg.open) dlg.showModal();
+  }
+
   /* ---------------- Start ---------------- */
 
   function init() {
@@ -1421,6 +1494,7 @@
     if (ver && window.APP_VERSION) ver.textContent = 'V' + window.APP_VERSION;
     bindAll();
     wire();
+    setupHelp();
     I18n.setLanguage(I18n.detect());   /* löst renderAll über das Sprachereignis aus */
     setView('overview');
   }

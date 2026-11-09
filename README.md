@@ -65,6 +65,9 @@ ZIP entpacken, `index.html` öffnen. Im Paket sind die Screenshots nur verlinkt.
   werden mit fortlaufender `<Order>` in die vorhandenen Blöcke eingefügt.
 * **Diagnose.ps1** – liegt im erzeugten Paket und beantwortet nach der
   Installation, warum nichts gelaufen ist.
+* **Hilfe auf jeder Seite** – der Knopf *Hilfe* im Seitenkopf (oder <kbd>F1</kbd>)
+  öffnet eine ausführliche Beschreibung aller Optionen der Seite, auf Deutsch
+  oder Englisch, mit Querverweisen zwischen den Themen.
 * **Vorschau** aller erzeugten Dateien, **Projektdatei** zum Speichern und
   Weiterarbeiten, ZIP-Export.
 
@@ -426,6 +429,7 @@ liest, hängt, sobald das Programm mehr schreibt, als in den Puffer passt.
 index.html        Oberfläche
 css/app.css       Layout
 js/version.js     Versionsnummer (einzige Stelle)
+js/help.js        Hilfetexte je Seite (Deutsch/Englisch)
 js/i18n.js        Wörterbuch Deutsch/Englisch und Sprachumschaltung
 js/zip.js         ZIP-Writer (Deflate über CompressionStream, sonst „stored“)
 js/catalog.js     Katalog für Tweaks, Bloatware und Windows-Komponenten, Paketmanager

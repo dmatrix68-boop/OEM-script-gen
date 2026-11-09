@@ -584,6 +584,11 @@
     '{0} Dateien, zusammen {1} – werden unverändert ins Archiv übernommen:': '{0} files, {1} in total – copied into the archive unchanged:',
     'Treiberpaket „{0}“: {1} Dateien, {2} INF.': 'Driver package “{0}”: {1} files, {2} INF.',
     'Treiberpaket „{0}“: {1} Datei, {2} INF.': 'Driver package “{0}”: {1} file, {2} INF.',
+    'Hilfe': 'Help',
+    'Hilfe zu dieser Seite (F1)': 'Help for this page (F1)',
+    'Schließen': 'Close',
+    'Vollständige Dokumentation im README': 'Full documentation in the README',
+    'F1 öffnet die Hilfe, Esc schließt sie': 'F1 opens the help, Esc closes it',
   };
 
   const DICTS = { de: null, en: EN };
