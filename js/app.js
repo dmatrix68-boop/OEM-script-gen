@@ -562,7 +562,7 @@
       } else if (d.missing) {
         infoTd.firstChild.textContent = F('fehlt – {0} Dateien nicht im Archiv', d.missing);
         infoTd.firstChild.style.color = 'var(--warn)';
-        infoTd.lastChild.textContent = T('Projektdatei enthält keine Treiberdateien – Ordner neu wählen');
+        infoTd.lastChild.textContent = T('Treiberdateien fehlen – Ordner neu wählen');
       } else {
         infoTd.firstChild.textContent = T('leer');
         infoTd.lastChild.textContent = T('Dateien später in den Ordner kopieren');
@@ -1394,9 +1394,110 @@
     importFile(await handle.getFile(), { forceType: 'project' });
   }
 
+  /*  Schreibt Stueck fuer Stueck: kleine Teile werden zu Bloecken von bis zu
+      8 MB gesammelt, Blob-Teile (grosse Dateien) als Datenstrom weitergereicht.
+      Ein einzelner write() mit mehreren Gigabyte bleibt so aussen vor, und ein
+      Fehler laesst sich der Datei zuordnen, an der er auftrat. */
+  const WRITE_CHUNK = 8 * 1024 * 1024;
+
+  async function writeParts(w, parts, labels) {
+    let buf = [], bufLen = 0;
+    const flush = async () => {
+      if (!bufLen) return;
+      const all = new Uint8Array(bufLen);
+      let p = 0;
+      for (const b of buf) { all.set(b, p); p += b.length; }
+      buf = []; bufLen = 0;
+      await w.write(all);
+    };
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i];
+      try {
+        if (part instanceof Blob) {
+          await flush();
+          const reader = part.stream().getReader();
+          for (;;) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buf.push(value); bufLen += value.length;
+            if (bufLen >= WRITE_CHUNK) await flush();
+          }
+          await flush();
+        } else {
+          buf.push(part); bufLen += part.length;
+          if (bufLen >= WRITE_CHUNK) await flush();
+        }
+      } catch (err) {
+        const e = new Error(((labels && labels[i]) ? labels[i] + ': ' : '') + ((err && err.message) || err));
+        e.name = (err && err.name) || 'Error';
+        e.data = part;
+        e.path = labels && labels[i];
+        throw e;
+      }
+    }
+    await flush();
+  }
+
   async function writeToHandle(handle, blob) {
     const w = await handle.createWritable();
-    try { await w.write(blob); } finally { await w.close(); }
+    try {
+      if (blob.zipParts) await writeParts(w, blob.zipParts, blob.zipLabels);
+      else await w.write(blob);
+      await w.close();
+    } catch (e) {
+      /* Nach einem Schreibfehler ist der Datenstrom "errored"; ein close()
+         wuerde nur "Cannot close a ERRORED writable stream" melden und den
+         eigentlichen Fehler verdecken. */
+      try { await w.abort(); } catch (x) { /* bereits abgebrochen */ }
+      throw e;
+    }
+  }
+
+  /*  Namen, die Chrome beim Schreiben auf die Platte ablehnt ("Name is not
+      allowed") - nach den Regeln von Chromium (net/base/filename_util):
+      reservierte Windows-Namen, die Explorer-Dateien desktop.ini/Thumbs.db,
+      Verknuepfungen (.lnk, .local, CLSID-Endung) und Namen mit Punkt oder
+      Leerzeichen am Ende. In Treiberordnern stecken davon oft Thumbs.db oder
+      desktop.ini - die werden uebersprungen statt den Export abzubrechen. */
+  function unsafeNameReason(name) {
+    if (!name || name === '.' || name === '..') return T('ungültiger Name');
+    if (/[<>:"|?*\\/\u0000-\u001f]/.test(name)) return T('unzulässige Zeichen');
+    if (/[. ]$/.test(name)) return T('endet auf Punkt oder Leerzeichen');
+    if (/^(con|prn|aux|nul|com[0-9]|lpt[0-9]|clock\$)(\..*)?$/i.test(name)) return T('reservierter Gerätename');
+    if (/^(desktop\.ini|thumbs\.db)$/i.test(name)) return T('Explorer-Hilfsdatei');
+    if (/\.(lnk|local)$/i.test(name) || /\.\{[^}]*\}$/.test(name)) return T('Verknüpfung bzw. Shell-Dateityp');
+    return null;
+  }
+
+  /* Datei, die beim Export nicht mehr lesbar war, als fehlend markieren -
+     dann zeigt die Oberflaeche den Platzhalter mit "Datei/Ordner wählen". */
+  function markUnreadable(data) {
+    if (!data) return null;
+    for (const f of state.files.items) {
+      if (f.blob === data) { f.blob = null; f.blobPresent = false; return f.name; }
+    }
+    for (const d of state.drivers.items) {
+      const i = (d.files || []).findIndex((x) => x.blob === data);
+      if (i >= 0) {
+        d.missing = (d.files || []).length;
+        d.files = [];
+        return F('Treiber „{0}“', d.name);
+      }
+    }
+    return null;
+  }
+
+  function isReadError(e) {
+    return !!e && (e.name === 'NotReadableError' || e.name === 'NotFoundError');
+  }
+
+  /*  Ist die Quelldatei noch lesbar? Chrome meldet eine inzwischen geloeschte
+      oder geaenderte Datei beim Lesen als Datenstrom nur mit "network error" -
+      daran laesst sich nicht erkennen, ob das Lesen oder das Schreiben
+      scheiterte. Ein Byte lesen klaert es. */
+  async function stillReadable(data) {
+    if (!(data instanceof Blob) || data.size === 0) return true;
+    try { await data.slice(0, 1).arrayBuffer(); return true; } catch (e) { return false; }
   }
 
   async function saveProject() {
@@ -1511,24 +1612,45 @@
       }
       const entries = previewFiles.map((f) => ({ path: f.path, data: f.data }));
       entries.push({ path: (state.meta.name || 'Projekt').replace(/[^\w.-]+/g, '_') + '.oemproj.json', data: projectJson() });
+      const skipped = [], failed = [], lostNow = new Set();
+      let n = 0;
       for (const e of entries) {
+        n++;
+        if (n % 10 === 0 || n === entries.length) btn.textContent = F('Schreibe {0}/{1} …', n, entries.length);
         const parts = e.path.split('/');
+        const bad = parts.map((x) => [x, unsafeNameReason(x)]).find((x) => x[1]);
+        if (bad) { skipped.push(e.path + ' (' + bad[1] + ')'); continue; }
         const fileName = parts.pop();
-        const dir = await dirFor(root, parts);
-        const fh = await dir.getFileHandle(fileName, { create: true });
-        const w = await fh.createWritable();
+        let w = null;
         try {
+          const dir = await dirFor(root, parts);
+          const fh = await dir.getFileHandle(fileName, { create: true });
+          w = await fh.createWritable();
           /* Blob/File als Datenstrom, Text und Bytes direkt */
           if (typeof Blob !== 'undefined' && e.data instanceof Blob) await e.data.stream().pipeTo(w);
           else { await w.write(e.data); await w.close(); }
+          done++;
         } catch (err) {
-          try { await w.abort(); } catch (x) { /* schon geschlossen */ }
-          throw new Error(e.path + ': ' + err.message);
+          if (w) { try { await w.abort(); } catch (x) { /* schon abgebrochen */ } }
+          const unreadable = isReadError(err) || !(await stillReadable(e.data));
+          failed.push(e.path + ': ' + (unreadable ? T('Quelldatei nicht mehr lesbar') : ((err && err.message) || err)));
+          if (unreadable) { const who = markUnreadable(e.data); if (who) lostNow.add(who); }
+          /* Platte voll o. ae.: weitere Versuche sind zwecklos */
+          if (err && (err.name === 'QuotaExceededError' || failed.length >= 25)) break;
         }
-        done++;
-        if (done % 10 === 0 || done === entries.length) btn.textContent = F('Schreibe {0}/{1} …', done, entries.length);
       }
-      toast(F('{0} Dateien nach „{1}“ geschrieben.', done, root.name), 'ok');
+      if (!skipped.length && !failed.length) {
+        toast(F('{0} Dateien nach „{1}“ geschrieben.', done, root.name), 'ok');
+      } else {
+        const list = (arr) => arr.slice(0, 15).map((x) => '• ' + x).join('\n') + (arr.length > 15 ? '\n• …' : '');
+        let msg = F('{0} Dateien nach „{1}“ geschrieben.', done, root.name);
+        if (skipped.length) msg += '\n\n' + F('Übersprungen, weil der Browser diese Namen nicht schreiben darf ({0}):', skipped.length) + '\n' + list(skipped);
+        if (failed.length) msg += '\n\n' + F('Nicht geschrieben ({0}):', failed.length) + '\n' + list(failed);
+        if (lostNow.size) msg += '\n\n' + F('Nicht mehr lesbar – seit dem Hinzufügen geändert, verschoben oder gelöscht. Bitte neu zuordnen: {0}', Array.from(lostNow).join(', '));
+        toast(failed.length ? T('Export unvollständig – Details im Hinweisfenster.') : F('{0} Dateien geschrieben, {1} übersprungen.', done, skipped.length), failed.length ? 'err' : 'warn');
+        alert(msg);
+        if (lostNow.size) { renderFiles(); renderDrivers(); }
+      }
     } catch (e) {
       console.error(e);
       toast(F('Export fehlgeschlagen nach {0} Dateien: {1}', done, e.message), 'err');
@@ -1555,16 +1677,33 @@
       const entries = previewFiles.map((f) => ({ path: f.path, data: f.data }));
       entries.push({ path: (state.meta.name || 'Projekt').replace(/[^\w.-]+/g, '_') + '.oemproj.json', data: projectJson() });
       const blob = await MiniZip.createZip(entries);
+      const over4 = blob.size >= 4 * 1024 * 1024 * 1024;
       if (handle) {
-        await writeToHandle(handle, blob);
+        try {
+          await writeToHandle(handle, blob);
+        } catch (e) {
+          /* DOMException.message ist schreibgeschuetzt - daher neues Error-Objekt */
+          if (!over4) throw e;
+          const e2 = new Error(((e && e.message) || e) + ' ' + T('– Das ZIP ist größer als 4 GB. Liegt das Ziel auf einem FAT32-Laufwerk (viele USB-Sticks)? FAT32 erlaubt höchstens 4 GB je Datei – das ZIP auf die Festplatte speichern oder „In Ordner exportieren“ verwenden.'));
+          e2.name = e.name; e2.data = e.data; e2.path = e.path;
+          throw e2;
+        }
         toast(F('ZIP mit {0} Dateien gespeichert: {1}', entries.length, handle.name), 'ok');
       } else {
         download(blob, zipName);
         toast(F('ZIP mit {0} Dateien erstellt.', entries.length), 'ok');
       }
+      if (over4) toast(T('Das ZIP ist größer als 4 GB (ZIP64). Auf FAT32-Laufwerken lässt es sich nicht speichern – dort „In Ordner exportieren“ verwenden.'), 'warn');
     } catch (e) {
       console.error(e);
-      toast(F('Export fehlgeschlagen: {0}', e.message), 'err');
+      if (isReadError(e) || (e && e.data && !(await stillReadable(e.data)))) {
+        const who = markUnreadable(e.data);
+        alert(F('Export fehlgeschlagen: {0}', e.message) + '\n\n' +
+          F('Die Datei ist nicht mehr lesbar – sie wurde seit dem Hinzufügen geändert, verschoben oder gelöscht (etwa weil sie im Zielordner eines früheren Exports lag). Bitte neu zuordnen: {0}', who || e.path || '?'));
+        renderFiles(); renderDrivers(); refresh();
+      } else {
+        toast(F('Export fehlgeschlagen: {0}', e.message), 'err');
+      }
     } finally {
       btn.disabled = false; btn.textContent = T('ZIP erzeugen');
     }

@@ -83,8 +83,11 @@
 
   /* Sammelt Teile (Bytes oder Blobs) und zählt die Länge bis 2^53 genau. */
   class ByteWriter {
-    constructor() { this.parts = []; this.length = 0; }
-    push(part) { this.parts.push(part); this.length += isBlob(part) ? part.size : part.length; }
+    constructor() { this.parts = []; this.labels = []; this.length = 0; }
+    push(part, label) {
+      this.parts.push(part); this.labels.push(label || null);
+      this.length += isBlob(part) ? part.size : part.length;
+    }
     blob(type) { return new Blob(this.parts, { type: type || 'application/zip' }); }
   }
 
@@ -122,18 +125,28 @@
       const d = entry.date || now;
       let crc, method, payload, size;
 
-      if (isBlob(entry.data) && entry.data.size > LARGE) {
-        crc = await crc32Stream(entry.data);
-        method = 0;
-        payload = entry.data;
-        size = entry.data.size;
-      } else {
-        const raw = await toBytes(entry.data);
-        crc = crc32(raw);
-        const packed = await deflateRaw(raw);
-        method = packed ? 8 : 0;
-        payload = packed || raw;
-        size = raw.length;
+      /* Lesefehler (Datei seit dem Hinzufuegen geaendert, verschoben, geloescht)
+         mit Pfad weiterreichen - sonst weiss niemand, welche Datei es war. */
+      try {
+        if (isBlob(entry.data) && entry.data.size > LARGE) {
+          crc = await crc32Stream(entry.data);
+          method = 0;
+          payload = entry.data;
+          size = entry.data.size;
+        } else {
+          const raw = await toBytes(entry.data);
+          crc = crc32(raw);
+          const packed = await deflateRaw(raw);
+          method = packed ? 8 : 0;
+          payload = packed || raw;
+          size = raw.length;
+        }
+      } catch (err) {
+        const e = new Error(entry.path + ': ' + ((err && err.message) || err));
+        e.name = (err && err.name) || 'Error';
+        e.path = entry.path;
+        e.data = entry.data;
+        throw e;
       }
       const csize = isBlob(payload) ? payload.size : payload.length;
       const offset = w.length;
@@ -156,7 +169,7 @@
         .bytes(nameBytes)
         .bytes(localExtra)
         .done());
-      w.push(payload);
+      w.push(payload, entry.path);
 
       central.push({ nameBytes, crc, method, csize, size, offset, date: d });
     }
@@ -229,7 +242,13 @@
       .u16(0)
       .done());
 
-    return w.blob();
+    /*  Zusaetzlich zum Blob die Einzelteile: damit kann der Aufrufer Stueck fuer
+        Stueck schreiben statt mehrere Gigabyte in einem Aufruf, und einen
+        Schreib- oder Lesefehler der betroffenen Datei zuordnen. */
+    const out = w.blob();
+    out.zipParts = w.parts;
+    out.zipLabels = w.labels;
+    return out;
   }
 
   global.MiniZip = { createZip, crc32 };
