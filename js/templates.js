@@ -375,7 +375,18 @@ function Test-OemRunActive {
     $otherPid = 0
     if (-not [int]::TryParse(($val -split '\\|')[0], [ref]$otherPid)) { return $false }
     if ($otherPid -eq $PID) { return $false }
-    return [bool](Get-Process -Id $otherPid -ErrorAction SilentlyContinue)
+    $proc = Get-Process -Id $otherPid -ErrorAction SilentlyContinue
+    if (-not $proc) { return $false }
+    <#  Nach einem Abbruch mit Neustart bleibt die Markierung stehen, und die
+        Prozessnummer kann inzwischen einem ganz anderen Prozess gehoeren. Der
+        zaehlt nur, wenn er PowerShell ist und nicht nach der Markierung startete. #>
+    if ($proc.ProcessName -notmatch '^(powershell|pwsh)$') { return $false }
+    $stamp = [datetime]::MinValue
+    if ([datetime]::TryParseExact((($val -split '\\|') + @(''))[1], 'yyyy-MM-dd HH:mm:ss',
+            [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::None, [ref]$stamp)) {
+        try { if ($proc.StartTime -gt $stamp.AddSeconds(5)) { return $false } } catch { }
+    }
+    return $true
 }
 
 function Set-OemRunning {
