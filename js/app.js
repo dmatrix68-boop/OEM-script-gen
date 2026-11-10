@@ -436,11 +436,12 @@
 
       const destTd = document.createElement('td');
       const ds = document.createElement('select');
-      [['files', T('Install\\Files')], ['scripts', T('Setup\\Scripts')]].forEach(([v, l]) => {
+      [['files', T('Install\\Files')], ['scripts', T('Setup\\Scripts')], ['office', T('Install\\Office')]].forEach(([v, l]) => {
         const o = document.createElement('option'); o.value = v; o.textContent = l;
         if ((f.dest || 'files') === v) o.selected = true; ds.appendChild(o);
       });
-      ds.title = T('Install\\Files: wird vom Modul "Eigene Installer" ausgefuehrt.\nSetup\\Scripts: liegt neben SetupComplete.cmd und ist ueber %~dp0 erreichbar.');
+      ds.title = T('Install\\Files: wird vom Modul "Eigene Installer" ausgefuehrt.\nSetup\\Scripts: liegt neben SetupComplete.cmd und ist ueber %~dp0 erreichbar.') +
+        '\n' + T('Install\\Office: für die setup.exe des Office Deployment Tools – das Office-Modul startet sie.');
       ds.addEventListener('change', () => { f.dest = ds.value; renderFiles(); refresh(); });
       destTd.appendChild(ds); tr.appendChild(destTd);
 
@@ -454,6 +455,7 @@
       const ri = document.createElement('input');
       ri.type = 'text'; ri.value = f.run; ri.placeholder = T('/S  bzw.  /qn /norestart  – leer = nur kopieren');
       if (f.dest === 'scripts') { ri.disabled = true; ri.placeholder = T('Aufruf über eigene CMD-Zeilen (%~dp0)'); }
+      if (f.dest === 'office') { ri.disabled = true; ri.placeholder = T('wird vom Office-Modul gestartet'); }
       ri.addEventListener('change', () => { f.run = ri.value; refresh(); });
       runTd.appendChild(ri); tr.appendChild(runTd);
 
@@ -1141,7 +1143,7 @@
     if (BINARY_EXT.test(name) && !/\.reg$/i.test(name)) {
       state.files.items.push({
         name, target: name, run: /\.msi$/i.test(name) ? '/qn /norestart' : '',
-        phase: 'firstlogon', enabled: true, dest: 'files', blob: file, blobPresent: true,
+        phase: 'firstlogon', enabled: true, dest: defaultFileDest(name), blob: file, blobPresent: true,
         src: opts.handle ? await rememberSource(opts.handle, 'file') : null
       });
       logImport(F('Datei übernommen: {0} ({1} KB)', name, Math.round(file.size / 1024)));
@@ -1288,7 +1290,7 @@
     if (!state.unattend) state.unattend = { xml: null, name: '', info: null };
     state.files.items = (state.files.items || []).map((f) => ({
       name: f.name, target: f.target || f.name, run: f.run || '',
-      phase: f.phase || 'firstlogon', dest: f.dest || 'files',
+      phase: f.phase || 'firstlogon', dest: /^(files|scripts|office)$/.test(f.dest) ? f.dest : 'files',
       enabled: f.enabled !== false, blob: null, blobPresent: false, src: validSrc(f.src)
     }));
     state.drivers.items = (state.drivers.items || []).map((d) => ({
@@ -1535,6 +1537,12 @@
     syncInputs(); renderDrivers(); refresh();
   }
 
+  /*  setup.exe bei aktivem Office-Modul (setup.exe mitliefern): gehoert nach
+      Install\Office, nicht unter Install\Files. */
+  function defaultFileDest(name) {
+    return /^setup\.exe$/i.test(name) && state.office.enabled && state.office.setupSource === 'bundled' ? 'office' : 'files';
+  }
+
   async function pickFiles() {
     let hs;
     try { hs = await window.showOpenFilePicker({ id: 'oem-files', multiple: true }); }
@@ -1544,7 +1552,7 @@
       state.files.items.push({
         name: f.name, target: f.name,
         run: /\.msi$/i.test(f.name) ? '/qn /norestart' : '',
-        phase: 'firstlogon', enabled: true, dest: 'files', blob: f, blobPresent: true,
+        phase: 'firstlogon', enabled: true, dest: defaultFileDest(f.name), blob: f, blobPresent: true,
         src: await rememberSource(h, 'file')
       });
     }
@@ -1891,8 +1899,15 @@
           /* Blob/File als Datenstrom, Text und Bytes direkt */
           if (typeof Blob !== 'undefined' && e.data instanceof Blob) await e.data.stream().pipeTo(w);
           else { await w.write(e.data); await w.close(); }
+          if (asRenamed) {
+            /* Nachpruefen: liegt die umbenannte Datei wirklich vollstaendig da? */
+            const chk = await (await dir.getFileHandle(fileName + RENAME_EXT)).getFile();
+            if (e.data instanceof Blob && chk.size !== e.data.size) {
+              throw new Error(F('nach dem Schreiben {0} statt {1} Bytes', chk.size, e.data.size));
+            }
+            renamed.push(e.path);
+          }
           done++;
-          if (asRenamed) renamed.push(e.path);
         } catch (err) {
           if (w) { try { await w.abort(); } catch (x) { /* schon abgebrochen */ } }
           const unreadable = isReadError(err) || !(await stillReadable(e.data));
@@ -2159,7 +2174,7 @@
         state.files.items.push({
           name: f.name, target: f.name,
           run: /\.msi$/i.test(f.name) ? '/qn /norestart' : '',
-          phase: 'firstlogon', enabled: true, dest: 'files', blob: f, blobPresent: true
+          phase: 'firstlogon', enabled: true, dest: defaultFileDest(f.name), blob: f, blobPresent: true
         });
       }
       e.target.value = '';

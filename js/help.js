@@ -357,7 +357,10 @@ Lizenzdateien. Auf Wunsch werden Installer mit Silent-Parametern ausgeführt.</p
   <dt>Zielordner</dt>
   <dd><b>Install\\Files</b> – landet unter dem Installationsordner und wird vom Modul „Eigene Installer“ ausgeführt.
   <b>Setup\\Scripts</b> – liegt neben <code>SetupComplete.cmd</code> und ist dort über <code>%~dp0</code> erreichbar;
-  wird nicht automatisch ausgeführt, sondern aus <a data-help="custom">eigenen CMD-Zeilen</a> aufgerufen.</dd>
+  wird nicht automatisch ausgeführt, sondern aus <a data-help="custom">eigenen CMD-Zeilen</a> aufgerufen.
+  <b>Install\\Office</b> – für die <code>setup.exe</code> des Office Deployment Tools; das
+  <a data-help="office">Office-Modul</a> startet sie selbst. Eine <code>setup.exe</code> landet automatisch dort, wenn das
+  Office-Modul mit „liegt im OEM-Ordner (mitliefern)“ aktiv ist.</dd>
   <dt>Zielpfad (relativ)</dt><dd>Dateiname bzw. Unterordner innerhalb des Zielordners.</dd>
   <dt>Ausführen mit</dt>
   <dd>Parameter für die unbeaufsichtigte Installation. <b>Leer = nur kopieren.</b> <code>.msi</code> wird über
@@ -839,7 +842,10 @@ Installers can be run with silent parameters.</p>
   <dt>Target folder</dt>
   <dd><b>Install\\Files</b> – goes below the installation folder and is run by the "own installers" module.
   <b>Setup\\Scripts</b> – sits next to <code>SetupComplete.cmd</code> and is reachable there via <code>%~dp0</code>; it is
-  not run automatically but called from <a data-help="custom">own CMD lines</a>.</dd>
+  not run automatically but called from <a data-help="custom">own CMD lines</a>.
+  <b>Install\\Office</b> – for <code>setup.exe</code> of the Office Deployment Tool; the
+  <a data-help="office">Office module</a> starts it itself. A <code>setup.exe</code> goes there automatically when the
+  Office module is active with "ships in the OEM folder".</dd>
   <dt>Target path (relative)</dt><dd>File name or subfolder inside the target folder.</dd>
   <dt>Run with</dt>
   <dd>Parameters for the unattended installation. <b>Empty = copy only.</b> <code>.msi</code> is started through

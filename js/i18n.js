@@ -518,6 +518,10 @@
     'Produktschlüssel': 'Product key',
     'Install\\Files': 'Install\\Files',
     'Setup\\Scripts': 'Setup\\Scripts',
+    'Install\\Office': 'Install\\Office',
+    'Install\\Office: für die setup.exe des Office Deployment Tools – das Office-Modul startet sie.': 'Install\\Office: for setup.exe of the Office Deployment Tool – the Office module starts it.',
+    'wird vom Office-Modul gestartet': 'started by the Office module',
+    'nach dem Schreiben {0} statt {1} Bytes': 'after writing {0} instead of {1} bytes',
     '(eigenes Paket)': '(own package)',
 
     /* Längere Hinweise, die zur Laufzeit entstehen */
