@@ -69,8 +69,8 @@ unpack the ZIP and open `index.html`. Inside the package the screenshots are lin
   opens a detailed description of every option on the page, in German or
   English, with cross references between the topics.
 * **Preview** of every generated file, a **project file** to save and continue
-  working, ZIP export or (Chrome, Edge) **export straight into a folder** or onto the
-  USB stick – without a 4 GB limit. Chrome and Edge ask for the target with a "Save as"
+  working, ZIP export (ZIP64 from 4 GB on) or (Chrome, Edge) **export straight into a
+  folder** or onto the USB stick. Chrome and Edge ask for the target with a "Save as"
   dialog; Firefox and Safari download the file.
 
 ## Two-phase model
@@ -340,13 +340,18 @@ sources/$OEM$/  or  $OEM$/
    Office Deployment Tool).
 
 Instead of 3. and 4., Chrome and Edge also offer **Export to folder**: pick the root of
-the USB stick and you are done. It is not a ZIP, so there is no 4 GB limit, and
-installers and drivers are copied from disk as a stream instead of being collected in
-memory. Existing `$OEM$`, `sources\$OEM$` and `$WinPEDriver$` folders in the target
+the USB stick and you are done – no unpacking, installers and drivers are copied from
+disk as a stream. Existing `$OEM$`, `sources\$OEM$` and `$WinPEDriver$` folders in the target
 are emptied first after a confirmation – otherwise removed drivers, for example, would
 stay behind. Everything else on the stick stays untouched; an existing
 `autounattend.xml` that was not imported would be replaced, which the confirmation
 points out.
+
+Large packages fit into the ZIP as well: from 4 GB or 65,535 files on the generator
+writes **ZIP64** automatically, which Windows Explorer (Windows 10 and later) and 7-Zip
+unpack. Files over 128 MB go in uncompressed – drivers and installers are usually
+compressed already – but the browser reads them straight from disk instead of collecting
+them in memory (tested: a 5.2 GB archive with less than 90 MB of memory).
 
 ### The installation has to be booted from the medium
 

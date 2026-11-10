@@ -71,8 +71,8 @@ ZIP entpacken, `index.html` öffnen. Im Paket sind die Screenshots nur verlinkt.
   öffnet eine ausführliche Beschreibung aller Optionen der Seite, auf Deutsch
   oder Englisch, mit Querverweisen zwischen den Themen.
 * **Vorschau** aller erzeugten Dateien, **Projektdatei** zum Speichern und
-  Weiterarbeiten, ZIP-Export oder (Chrome, Edge) **Export direkt in einen Ordner** bzw.
-  auf den USB-Stick – ohne 4-GB-Grenze. Chrome und Edge fragen beim Speichern mit einem
+  Weiterarbeiten, ZIP-Export (ab 4 GB automatisch ZIP64) oder (Chrome, Edge) **Export
+  direkt in einen Ordner** bzw. auf den USB-Stick. Chrome und Edge fragen beim Speichern mit einem
   „Speichern unter“-Dialog nach dem Ziel; Firefox und Safari laden die Datei herunter.
 
 ## Zwei-Phasen-Modell
@@ -351,12 +351,17 @@ sources/$OEM$/  bzw.  $OEM$/
    auf, was noch fehlt (z. B. `setup.exe` des Office Deployment Tools).
 
 Statt 3. und 4. geht in Chrome und Edge auch **In Ordner exportieren**: Wurzelverzeichnis
-des USB-Sticks wählen, fertig. Das ist kein ZIP, hat also keine 4-GB-Grenze, und
-Installer und Treiber werden als Datenstrom von der Platte kopiert statt im
-Arbeitsspeicher gesammelt. Vorhandene Ordner `$OEM$`, `sources\$OEM$` und
+des USB-Sticks wählen, fertig – das Entpacken entfällt, Installer und Treiber werden
+als Datenstrom von der Platte kopiert. Vorhandene Ordner `$OEM$`, `sources\$OEM$` und
 `$WinPEDriver$` im Ziel werden nach Rückfrage vorher geleert – sonst blieben etwa
 entfernte Treiber liegen. Alles andere auf dem Stick bleibt unberührt; eine vorhandene,
 nicht importierte `autounattend.xml` würde ersetzt, darauf weist die Rückfrage hin.
+
+Große Pakete passen auch ins ZIP: Ab 4 GB oder 65.535 Dateien schreibt der Generator
+automatisch **ZIP64**, das der Windows-Explorer ab Windows 10 und 7-Zip entpacken.
+Dateien über 128 MB kommen unkomprimiert hinein – Treiber und Installer sind meist
+schon gepackt –, dafür liest der Browser sie direkt von der Platte, statt sie im
+Arbeitsspeicher zu sammeln (getestet: 5,2-GB-Archiv mit unter 90 MB Speicherbedarf).
 
 ### Die Installation muss vom Medium gebootet werden
 

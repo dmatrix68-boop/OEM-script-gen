@@ -614,8 +614,7 @@
     const parts = [];
     if (total) parts.push(F('Zusammen {0} Treiberdateien im ZIP.', fmtSize(total)));
     if (total > 1024 * 1024 * 1024) {
-      parts.push(T('Über 1 GB: Ein ZIP fasst höchstens 4 GB und entsteht im Arbeitsspeicher. ' +
-        '„In Ordner exportieren“ (Chrome, Edge) schreibt direkt auf den Stick und kennt diese Grenze nicht.'));
+      parts.push(T('Über 1 GB: Das ZIP wird dann sehr groß. „In Ordner exportieren“ (Chrome, Edge) schreibt direkt auf den Stick und spart das Entpacken.'));
     }
     if (total && state.paths.zipRoot === 'both' && active.some((d) => d.dest !== 'winpe' && driverStats(d).count)) {
       parts.push(T('Mit der ZIP-Wurzel „beide Orte“ liegen die pnputil-Pakete doppelt im Archiv.'));
@@ -1434,15 +1433,9 @@
     return out;
   }
 
-  /*  js/zip.js schreibt kein ZIP64: ueber 4 GB Gesamtgroesse oder 65535
-      Eintraege entstuende ein defektes Archiv. Mit etwas Abstand abbrechen. */
-  const ZIP_MAX_BYTES = 3.8 * 1024 * 1024 * 1024;
-  const ZIP_MAX_ENTRIES = 65000;
-
   /*  In Ordner exportieren (Chrome, Edge): schreibt die Struktur direkt in einen
-      Ordner - auch gleich ins Wurzelverzeichnis des USB-Sticks. Kein ZIP, also
-      weder 4-GB- noch Dateigrenze, und Binaerdateien werden als Datenstrom von
-      der Platte kopiert statt im Arbeitsspeicher gesammelt.
+      Ordner - auch gleich ins Wurzelverzeichnis des USB-Sticks. Das spart das
+      Entpacken, und Binaerdateien werden als Datenstrom von der Platte kopiert.
       Vor dem Schreiben: Liegen im Ziel schon $OEM$, sources\$OEM$ oder
       $WinPEDriver$, werden genau diese Ordner nach Rueckfrage geleert - sonst
       blieben z. B. entfernte Treiber liegen und wuerden mit eingespielt. Alles
@@ -1547,14 +1540,6 @@
 
   async function exportZip() {
     if (!previewFiles.length) previewFiles = Templates.build(state);
-    const total = previewFiles.reduce((a, f) => a + byteSize(f.data), 0);
-    if (total > ZIP_MAX_BYTES || previewFiles.length > ZIP_MAX_ENTRIES) {
-      alert(F('Das ZIP würde {0} mit {1} Dateien groß – mehr, als ein ZIP ohne ZIP64 fassen kann (4 GB, 65535 Dateien).\n\n' +
-        '„In Ordner exportieren“ (Chrome, Edge) kennt diese Grenze nicht. Alternativ große Treiberpakete als „Leeres Paket“ anlegen und die Dateien nach dem Entpacken direkt aufs Medium kopieren. ' +
-        'Die Ablage „beide Orte“ verdoppelt die pnputil-Treiber; „sources\\$OEM$“ allein halbiert die Größe.',
-        fmtSize(total), previewFiles.length));
-      return;
-    }
     const lost = missingBinaries();
     if (lost.length && !confirm(F('Diese Dateien fehlen und kommen nur als Platzhalter ins ZIP:\n\n{0}\n\n' +
         'Die Projektdatei enthält keine Binärdateien – nach dem Laden müssen sie unter „Eigene Dateien“ bzw. „Treiber“ ' +

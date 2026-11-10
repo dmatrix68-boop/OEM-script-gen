@@ -229,7 +229,7 @@
     'th-modelle': 'Models',
     'useconfigurationset-setzen': 'Write <code>UseConfigurationSet=true</code> into the autounattend.xml – needed for Windows Setup to copy <code>$OEM$</code> (recommended)',
     'in-ordner-exportieren': 'Export to folder',
-    'in-ordner-exportieren-titel': 'Write the structure straight into a folder – e.g. the root of the USB stick. No ZIP, no 4 GB limit (Chrome, Edge)',
+    'in-ordner-exportieren-titel': 'Write the structure straight into a folder – e.g. the root of the USB stick. No ZIP, nothing to unpack (Chrome, Edge)',
   };
 
 
@@ -623,8 +623,7 @@
     'Schreibe {0}/{1} …': 'Writing {0}/{1} …',
     '{0} Dateien nach „{1}“ geschrieben.': '{0} files written to “{1}”.',
     'Export fehlgeschlagen nach {0} Dateien: {1}': 'Export failed after {0} files: {1}',
-    'Über 1 GB: Ein ZIP fasst höchstens 4 GB und entsteht im Arbeitsspeicher. „In Ordner exportieren“ (Chrome, Edge) schreibt direkt auf den Stick und kennt diese Grenze nicht.': 'Over 1 GB: a ZIP holds 4 GB at most and is built in memory. “Export to folder” (Chrome, Edge) writes straight to the stick and has no such limit.',
-    'Das ZIP würde {0} mit {1} Dateien groß – mehr, als ein ZIP ohne ZIP64 fassen kann (4 GB, 65535 Dateien).\n\n„In Ordner exportieren“ (Chrome, Edge) kennt diese Grenze nicht. Alternativ große Treiberpakete als „Leeres Paket“ anlegen und die Dateien nach dem Entpacken direkt aufs Medium kopieren. Die Ablage „beide Orte“ verdoppelt die pnputil-Treiber; „sources\\$OEM$“ allein halbiert die Größe.': 'The ZIP would be {0} with {1} files – more than a ZIP without ZIP64 can hold (4 GB, 65535 files).\n\n“Export to folder” (Chrome, Edge) has no such limit. Alternatively create large driver packages as “Empty package” and copy the files straight to the medium after unpacking. The location “both places” doubles the pnputil drivers; “sources\\$OEM$” alone halves the size.',
+    'Über 1 GB: Das ZIP wird dann sehr groß. „In Ordner exportieren“ (Chrome, Edge) schreibt direkt auf den Stick und spart das Entpacken.': 'Over 1 GB: the ZIP gets very large then. “Export to folder” (Chrome, Edge) writes straight to the stick and saves the unpacking.',
   };
 
   const DICTS = { de: null, en: EN };
