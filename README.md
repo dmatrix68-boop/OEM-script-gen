@@ -25,6 +25,8 @@ Sprache bestimmt auch, ob im erzeugten Archiv `LIESMICH.txt` oder `README.txt` l
 | **Tweaks** – Einstellungen mit Phase und Netzwerkbedarf | **Windows-Komponenten** – mit Hilfe-Link und Virtualisierungsprüfung |
 | ![Einstellungen: Pfade, Auslöser, Ablauf](docs/screenshots/de-settings.png) | ![Vorschau aller erzeugten Dateien](docs/screenshots/de-preview.png) |
 | **Einstellungen** – Auslöser, Phase 2, Abschluss | **Vorschau** – jede erzeugte Datei vor dem Export |
+| ![Treiberpakete mit Ziel und Modellfilter](docs/screenshots/de-drivers.png) | ![Hilfe-Dialog zur aktuellen Seite](docs/screenshots/de-help.png) |
+| **Treiber** – Pakete für pnputil oder Windows Setup, mit Modellfilter | **Hilfe** – ausführliche Beschreibung zu jeder Seite, auch per F1 |
 
 ## Download
 
@@ -41,6 +43,8 @@ ZIP entpacken, `index.html` öffnen. Im Paket sind die Screenshots nur verlinkt.
   Nicht-winget-Manager (Chocolatey, Scoop, npm, pip, Cargo, .NET Tool) werden
   übernommen und passend installiert; Chocolatey wird bei Bedarf nachinstalliert.
   Beim Export entsteht wieder ein `.ubundle`, das UniGetUI einlesen kann.
+  Die Paketliste lässt sich per Klick auf den Spaltenkopf sortieren; die
+  Installationsreihenfolge bleibt davon unberührt.
 * **Microsoft Office (ODT)** – Configuration.xml importieren oder bearbeiten, mit
   Auswertung (Produkte, Sprachen, Kanal) und Prüfung auf unbeaufsichtigte
   Installation. Läuft standardmäßig in Phase 2, weil das Deployment Tool die
@@ -53,6 +57,8 @@ ZIP entpacken, `index.html` öffnen. Im Paket sind die Screenshots nur verlinkt.
 * **Bloatware** – Auswahl vorinstallierter AppX-Pakete inkl. Provisioning-Entfernung.
 * **Windows-Komponenten** – Windows Sandbox, Hyper-V, WSL, .NET 3.5, OpenSSH, RSAT und
   weitere Features gleich mit zuschalten (siehe unten).
+* **Treiber** – entpackte Treiber per `pnputil` einspielen oder über `$WinPEDriver$`
+  schon in Windows Setup laden, optional je Gerätemodell (siehe unten).
 * **Eigene Dateien** – Installer und Skripte mitliefern, wahlweise nach
   `Install\Files` (wird ausgeführt) oder neben `SetupComplete.cmd` in
   `Setup\Scripts` (über `%~dp0` erreichbar).
@@ -61,8 +67,12 @@ ZIP entpacken, `index.html` öffnen. Im Paket sind die Screenshots nur verlinkt.
   werden mit fortlaufender `<Order>` in die vorhandenen Blöcke eingefügt.
 * **Diagnose.ps1** – liegt im erzeugten Paket und beantwortet nach der
   Installation, warum nichts gelaufen ist.
+* **Hilfe auf jeder Seite** – der Knopf *Hilfe* im Seitenkopf (oder <kbd>F1</kbd>)
+  öffnet eine ausführliche Beschreibung aller Optionen der Seite, auf Deutsch
+  oder Englisch, mit Querverweisen zwischen den Themen.
 * **Vorschau** aller erzeugten Dateien, **Projektdatei** zum Speichern und
-  Weiterarbeiten, ZIP-Export.
+  Weiterarbeiten, ZIP-Export. Chrome und Edge fragen beim Speichern mit einem
+  „Speichern unter“-Dialog nach dem Ziel; Firefox und Safari laden die Datei herunter.
 
 ## Zwei-Phasen-Modell
 
@@ -143,13 +153,22 @@ dafür, dass gar nichts kopiert wird:
 
 | Antwortdatei | Ablageort |
 |---|---|
-| keine, oder `UseConfigurationSet` nicht gesetzt | `<Medium>\sources\$OEM$\…` |
-| `<UseConfigurationSet>true</UseConfigurationSet>` | `<Medium>\$OEM$\…` (Wurzelverzeichnis) |
+| `<UseConfigurationSet>true</UseConfigurationSet>` (setzt der Generator) | `<Medium>\$OEM$\…` (Wurzelverzeichnis) |
+| keine Antwortdatei | `<Medium>\sources\$OEM$\…` |
+| Antwortdatei mit `UseConfigurationSet=false` | auf aktuellen Windows-11-Builds unter Umständen **gar nicht** kopiert |
 
 Bei `UseConfigurationSet=true` sucht Setup den Konfigurationssatz **neben der
-Antwortdatei**. Der Generator erkennt das beim Import und stellt die Ablage auf
-„beide Orte“ – Setup wertet nur den passenden aus, der andere Ordner wird
-ignoriert. Das ist die Voreinstellung.
+Antwortdatei**. Ohne diesen Wert hat Windows Setup (Windows 11, Build 26300) im
+Test `$OEM$` überhaupt nicht kopiert – weder aus `sources\` noch aus dem
+Wurzelverzeichnis; es gab weder Installationsordner noch Phase 2. Der Generator
+schreibt `UseConfigurationSet=true` deshalb in die erzeugte und in eine
+importierte Antwortdatei (*Einstellungen → Auslöser*, abschaltbar) und stellt
+die Ablage auf „beide Orte“ – Setup wertet nur den passenden aus, der andere
+Ordner wird ignoriert.
+
+Setup kopiert mit `true` den Ordner der Antwortdatei nach
+`C:\Windows\ConfigSetRoot`. Auf einem normalen Installationsmedium ist das
+unkritisch; auf Multiboot-Sticks wie Ventoy kann es sehr groß werden.
 
 ### Office braucht ein Netzwerk
 
@@ -230,6 +249,40 @@ Freigabe für Features on Demand lässt sie scheitern.
 Komponenten, die einen Neustart brauchen, setzen
 `HKLM\SOFTWARE\OEM-Setup\RestartNeeded = 1`. Mit *Einstellungen → Abschluss →
 Neustart* erledigt sich das von selbst.
+
+### Treiber
+
+Entpackte Treiber (INF, SYS, CAT …) werden als Pakete mitgeliefert – je Paket ein
+Ordner. Hinzufügen per **Treiberordner hinzufügen** (der Ordnername wird der
+Paketname), als einzelne Dateien oder als **leeres Paket**, dessen Dateien man
+später selbst auf das Medium kopiert. Leere Pakete eignen sich für große
+Treibersammlungen, die man nicht durch den Browser schieben will.
+
+| Ziel | Ablage | Wann | Geeignet für |
+|---|---|---|---|
+| **pnputil** | `$OEM$\$1\Install\Drivers\<Paket>` | in der gewählten Phase (Standard: Phase 1) | Chipsatz, Grafik, Audio, WLAN … |
+| **Windows Setup** | `$WinPEDriver$\<Paket>` im Wurzelverzeichnis des Mediums | Setup lädt sie selbst, vor der Installation | NVMe/RAID, Netzwerk – alles, ohne das Setup nicht weiterkommt |
+
+`Install-Drivers.ps1` ruft je Paket
+`pnputil /add-driver <Paket>\*.inf /subdirs /install` auf, mit eigener
+Zeitgrenze. Exitcode 3010 setzt `RestartNeeded`, 259 bedeutet „im
+Treiberspeicher, aber kein Gerät hat ihn übernommen“ – beides gilt als Erfolg.
+
+**Modellfilter:** Ein Paket lässt sich auf bestimmte Geräte beschränken, damit
+ein Medium mehrere Modelle bedient. Mehrere Muster mit `;` trennen, `*` und `?`
+sind erlaubt, ein Muster ohne Platzhalter gilt als Teilstring. Verglichen wird
+mit Modell, Hersteller + Modell, SKU und – für Lenovo, wo `Model` nur den
+Maschinentyp enthält – dem Produktnamen aus `Win32_ComputerSystemProduct`. Die
+erkannten Werte stehen im Protokoll. Auf dem Zielgerät anzeigen:
+
+```powershell
+Get-CimInstance Win32_ComputerSystem | Select Manufacturer, Model, SystemSKUNumber
+```
+
+Treiberdateien landen nur im ZIP, nicht in der Projektdatei: Nach dem Laden
+eines Projekts sind die Pakete wieder da, aber leer. Mit der ZIP-Wurzel „beide
+Orte“ liegen die pnputil-Pakete doppelt im Archiv. Treiber-Installer als EXE
+gehören weiterhin unter *Eigene Dateien*.
 
 ### winget braucht einen Benutzerkontext
 
@@ -387,6 +440,8 @@ liest, hängt, sobald das Programm mehr schreibt, als in den Puffer passt.
 ```
 index.html        Oberfläche
 css/app.css       Layout
+js/version.js     Versionsnummer (einzige Stelle)
+js/help.js        Hilfetexte je Seite (Deutsch/Englisch)
 js/i18n.js        Wörterbuch Deutsch/Englisch und Sprachumschaltung
 js/zip.js         ZIP-Writer (Deflate über CompressionStream, sonst „stored“)
 js/catalog.js     Katalog für Tweaks, Bloatware und Windows-Komponenten, Paketmanager
@@ -408,8 +463,9 @@ beiden Prüfungen aus, baut mit `node tools/build-release.js <tag>` das Paket
 `dist/OEM-Script-Generator-<tag>.zip` und legt das GitHub-Release an. Die
 Release-Notes kommen aus `docs/releases/<tag>.md`. Im Paket ersetzt das Skript
 die eingebetteten Screenshots in beiden READMEs durch Links auf das Repository
-zum selben Tag.
+zum selben Tag. Vorher die Versionsnummer in `js/version.js` anpassen – das
+Build-Skript bricht ab, wenn sie nicht zum Tag passt.
 
 ```bash
-git tag v1.00 && git push origin v1.00
+git tag v1.1 && git push origin v1.1
 ```

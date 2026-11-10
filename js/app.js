@@ -30,7 +30,7 @@
       paths: { installRoot: 'C:\\Install', zipRoot: 'both' },
       options: {
         transcript: true, selfDelete: false, cleanupInstall: false,
-        toastOnFinish: false, phase2Runner: 'task', finish: 'none', trigger: 'both'
+        toastOnFinish: false, phase2Runner: 'task', finish: 'none', trigger: 'both', configSet: true
       },
       unattend: { xml: null, name: '', info: null },
       apps: {
@@ -50,6 +50,7 @@
       },
       bloat: { enabled: false, phase: 'setup', provisioned: true, selected: [] },
       features: { enabled: false, phase: 'firstlogon', timeoutMin: 20, selected: [] },
+      drivers: { enabled: false, phase: 'setup', timeoutMin: 10, items: [] },
       files: { items: [] },
       custom: { cmdEnabled: true, cmd: '', psEnabled: true, psPhase: 'setup', ps: '' }
     };
@@ -116,6 +117,9 @@
     ['featuresEnabled', 'features.enabled', 'bool'],
     ['featuresPhase', 'features.phase', 'text'],
     ['featuresTimeout', 'features.timeoutMin', 'num'],
+    ['driversEnabled', 'drivers.enabled', 'bool'],
+    ['driversPhase', 'drivers.phase', 'text'],
+    ['driversTimeout', 'drivers.timeoutMin', 'num'],
     ['customCmdEnabled', 'custom.cmdEnabled', 'bool'],
     ['customCmd', 'custom.cmd', 'text'],
     ['customPsEnabled', 'custom.psEnabled', 'bool'],
@@ -129,7 +133,8 @@
     ['setTranscript', 'options.transcript', 'bool'],
     ['setSelfDelete', 'options.selfDelete', 'bool'],
     ['setKeepInstall', 'options.cleanupInstall', 'bool'],
-    ['setToastOnFinish', 'options.toastOnFinish', 'bool']
+    ['setToastOnFinish', 'options.toastOnFinish', 'bool'],
+    ['setConfigSet', 'options.configSet', 'bool']
   ];
 
   function bindAll() {
@@ -141,6 +146,12 @@
         if (id === 'officeXml') renderOfficeSummary();
         if (id === 'tweaksPhase') renderTweaks();
         if (id === 'featuresPhase') renderFeatureHints();
+        if ((id === 'setConfigSet' || id === 'setTrigger') && configSetActive() && state.paths.zipRoot === 'sources') {
+          state.paths.zipRoot = 'both';
+          syncInputs();
+          toast(T('UseConfigurationSet=true: Setup sucht $OEM$ im Wurzelverzeichnis – Ablage auf „beide Orte“ gestellt.'), 'warn');
+        }
+        if (id === 'setConfigSet' || id === 'setTrigger' || id === 'setZipRoot') renderUnattend();
         refresh();
       });
     }
@@ -166,13 +177,47 @@
 
   /* ---------------- Anwendungen ---------------- */
 
+  /*  Spaltensortierung. Sie ordnet nur die Anzeige; state.apps.items behaelt
+      seine Reihenfolge, denn in dieser Reihenfolge wird installiert. Ein
+      dritter Klick auf dieselbe Spalte schaltet die Sortierung wieder aus. */
+  let appsSort = { key: null, dir: 1 };
+  const appsCollator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+
+  function appsSortValue(p, key) {
+    if (key === 'manager') return (Catalog.MANAGERS[p.manager] || {}).label || p.manager || '';
+    return p[key] || '';
+  }
+
+  function sortApps(list) {
+    if (!appsSort.key) return list;
+    const key = appsSort.key;
+    return list.slice().sort((a, b) => {
+      const va = appsSortValue(a, key), vb = appsSortValue(b, key);
+      if (!va !== !vb) return va ? -1 : 1;          /* leere Werte immer ans Ende */
+      return appsCollator.compare(va, vb) * appsSort.dir;
+    });
+  }
+
+  function toggleAppsSort(key) {
+    if (appsSort.key !== key) appsSort = { key, dir: 1 };
+    else if (appsSort.dir === 1) appsSort.dir = -1;
+    else appsSort = { key: null, dir: 1 };
+    $$('#appsTable th.sortable').forEach((th) => {
+      const on = th.dataset.sort === appsSort.key;
+      th.classList.toggle('sort-asc', on && appsSort.dir === 1);
+      th.classList.toggle('sort-desc', on && appsSort.dir === -1);
+      th.setAttribute('aria-sort', on ? (appsSort.dir === 1 ? 'ascending' : 'descending') : 'none');
+    });
+    renderApps();
+  }
+
   function renderApps() {
     const tbody = $('#appsTable tbody');
     const filter = ($('#appsFilter').value || '').toLowerCase();
     tbody.innerHTML = '';
 
-    const list = state.apps.items.filter((p) =>
-      !filter || (p.name + ' ' + p.id + ' ' + p.manager).toLowerCase().includes(filter));
+    const list = sortApps(state.apps.items.filter((p) =>
+      !filter || (p.name + ' ' + p.id + ' ' + p.manager).toLowerCase().includes(filter)));
 
     if (!list.length) {
       const tr = document.createElement('tr');
@@ -373,7 +418,17 @@
       nameTd.querySelector('.mono').textContent = f.name;
       nameTd.querySelector('.muted').textContent = f.blob
         ? (f.blob.length / 1024 > 1024 ? (f.blob.length / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(f.blob.length / 1024)) + ' KB')
-        : T('nicht im Archiv (nur Platzhalter)');
+        : T('fehlt – nicht im Archiv');
+      if (!f.blob) {
+        /* Nach dem Laden einer Projektdatei: Datei neu zuordnen, Einstellungen bleiben. */
+        nameTd.querySelector('.muted').style.color = 'var(--warn)';
+        const pick = document.createElement('button');
+        pick.type = 'button'; pick.className = 'btn small mt-s';
+        pick.textContent = T('Datei wählen …');
+        pick.addEventListener('click', () => pickFileFor(f));
+        nameTd.appendChild(document.createElement('br'));
+        nameTd.appendChild(pick);
+      }
       tr.appendChild(nameTd);
 
       const destTd = document.createElement('td');
@@ -418,6 +473,157 @@
       actTd.appendChild(del); tr.appendChild(actTd);
       tbody.appendChild(tr);
     }
+  }
+
+  /* ---------------- Treiber ---------------- */
+
+  function fmtSize(n) {
+    return n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
+  }
+
+  /* Ordnernamen muessen eindeutig sein - jedes Paket ist ein Verzeichnis. */
+  function uniqueDriverName(name, self) {
+    const base = Templates.driverFolder(name);
+    const taken = new Set(state.drivers.items.filter((d) => d !== self).map((d) => Templates.driverFolder(d.name).toLowerCase()));
+    let n = base, i = 2;
+    while (taken.has(n.toLowerCase())) n = base + ' (' + (i++) + ')';
+    return n;
+  }
+
+  function driverStats(d) {
+    const files = (d.files || []).filter((f) => f.blob);
+    return {
+      count: files.length,
+      inf: files.filter((f) => /\.inf$/i.test(f.rel)).length,
+      size: files.reduce((a, f) => a + f.blob.length, 0)
+    };
+  }
+
+  async function addDriverPackage(name, entries) {
+    const d = { name: uniqueDriverName(name, null), dest: 'pnp', models: '', enabled: true, files: [] };
+    state.drivers.items.push(d);
+    for (const e of entries) d.files.push({ rel: e.rel, blob: await readBytes(e.file) });
+    if (!state.drivers.enabled) state.drivers.enabled = true;
+    return d;
+  }
+
+  let driverRefill = null;
+
+  /* Datei fuer einen Platzhalter unter "Eigene Dateien" neu waehlen. */
+  function pickFileFor(f) {
+    const inp = document.createElement('input');
+    inp.type = 'file';
+    inp.addEventListener('change', async () => {
+      const file = inp.files[0];
+      if (!file) return;
+      f.blob = await readBytes(file);
+      f.blobPresent = true;
+      if (file.name !== f.name) toast(F('„{0}“ zugeordnet (Eintrag hieß „{1}“).', file.name, f.name), 'warn');
+      else toast(F('„{0}“ zugeordnet.', file.name), 'ok');
+      renderFiles(); refresh();
+    });
+    inp.click();
+  }
+
+  function renderDrivers() {
+    const tbody = $('#driversTable tbody');
+    tbody.innerHTML = '';
+    const items = state.drivers.items;
+    if (!items.length) {
+      tbody.innerHTML = '<tr><td colspan="6" class="muted" style="padding:18px;text-align:center">' +
+        T('Noch keine Treiberpakete – Ordner hinzufügen oder leeres Paket anlegen.') + '</td></tr>';
+    }
+    for (const d of items) {
+      const tr = document.createElement('tr');
+      tr.className = d.enabled ? '' : 'off';
+
+      const cbTd = document.createElement('td');
+      const cb = document.createElement('input');
+      cb.type = 'checkbox'; cb.checked = d.enabled;
+      cb.addEventListener('change', () => { d.enabled = cb.checked; tr.className = d.enabled ? '' : 'off'; refresh(); });
+      cbTd.appendChild(cb); tr.appendChild(cbTd);
+
+      const nameTd = document.createElement('td');
+      const ni = document.createElement('input');
+      ni.type = 'text'; ni.value = d.name;
+      ni.addEventListener('change', () => { d.name = uniqueDriverName(ni.value, d); ni.value = d.name; refresh(); });
+      nameTd.appendChild(ni); tr.appendChild(nameTd);
+
+      const st = driverStats(d);
+      const infoTd = document.createElement('td');
+      infoTd.innerHTML = '<span></span><br><span class="muted" style="font-size:11px"></span>';
+      if (st.count) {
+        infoTd.firstChild.textContent = F(st.count === 1 ? '{0} Datei · {1} INF' : '{0} Dateien · {1} INF', st.count, st.inf);
+        infoTd.lastChild.textContent = fmtSize(st.size);
+        if (!st.inf) {
+          infoTd.lastChild.textContent += ' – ' + T('keine INF-Datei: EXE-Installer gehören unter „Eigene Dateien“');
+          infoTd.lastChild.style.color = 'var(--warn)';
+        }
+      } else if (d.missing) {
+        infoTd.firstChild.textContent = F('fehlt – {0} Dateien nicht im Archiv', d.missing);
+        infoTd.firstChild.style.color = 'var(--warn)';
+        infoTd.lastChild.textContent = T('Projektdatei enthält keine Treiberdateien – Ordner neu wählen');
+      } else {
+        infoTd.firstChild.textContent = T('leer');
+        infoTd.lastChild.textContent = T('Dateien später in den Ordner kopieren');
+      }
+      if (!st.count) {
+        const pick = document.createElement('button');
+        pick.type = 'button'; pick.className = 'btn small mt-s';
+        pick.textContent = T('Ordner wählen …');
+        pick.addEventListener('click', () => { driverRefill = d; $('#driversFolderInput').click(); });
+        infoTd.appendChild(document.createElement('br'));
+        infoTd.appendChild(pick);
+      }
+      tr.appendChild(infoTd);
+
+      const destTd = document.createElement('td');
+      const ds = document.createElement('select');
+      [['pnp', T('pnputil (Phase-Installation)')], ['winpe', T('Windows Setup ($WinPEDriver$)')]].forEach(([v, l]) => {
+        const o = document.createElement('option'); o.value = v; o.textContent = l;
+        if ((d.dest || 'pnp') === v) o.selected = true; ds.appendChild(o);
+      });
+      ds.addEventListener('change', () => { d.dest = ds.value; renderDrivers(); refresh(); });
+      destTd.appendChild(ds); tr.appendChild(destTd);
+
+      const modTd = document.createElement('td');
+      const mi = document.createElement('input');
+      mi.type = 'text'; mi.value = d.models || '';
+      if (d.dest === 'winpe') {
+        mi.disabled = true; mi.value = ''; mi.placeholder = T('Setup wählt selbst nach Hardware');
+      } else {
+        mi.placeholder = T('alle Geräte – z. B. Latitude 5440; ThinkPad T14 Gen 3');
+      }
+      mi.addEventListener('change', () => { d.models = mi.value; refresh(); });
+      modTd.appendChild(mi); tr.appendChild(modTd);
+
+      const actTd = document.createElement('td');
+      const del = document.createElement('button');
+      del.className = 'btn small icon danger'; del.textContent = '✕'; del.title = T('Entfernen');
+      del.addEventListener('click', () => {
+        state.drivers.items = state.drivers.items.filter((x) => x !== d);
+        renderDrivers(); refresh();
+      });
+      actTd.appendChild(del); tr.appendChild(actTd);
+      tbody.appendChild(tr);
+    }
+
+    const hint = $('#driversHint');
+    const active = items.filter((d) => d.enabled);
+    const total = active.reduce((a, d) => a + driverStats(d).size, 0);
+    const parts = [];
+    if (total) parts.push(F('Zusammen {0} Treiberdateien im ZIP.', fmtSize(total)));
+    if (total > 1024 * 1024 * 1024) {
+      parts.push(T('Über 1 GB: Der Browser hält alles im Arbeitsspeicher, und ein ZIP fasst höchstens 4 GB. ' +
+        'Große Pakete besser als „Leeres Paket“ anlegen und die Dateien direkt aufs Medium kopieren.'));
+    }
+    if (total && state.paths.zipRoot === 'both' && active.some((d) => d.dest !== 'winpe' && driverStats(d).count)) {
+      parts.push(T('Mit der ZIP-Wurzel „beide Orte“ liegen die pnputil-Pakete doppelt im Archiv.'));
+    }
+    if (active.some((d) => d.dest === 'winpe')) {
+      parts.push(T('$WinPEDriver$ liegt im Wurzelverzeichnis des ZIP und gehört ins Wurzelverzeichnis des Mediums.'));
+    }
+    hint.textContent = parts.join(' ');
   }
 
   /* ---------------- Office ---------------- */
@@ -477,7 +683,32 @@
     box.appendChild(warn);
   }
 
+  /* UseConfigurationSet wirkt nur, wenn eine autounattend.xml erzeugt wird. */
+  function configSetActive() {
+    return state.options.configSet !== false && state.options.trigger !== 'setupcomplete';
+  }
+
+  function renderConfigSetHint() {
+    const h = $('#configSetHint');
+    if (!h) return;
+    let txt = '', warn = false;
+    if (state.options.trigger === 'setupcomplete') {
+      txt = T('Ohne autounattend.xml ohne Wirkung – $OEM$ gehört dann nach sources\\.');
+    } else if (state.options.configSet === false) {
+      txt = T('Achtung: Ohne UseConfigurationSet hat Windows Setup (Windows 11, Build 26300) $OEM$ im Test gar nicht kopiert – kein Installationsordner, keine Phase 2.');
+      warn = true;
+    } else if (state.paths.zipRoot === 'sources') {
+      txt = T('Achtung: Mit UseConfigurationSet=true sucht Setup $OEM$ im Wurzelverzeichnis – die Ablage „sources“ allein wird ignoriert.');
+      warn = true;
+    } else {
+      txt = T('Setup kopiert den Ordner der Antwortdatei nach C:\\Windows\\ConfigSetRoot. Auf einem normalen Installationsmedium unkritisch; auf Multiboot-Sticks (Ventoy) kann das sehr groß werden.');
+    }
+    h.textContent = txt;
+    h.style.color = warn ? 'var(--warn)' : '';
+  }
+
   function renderUnattend() {
+    renderConfigSetHint();
     const box = $('#unattendBox');
     const drop = $('#btnUnattendDrop');
     box.innerHTML = '';
@@ -505,13 +736,14 @@
     row(T('Importierte Datei'), u.name);
     row(T('Vorhandene Befehle'), String(u.info.commandCount));
     row(T('Passes'), u.info.passes.filter(Boolean).join(', ') || '–');
-    row(T('UseConfigurationSet'), u.info.useConfigurationSet ? 'true' : 'false');
+    row(T('UseConfigurationSet'), (u.info.useConfigurationSet ? 'true' : 'false') +
+      (configSetActive() && !u.info.useConfigurationSet ? ' → true' + T(' (setzt der Generator)') : ''));
     if (u.info.productKey) row(T('Produktschlüssel'), u.info.productKey);
     box.appendChild(dl);
 
     const p = document.createElement('p');
     p.className = 'hint';
-    if (u.info.useConfigurationSet) {
+    if (u.info.useConfigurationSet || configSetActive()) {
       p.innerHTML = T('<b>UseConfigurationSet=true:</b> Windows Setup sucht den <code>$OEM$</code>-Ordner neben der ' +
         'Antwortdatei, also im <b>Wurzelverzeichnis</b> des Mediums – nicht unter <code>sources\\</code>. ' +
         'Die Ablage steht deshalb auf „beide Orte“.');
@@ -629,6 +861,8 @@
       { on: state.tweaks.enabled && state.tweaks.selected.length > 0, k: T('Tweaks'), v: state.tweaks.selected.length, d: T(state.tweaks.phase === 'setup' ? 'Phase 1' : 'Phase 2') },
       { on: state.bloat.enabled && state.bloat.selected.length > 0, k: T('Bloatware'), v: state.bloat.selected.length, d: T('AppX-Pakete') },
       { on: state.features.enabled && state.features.selected.length > 0, k: T('Komponenten'), v: state.features.selected.length, d: T(state.features.phase === 'setup' ? 'Phase 1' : 'Phase 2') },
+      { on: state.drivers.enabled && state.drivers.items.some((d) => d.enabled), k: T('Treiber'), v: state.drivers.items.filter((d) => d.enabled).length,
+        d: state.drivers.items.some((d) => d.enabled && d.dest !== 'winpe') ? T(state.drivers.phase === 'setup' ? 'Phase 1' : 'Phase 2') : T('Windows Setup') },
       { on: state.files.items.some((f) => f.enabled), k: T('Eigene Dateien'), v: state.files.items.filter((f) => f.enabled).length, d: T('im Archiv') }
     ];
     cards.innerHTML = '';
@@ -646,6 +880,9 @@
     flow.innerHTML = '';
     const steps = [];
     steps.push(['Setup', T('Windows Setup kopiert <code>$OEM$\\$1</code> nach ') + esc(state.paths.installRoot) + T(' und <code>$OEM$\\$$</code> nach <code>%WINDIR%</code>')]);
+    if (state.drivers.enabled && state.drivers.items.some((d) => d.enabled && d.dest === 'winpe')) {
+      steps.push(['Setup', T('Windows Setup lädt die Treiber aus <code>$WinPEDriver$</code>')]);
+    }
     steps.push(['P1', T('<code>SetupComplete.cmd</code> startet <code>Install.ps1 -Phase Setup</code> als SYSTEM')]);
     Templates.moduleList(state, 'setup').forEach((m) => steps.push(['P1', esc(T(m[1]))]));
     if (state.custom.cmdEnabled && state.custom.cmd.trim()) steps.push(['P1', T('Eigene CMD-Befehle')]);
@@ -664,7 +901,7 @@
       flow.appendChild(li);
     });
 
-    $('#overviewTree').textContent = treeFromPaths(previewFiles.map((f) => f.path));
+    $('#overviewTree').textContent = treeFromPaths(Templates.collapseDriverFiles(previewFiles, I18n.lang === 'en').map((e) => e.path));
   }
 
   function esc(s) {
@@ -694,21 +931,32 @@
   function renderPreview() {
     const list = $('#fileList');
     list.innerHTML = '';
-    previewFiles.forEach((f) => {
+    /* Treiberpakete erscheinen als eine Zeile je Paket statt tausender Dateien. */
+    const entries = Templates.collapseDriverFiles(previewFiles, I18n.lang === 'en');
+    entries.forEach((e) => {
       const b = document.createElement('button');
-      b.className = 'f' + (f.path === previewActive ? ' active' : '');
+      b.className = 'f' + (e.path === previewActive ? ' active' : '');
       b.innerHTML = '<span></span>';
-      b.querySelector('span').textContent = f.path;
-      b.title = f.path;
-      b.addEventListener('click', () => { previewActive = f.path; renderPreview(); });
+      b.querySelector('span').textContent = e.path;
+      b.title = e.path;
+      b.addEventListener('click', () => { previewActive = e.path; renderPreview(); });
       list.appendChild(b);
     });
-    if (!previewFiles.some((f) => f.path === previewActive)) {
-      previewActive = previewFiles.length ? previewFiles[0].path : null;
+    if (!entries.some((e) => e.path === previewActive)) {
+      previewActive = entries.length ? entries[0].path : null;
       if (previewActive) return renderPreview();
     }
-    const cur = previewFiles.find((f) => f.path === previewActive);
-    $('#previewPath').textContent = cur ? cur.path : '–';
+    const entry = entries.find((e) => e.path === previewActive);
+    $('#previewPath').textContent = entry ? (entry.pkg || entry.path) : '–';
+    if (entry && entry.pkg) {
+      const size = entry.files.reduce((a, f) => a + f.data.length, 0);
+      const rels = entry.files.map((f) => f.path.slice(entry.pkg.length + 1)).sort();
+      $('#previewBody').textContent = F('{0} Dateien, zusammen {1} – werden unverändert ins Archiv übernommen:', rels.length, fmtSize(size)) +
+        '\n\n' + rels.slice(0, 1000).join('\n') + (rels.length > 1000 ? '\n…' : '');
+      $('#previewSize').textContent = fmtSize(size);
+      return;
+    }
+    const cur = entry && entry.file;
     if (!cur) { $('#previewBody').textContent = ''; $('#previewSize').textContent = ''; return; }
     if (cur.binary) {
       $('#previewBody').textContent = T('[Binärdatei – ') + (cur.data.length / 1024).toFixed(0) + T(' KB – wird unverändert ins Archiv übernommen]');
@@ -739,6 +987,8 @@
       $('#badgeTweaks').textContent = state.tweaks.selected.length;
       $('#badgeBloat').textContent = state.bloat.selected.length;
       $('#badgeFeatures').textContent = state.features.selected.length;
+      labelHelp();
+      $('#badgeDrivers').textContent = state.drivers.items.filter((d) => d.enabled).length;
       $('#badgeFiles').textContent = state.files.items.filter((f) => f.enabled).length;
       const rel = Templates.relFromRoot(state.paths.installRoot);
       $('#officeSetupPath').textContent = '$OEM$\\$1\\' + rel + '\\Office\\setup.exe';
@@ -826,7 +1076,7 @@
   function renderAll() {
     syncInputs();
     I18n.apply();
-    renderApps(); renderTweaks(); renderBloat(); renderFeatures(); renderFiles(); renderOfficeSummary(); renderUnattend();
+    renderApps(); renderTweaks(); renderBloat(); renderFeatures(); renderDrivers(); renderFiles(); renderOfficeSummary(); renderUnattend();
     refresh();
   }
 
@@ -944,9 +1194,12 @@
         catch (e) { logImport(name + ': ' + e.message, 'err'); toast(T('autounattend.xml nicht lesbar.'), 'err'); return; }
         state.unattend = { xml: text, name: name, info: info };
         if (state.options.trigger === 'setupcomplete') state.options.trigger = 'both';
-        if (info.useConfigurationSet && state.paths.zipRoot === 'sources') state.paths.zipRoot = 'both';
+        if ((info.useConfigurationSet || state.options.configSet !== false) && state.paths.zipRoot === 'sources') state.paths.zipRoot = 'both';
         logImport(F('autounattend.xml übernommen: {0} – {1} vorhandene Befehle, UseConfigurationSet={2}',
           name, info.commandCount, info.useConfigurationSet ? 'true' : 'false'));
+        if (!info.useConfigurationSet && state.options.configSet !== false) {
+          logImport(T('UseConfigurationSet=false: Ohne true kopiert ein aktuelles Windows-11-Setup $OEM$ unter Umständen gar nicht – der Generator setzt den Wert beim Export auf true.'), 'warnl');
+        }
         if (info.useConfigurationSet) {
           logImport(T('UseConfigurationSet=true erkannt: $OEM$ gehört ins Wurzelverzeichnis des Mediums – Ablage auf „beide Orte“ gestellt.'), 'warnl');
         }
@@ -975,6 +1228,13 @@
   function projectJson() {
     const clone = JSON.parse(JSON.stringify(state, (k, v) => (k === 'blob' ? undefined : v)));
     clone.files.items.forEach((f) => { f.blobPresent = false; });
+    /* Treiberdateien gehoeren nicht in die Projektdatei - auch nicht als Liste. */
+    clone.drivers.items.forEach((d, i) => {
+      const n = (state.drivers.items[i].files || []).filter((f) => f.blob).length || state.drivers.items[i].missing || 0;
+      d.files = [];
+      if (n) d.fileCount = n; else delete d.fileCount;
+      delete d.missing;
+    });
     clone.savedAt = new Date().toISOString();
     return JSON.stringify(clone, null, 2);
   }
@@ -996,9 +1256,14 @@
       phase: f.phase || 'firstlogon', dest: f.dest || 'files',
       enabled: f.enabled !== false, blob: null, blobPresent: false
     }));
+    state.drivers.items = (state.drivers.items || []).map((d) => ({
+      name: d.name || 'Treiber', dest: d.dest === 'winpe' ? 'winpe' : 'pnp', models: d.models || '',
+      enabled: d.enabled !== false, files: [], missing: d.fileCount > 0 ? d.fileCount : 0
+    }));
     renderAll();
-    if (state.files.items.length) {
-      toast(T('Hinweis: Binärdateien sind nicht Teil der Projektdatei und müssen erneut hinzugefügt werden.'), 'warn');
+    const lost = missingBinaries();
+    if (lost.length) {
+      toast(F('Die Projektdatei enthält keine Binärdateien. Neu zuordnen: {0}', lost.join(', ')), 'warn');
     }
   }
 
@@ -1010,16 +1275,192 @@
     setTimeout(() => URL.revokeObjectURL(url), 4000);
   }
 
+  /*  "Speichern unter"-Dialog ueber die File System Access API (Chrome, Edge -
+      auch per file://). Ergebnis: ein Datei-Handle, false bei Abbruch durch den
+      Benutzer, null wenn der Browser den Dialog nicht kennt (Firefox, Safari)
+      oder ihn verweigert - dann bleibt es beim gewohnten Download.
+      Der Dialog muss direkt aus dem Klick heraus geoeffnet werden; Chrome
+      verlangt dafuer eine frische Benutzeraktion. Deshalb erst waehlen lassen,
+      dann den Inhalt erzeugen. Ueber "id" merkt sich Chrome den zuletzt
+      gewaehlten Ordner getrennt fuer Projektdateien und ZIPs. */
+  /*  Letzter Speicherort. Chrome merkt sich ueber "id" zwar selbst einen Ordner,
+      bei per file:// geoeffneten Seiten aber nicht verlaesslich. Deshalb wird der
+      zuletzt gewaehlte Datei-Handle in IndexedDB abgelegt (Handles lassen sich
+      dort speichern) und beim naechsten Dialog als startIn uebergeben - der
+      Dialog oeffnet dann im Ordner dieser Datei, auch nach einem Neuladen.
+      Projektdatei und ZIP haben je einen eigenen Eintrag; fehlt einer, gilt der
+      andere. Ohne IndexedDB (privates Fenster) bleibt es beim Verhalten des
+      Browsers. */
+  const lastPlace = (function () {
+    let dbp = null;
+    function db() {
+      if (!dbp) {
+        dbp = new Promise((resolve) => {
+          try {
+            const req = indexedDB.open('oemgen', 1);
+            req.onupgradeneeded = () => req.result.createObjectStore('handles');
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => resolve(null);
+          } catch (e) { resolve(null); }
+        });
+      }
+      return dbp;
+    }
+    async function run(mode, fn) {
+      const d = await db();
+      if (!d) return null;
+      return new Promise((resolve) => {
+        try {
+          const tx = d.transaction('handles', mode);
+          const req = fn(tx.objectStore('handles'));
+          tx.oncomplete = () => resolve(req ? req.result : null);
+          tx.onerror = tx.onabort = () => resolve(null);
+        } catch (e) { resolve(null); }
+      });
+    }
+    return {
+      get: (key) => run('readonly', (st) => st.get(key)),
+      set: (key, handle) => run('readwrite', (st) => st.put(handle, key))
+    };
+  })();
+
+  const PLACE_KEYS = ['oem-project', 'oem-zip'];
+
+  async function startInFor(id) {
+    const own = await lastPlace.get(id);
+    if (own) return own;
+    for (const k of PLACE_KEYS) {
+      if (k === id) continue;
+      const other = await lastPlace.get(k);
+      if (other) return other;
+    }
+    return null;
+  }
+
+  async function pickSaveTarget(filename, opts) {
+    if (typeof window.showSaveFilePicker !== 'function') return null;
+    const startIn = await startInFor(opts.id);
+    const base = { suggestedName: filename, id: opts.id, types: [{ description: opts.description, accept: opts.accept }] };
+    let handle = null;
+    try {
+      handle = await window.showSaveFilePicker(startIn ? Object.assign({ startIn }, base) : base);
+    } catch (e) {
+      if (e && e.name === 'AbortError') return false;
+      /* Ein veralteter Ort (Datei geloescht, Laufwerk weg) darf den Dialog nicht verhindern. */
+      if (startIn) {
+        try { handle = await window.showSaveFilePicker(base); }
+        catch (e2) {
+          if (e2 && e2.name === 'AbortError') return false;
+          console.warn('Speichern-Dialog nicht verfuegbar, falle auf Download zurueck:', e2);
+          return null;
+        }
+      } else {
+        console.warn('Speichern-Dialog nicht verfuegbar, falle auf Download zurueck:', e);
+        return null;
+      }
+    }
+    await lastPlace.set(opts.id, handle);
+    return handle;
+  }
+
+  /*  Projekt laden ueber den Oeffnen-Dialog, im Ordner der zuletzt gespeicherten
+      bzw. geladenen Projektdatei. Ohne die Schnittstelle: das versteckte
+      Datei-Feld wie bisher. */
+  async function openProjectFile() {
+    if (typeof window.showOpenFilePicker !== 'function') { $('#projectInput').click(); return; }
+    const startIn = await startInFor('oem-project');
+    const base = { id: 'oem-project', multiple: false,
+      types: [{ description: T('OEM-Projektdatei'), accept: { 'application/json': ['.json'] } }] };
+    let handles;
+    try {
+      handles = await window.showOpenFilePicker(startIn ? Object.assign({ startIn }, base) : base);
+    } catch (e) {
+      if (e && e.name === 'AbortError') return;
+      try { handles = await window.showOpenFilePicker(base); }
+      catch (e2) { if (!e2 || e2.name !== 'AbortError') $('#projectInput').click(); return; }
+    }
+    const handle = handles && handles[0];
+    if (!handle) return;
+    await lastPlace.set('oem-project', handle);
+    importFile(await handle.getFile(), { forceType: 'project' });
+  }
+
+  async function writeToHandle(handle, blob) {
+    const w = await handle.createWritable();
+    try { await w.write(blob); } finally { await w.close(); }
+  }
+
+  async function saveProject() {
+    const name = (state.meta.name || 'Projekt').replace(/[^\w.-]+/g, '_') + '.oemproj.json';
+    const handle = await pickSaveTarget(name, {
+      id: 'oem-project', description: T('OEM-Projektdatei'), accept: { 'application/json': ['.json'] }
+    });
+    if (handle === false) return;
+    const blob = new Blob([projectJson()], { type: 'application/json' });
+    if (handle) {
+      try {
+        await writeToHandle(handle, blob);
+        toast(F('Projekt gespeichert: {0}', handle.name), 'ok');
+      } catch (e) {
+        console.error(e);
+        toast(F('Speichern fehlgeschlagen: {0}', e.message), 'err');
+      }
+      return;
+    }
+    download(blob, name);
+    toast(T('Projektdatei gespeichert.'), 'ok');
+  }
+
+  /*  Was ins ZIP gehoert, aber nur als Platzhalter vorliegt - typisch nach dem
+      Laden einer Projektdatei. Bewusst leer angelegte Treiberpakete zaehlen
+      nicht dazu. */
+  function missingBinaries() {
+    const out = [];
+    state.files.items.filter((f) => f.enabled && !f.blob).forEach((f) => out.push(f.name));
+    if (state.drivers.enabled) {
+      state.drivers.items.filter((d) => d.enabled && d.missing && !driverStats(d).count)
+        .forEach((d) => out.push(F('Treiber „{0}“', d.name)));
+    }
+    return out;
+  }
+
+  /*  js/zip.js schreibt kein ZIP64: ueber 4 GB Gesamtgroesse oder 65535
+      Eintraege entstuende ein defektes Archiv. Mit etwas Abstand abbrechen. */
+  const ZIP_MAX_BYTES = 3.8 * 1024 * 1024 * 1024;
+  const ZIP_MAX_ENTRIES = 65000;
+
   async function exportZip() {
     if (!previewFiles.length) previewFiles = Templates.build(state);
+    const total = previewFiles.reduce((a, f) => a + (f.data ? f.data.length : 0), 0);
+    if (total > ZIP_MAX_BYTES || previewFiles.length > ZIP_MAX_ENTRIES) {
+      alert(F('Das ZIP würde {0} mit {1} Dateien groß – mehr, als ein ZIP ohne ZIP64 fassen kann (4 GB, 65535 Dateien).\n\n' +
+        'Große Treiberpakete besser als „Leeres Paket“ anlegen und die Dateien nach dem Entpacken direkt aufs Medium kopieren. ' +
+        'Die Ablage „beide Orte“ verdoppelt die pnputil-Treiber; „sources\\$OEM$“ allein halbiert die Größe.',
+        fmtSize(total), previewFiles.length));
+      return;
+    }
+    const lost = missingBinaries();
+    if (lost.length && !confirm(F('Diese Dateien fehlen und kommen nur als Platzhalter ins ZIP:\n\n{0}\n\n' +
+        'Die Projektdatei enthält keine Binärdateien – nach dem Laden müssen sie unter „Eigene Dateien“ bzw. „Treiber“ ' +
+        'neu zugeordnet werden. Trotzdem erzeugen?', lost.map((x) => '• ' + x).join('\n')))) return;
+    const zipName = (state.meta.name || 'OEM').replace(/[^\w.-]+/g, '_') + '-OEM.zip';
+    const handle = await pickSaveTarget(zipName, {
+      id: 'oem-zip', description: T('ZIP-Archiv'), accept: { 'application/zip': ['.zip'] }
+    });
+    if (handle === false) return;
     const btn = $('#btnExport');
     btn.disabled = true; btn.textContent = T('Erzeuge …');
     try {
       const entries = previewFiles.map((f) => ({ path: f.path, data: f.data }));
       entries.push({ path: (state.meta.name || 'Projekt').replace(/[^\w.-]+/g, '_') + '.oemproj.json', data: projectJson() });
       const blob = await MiniZip.createZip(entries);
-      download(blob, (state.meta.name || 'OEM').replace(/[^\w.-]+/g, '_') + '-OEM.zip');
-      toast(F('ZIP mit {0} Dateien erstellt.', entries.length), 'ok');
+      if (handle) {
+        await writeToHandle(handle, blob);
+        toast(F('ZIP mit {0} Dateien gespeichert: {1}', entries.length, handle.name), 'ok');
+      } else {
+        download(blob, zipName);
+        toast(F('ZIP mit {0} Dateien erstellt.', entries.length), 'ok');
+      }
     } catch (e) {
       console.error(e);
       toast(F('Export fehlgeschlagen: {0}', e.message), 'err');
@@ -1034,12 +1475,8 @@
     $$('.nav-item').forEach((b) => b.addEventListener('click', () => setView(b.dataset.view)));
 
     $('#btnExport').addEventListener('click', exportZip);
-    $('#btnSaveProject').addEventListener('click', () => {
-      download(new Blob([projectJson()], { type: 'application/json' }),
-        (state.meta.name || 'Projekt').replace(/[^\w.-]+/g, '_') + '.oemproj.json');
-      toast(T('Projektdatei gespeichert.'), 'ok');
-    });
-    $('#btnLoadProject').addEventListener('click', () => $('#projectInput').click());
+    $('#btnSaveProject').addEventListener('click', saveProject);
+    $('#btnLoadProject').addEventListener('click', openProjectFile);
     $('#projectInput').addEventListener('change', (e) => {
       if (e.target.files[0]) importFile(e.target.files[0], { forceType: 'project' });
       e.target.value = '';
@@ -1087,6 +1524,7 @@
 
     /* Anwendungen */
     $('#appsFilter').addEventListener('input', renderApps);
+    $$('#appsTable th.sortable').forEach((th) => th.addEventListener('click', () => toggleAppsSort(th.dataset.sort)));
     $('#btnAppsAll').addEventListener('click', () => { state.apps.items.forEach((p) => { p.enabled = true; }); renderApps(); refresh(); });
     $('#btnAppsNone').addEventListener('click', () => { state.apps.items.forEach((p) => { p.enabled = false; }); renderApps(); refresh(); });
     $('#btnAppsClear').addEventListener('click', () => {
@@ -1137,6 +1575,53 @@
 
     /* Dateien */
     $('#btnFilesAdd').addEventListener('click', () => $('#filesInput').click());
+    /* Treiber */
+    $('#btnDriversFolder').addEventListener('click', () => $('#driversFolderInput').click());
+    $('#btnDriversFiles').addEventListener('click', () => $('#driversFilesInput').click());
+    $('#btnDriversEmpty').addEventListener('click', () => {
+      state.drivers.items.push({ name: uniqueDriverName(T('Treiber'), null), dest: 'pnp', models: '', enabled: true, files: [] });
+      state.drivers.enabled = true;
+      syncInputs(); renderDrivers(); refresh();
+    });
+    $('#driversFolderInput').addEventListener('change', async (e) => {
+      /* Ein gewaehlter Ordner wird ein Paket; der Ordnername wird der Paketname. */
+      const groups = new Map();
+      for (const f of Array.from(e.target.files)) {
+        const parts = (f.webkitRelativePath || f.name).split('/');
+        const top = parts.length > 1 ? parts[0] : 'Treiber';
+        const rel = parts.length > 1 ? parts.slice(1).join('/') : f.name;
+        if (!groups.has(top)) groups.set(top, []);
+        groups.get(top).push({ rel, file: f });
+      }
+      e.target.value = '';
+      if (driverRefill) {
+        /* Vorhandenes Paket fuellen: Name, Ziel und Modellfilter bleiben. */
+        const d = driverRefill;
+        driverRefill = null;
+        d.files = [];
+        for (const list of groups.values()) for (const x of list) d.files.push({ rel: x.rel, blob: await readBytes(x.file) });
+        d.missing = 0;
+        const st = driverStats(d);
+        toast(F(st.count === 1 ? 'Treiberpaket „{0}“: {1} Datei, {2} INF.' : 'Treiberpaket „{0}“: {1} Dateien, {2} INF.', d.name, st.count, st.inf), st.inf ? 'ok' : 'warn');
+        renderDrivers(); refresh();
+        return;
+      }
+      for (const [name, list] of groups) {
+        const d = await addDriverPackage(name, list);
+        const st = driverStats(d);
+        toast(F(st.count === 1 ? 'Treiberpaket „{0}“: {1} Datei, {2} INF.' : 'Treiberpaket „{0}“: {1} Dateien, {2} INF.', d.name, st.count, st.inf), st.inf ? 'ok' : 'warn');
+      }
+      syncInputs(); renderDrivers(); refresh();
+    });
+    $('#driversFilesInput').addEventListener('change', async (e) => {
+      const list = Array.from(e.target.files).map((f) => ({ rel: f.name, file: f }));
+      e.target.value = '';
+      if (!list.length) return;
+      const inf = list.find((x) => /\.inf$/i.test(x.rel)) || list[0];
+      await addDriverPackage(inf.rel.replace(/\.[^.]+$/, ''), list);
+      syncInputs(); renderDrivers(); refresh();
+    });
+
     $('#filesInput').addEventListener('change', async (e) => {
       for (const f of Array.from(e.target.files)) {
         const bytes = await readBytes(f);
@@ -1200,11 +1685,86 @@
     });
   }
 
+  /* ---------------- Hilfe ---------------- */
+
+  /*  Jede Seite bekommt im Kopf einen Hilfe-Knopf. Das h2 traegt data-i18n und
+      wird bei jedem Sprachwechsel neu beschrieben - der Knopf darf deshalb
+      nicht darin liegen, sondern daneben in einem eigenen Kopfbereich. */
+  let helpTopic = null;
+
+  function setupHelp() {
+    $$('section.view').forEach((sec) => {
+      const h2 = sec.querySelector(':scope > h2');
+      if (!h2) return;
+      const view = sec.id.replace(/^view-/, '');
+      if (!Help.get(view, 'de')) return;
+      const head = document.createElement('div');
+      head.className = 'view-head';
+      sec.insertBefore(head, h2);
+      head.appendChild(h2);
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn small help-btn';
+      btn.dataset.helpView = view;
+      btn.innerHTML = '<span class="q">?</span><span class="lbl"></span>';
+      btn.addEventListener('click', () => openHelp(view));
+      head.appendChild(btn);
+    });
+    $('#helpClose').addEventListener('click', () => $('#helpDialog').close());
+    /* Klick auf den abgedunkelten Hintergrund schliesst ebenfalls. */
+    $('#helpDialog').addEventListener('click', (e) => { if (e.target === e.currentTarget) e.currentTarget.close(); });
+    $('#helpBody').addEventListener('click', (e) => {
+      const a = e.target.closest('a[data-help]');
+      if (!a) return;
+      e.preventDefault();
+      openHelp(a.dataset.help);
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'F1') return;
+      e.preventDefault();
+      const active = document.querySelector('section.view.active');
+      if (active) openHelp(active.id.replace(/^view-/, ''));
+    });
+  }
+
+  function labelHelp() {
+    $$('.help-btn').forEach((b) => {
+      b.querySelector('.lbl').textContent = T('Hilfe');
+      b.title = T('Hilfe zu dieser Seite (F1)');
+    });
+    $('#helpClose').title = T('Schließen');
+    $('#helpClose').setAttribute('aria-label', T('Schließen'));
+    const en = I18n.lang === 'en';
+    $('#helpReadme').textContent = T('Vollständige Dokumentation im README');
+    $('#helpReadme').href = 'https://github.com/dmatrix68-boop/OEM-script-gen/blob/main/' + (en ? 'README.en.md' : 'README.md');
+    $('#helpKeys').textContent = T('F1 öffnet die Hilfe, Esc schließt sie');
+    if (helpTopic && $('#helpDialog').open) renderHelp();
+  }
+
+  function renderHelp() {
+    const doc = Help.get(helpTopic, I18n.lang);
+    if (!doc) return;
+    $('#helpTitle').textContent = doc.title;
+    $('#helpBody').innerHTML = doc.html;
+    $('#helpBody').scrollTop = 0;
+  }
+
+  function openHelp(view) {
+    if (!Help.get(view, 'de')) return;
+    helpTopic = view;
+    renderHelp();
+    const dlg = $('#helpDialog');
+    if (!dlg.open) dlg.showModal();
+  }
+
   /* ---------------- Start ---------------- */
 
   function init() {
+    const ver = $('#appVersion');
+    if (ver && window.APP_VERSION) ver.textContent = 'V' + window.APP_VERSION;
     bindAll();
     wire();
+    setupHelp();
     I18n.setLanguage(I18n.detect());   /* löst renderAll über das Sprachereignis aus */
     setView('overview');
   }

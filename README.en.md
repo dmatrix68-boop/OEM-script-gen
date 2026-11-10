@@ -25,6 +25,8 @@ determines whether the generated archive contains `LIESMICH.txt` or `README.txt`
 | **Tweaks** – settings with phase and network needs | **Windows components** – with help link and virtualisation check |
 | ![Settings: paths, trigger, sequence](docs/screenshots/en-settings.png) | ![Preview of every generated file](docs/screenshots/en-preview.png) |
 | **Settings** – trigger, phase 2, completion | **Preview** – every generated file before export |
+| ![Driver packages with target and model filter](docs/screenshots/en-drivers.png) | ![Help dialog for the current page](docs/screenshots/en-help.png) |
+| **Drivers** – packages for pnputil or Windows Setup, with a model filter | **Help** – a detailed description of every page, also via F1 |
 
 ## Download
 
@@ -40,7 +42,8 @@ unpack the ZIP and open `index.html`. Inside the package the screenshots are lin
 * **UniGetUI import** – `.ubundle` (JSON, XML, YAML) and winget `export` files.
   Non-winget managers (Chocolatey, Scoop, npm, pip, Cargo, .NET tool) are taken
   over and installed appropriately; Chocolatey is installed on demand. Export
-  produces a `.ubundle` again that UniGetUI can read back.
+  produces a `.ubundle` again that UniGetUI can read back. The package list can
+  be sorted by clicking a column header; the installation order stays as it is.
 * **Microsoft Office (ODT)** – import or edit Configuration.xml, with an analysis
   (products, languages, channel) and a check for unattended installation. Runs in
   phase 2 by default, because the Deployment Tool downloads the installation files
@@ -52,6 +55,8 @@ unpack the ZIP and open `index.html`. Inside the package the screenshots are lin
 * **Bloatware** – pick pre-installed AppX packages, provisioning removal included.
 * **Windows components** – turn on Windows Sandbox, Hyper-V, WSL, .NET 3.5, OpenSSH,
   RSAT and other features along the way (see below).
+* **Drivers** – install unpacked drivers with `pnputil` or load them in Windows
+  Setup already via `$WinPEDriver$`, optionally per device model (see below).
 * **Custom files** – ship installers and scripts, either to `Install\Files` (where
   they are executed) or next to `SetupComplete.cmd` in `Setup\Scripts` (reachable
   via `%~dp0`).
@@ -60,8 +65,12 @@ unpack the ZIP and open `index.html`. Inside the package the screenshots are lin
   the existing blocks with a continuing `<Order>`.
 * **Diagnose.ps1** – ships inside the generated package and answers, after the
   installation, why nothing ran.
+* **Help on every page** – the *Help* button in the page header (or <kbd>F1</kbd>)
+  opens a detailed description of every option on the page, in German or
+  English, with cross references between the topics.
 * **Preview** of every generated file, a **project file** to save and continue
-  working, ZIP export.
+  working, ZIP export. Chrome and Edge ask for the target with a "Save as" dialog;
+  Firefox and Safari download the file.
 
 ## Two-phase model
 
@@ -138,13 +147,21 @@ reason why nothing gets copied at all:
 
 | Answer file | Location |
 |---|---|
-| none, or `UseConfigurationSet` not set | `<medium>\sources\$OEM$\…` |
-| `<UseConfigurationSet>true</UseConfigurationSet>` | `<medium>\$OEM$\…` (root directory) |
+| `<UseConfigurationSet>true</UseConfigurationSet>` (set by the generator) | `<medium>\$OEM$\…` (root directory) |
+| no answer file | `<medium>\sources\$OEM$\…` |
+| answer file with `UseConfigurationSet=false` | on current Windows 11 builds possibly **not copied at all** |
 
 With `UseConfigurationSet=true` Setup looks for the configuration set **next to the
-answer file**. The generator detects this on import and sets the location to "both
-places" – Setup only evaluates the matching one, the other folder is ignored. That
-is the default.
+answer file**. Without this value Windows Setup (Windows 11, build 26300) did not
+copy `$OEM$` at all in a test – neither from `sources\` nor from the root; there was
+no installation folder and no phase 2. The generator therefore writes
+`UseConfigurationSet=true` into the generated and into an imported answer file
+(*Settings → Trigger*, can be turned off) and sets the location to "both places" –
+Setup only evaluates the matching one, the other folder is ignored.
+
+With `true` Setup copies the folder of the answer file to `C:\Windows\ConfigSetRoot`.
+On a normal installation medium that is harmless; on multi-boot sticks such as
+Ventoy it can get very large.
 
 ### Office needs a network
 
@@ -223,6 +240,40 @@ allow features on demand makes them fail.
 Components that need a restart set
 `HKLM\SOFTWARE\OEM-Setup\RestartNeeded = 1`. *Settings → When phase 2 finishes →
 restart* takes care of that by itself.
+
+### Drivers
+
+Unpacked drivers (INF, SYS, CAT …) are shipped as packages – one folder per
+package. Add them with **Add driver folder** (the folder name becomes the package
+name), as single files, or as an **empty package** whose files you copy to the
+medium yourself later. Empty packages suit large driver collections you would
+rather not push through the browser.
+
+| Target | Location | When | Suited for |
+|---|---|---|---|
+| **pnputil** | `$OEM$\$1\Install\Drivers\<package>` | in the selected phase (default: phase 1) | chipset, graphics, audio, Wi-Fi … |
+| **Windows Setup** | `$WinPEDriver$\<package>` in the root of the medium | Setup loads them itself, before the installation | NVMe/RAID, network – anything Setup cannot do without |
+
+`Install-Drivers.ps1` calls
+`pnputil /add-driver <package>\*.inf /subdirs /install` per package, with its own
+time limit. Exit code 3010 sets `RestartNeeded`, 259 means "in the driver store,
+but no device took it" – both count as success.
+
+**Model filter:** a package can be limited to certain devices, so one medium
+serves several models. Separate several patterns with `;`, `*` and `?` are
+allowed, a pattern without wildcards counts as a substring. It is compared with
+the model, manufacturer + model, SKU and – for Lenovo, where `Model` only holds
+the machine type – the product name from `Win32_ComputerSystemProduct`. The
+detected values are written to the log. To show them on the target device:
+
+```powershell
+Get-CimInstance Win32_ComputerSystem | Select Manufacturer, Model, SystemSKUNumber
+```
+
+Driver files go into the ZIP only, not into the project file: after loading a
+project the packages are back, but empty. With the ZIP root "both places" the
+pnputil packages are in the archive twice. Driver installers as EXE still belong
+under *Own files* in the interface.
 
 ### winget needs a user context
 
@@ -377,6 +428,8 @@ soon as the program writes more than fits in the buffer.
 ```
 index.html        interface
 css/app.css       layout
+js/version.js     version number (the only place)
+js/help.js        help texts per page (German/English)
 js/i18n.js        German/English dictionary and language switching
 js/zip.js         ZIP writer (deflate via CompressionStream, otherwise "stored")
 js/catalog.js     catalog of tweaks, bloatware and Windows components, package managers
@@ -398,8 +451,9 @@ checks, builds the package `dist/OEM-Script-Generator-<tag>.zip` with
 `node tools/build-release.js <tag>` and creates the GitHub release. The release
 notes come from `docs/releases/<tag>.md`. Inside the package the script replaces
 the embedded screenshots in both READMEs with links to the repository at the
-same tag.
+same tag. Adjust the version number in `js/version.js` first – the build script
+stops if it does not match the tag.
 
 ```bash
-git tag v1.00 && git push origin v1.00
+git tag v1.1 && git push origin v1.1
 ```

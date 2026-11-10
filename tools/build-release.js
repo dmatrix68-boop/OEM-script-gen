@@ -23,6 +23,14 @@ if (!tag || !/^v\d+(\.\d+)*$/.test(tag)) {
 }
 const repo = process.env.GITHUB_REPOSITORY || 'dmatrix68-boop/OEM-script-gen';
 
+/* Tag und Versionsnummer der Oberflaeche muessen zusammenpassen. */
+const verSrc = fs.readFileSync(path.join(__dirname, '..', 'js', 'version.js'), 'utf8');
+const verMatch = verSrc.match(/APP_VERSION\s*=\s*'([^']+)'/);
+if (!verMatch || 'v' + verMatch[1] !== tag) {
+  console.error('Tag ' + tag + ' passt nicht zu js/version.js (' + (verMatch ? 'v' + verMatch[1] : 'keine Version') + ').');
+  process.exit(1);
+}
+
 const root = path.join(__dirname, '..');
 const name = 'OEM-Script-Generator-' + tag;
 const dist = path.join(root, 'dist');

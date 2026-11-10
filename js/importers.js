@@ -280,7 +280,7 @@
 
   /* Fuegt die Aufrufe von Install.ps1 in eine bestehende autounattend.xml ein.
      Idempotent: eigene Eintraege werden zuvor entfernt, die Order neu vergeben. */
-  function patchUnattend(text, commands) {
+  function patchUnattend(text, commands, opts) {
     const doc = new DOMParser().parseFromString(text, 'application/xml');
     if (doc.querySelector('parsererror')) throw new Error(F('XML nicht lesbar'));
     const root = doc.documentElement;
@@ -383,6 +383,22 @@
     }
 
     const applied = [];
+
+    /*  windowsPE / Microsoft-Windows-Setup / UseConfigurationSet = true. Ohne
+        diesen Wert hat ein aktuelles Windows-11-Setup $OEM$ nicht kopiert. */
+    if (opts && opts.configSet) {
+      const comp = getComponent(getSettings('windowsPE'), 'Microsoft-Windows-Setup');
+      let ucs = child(comp, 'UseConfigurationSet');
+      if (!ucs) {
+        ucs = make('UseConfigurationSet', {});
+        comp.appendChild(doc.createTextNode('\n' + indentOf(comp.firstElementChild || comp) + (comp.firstElementChild ? '' : '\t')));
+        comp.appendChild(ucs);
+      }
+      if (ucs.textContent.trim().toLowerCase() !== 'true') {
+        ucs.textContent = 'true';
+        applied.push('windowsPE / UseConfigurationSet = true');
+      }
+    }
 
     if (commands.setup) {
       const comp = getComponent(getSettings('specialize'), 'Microsoft-Windows-Deployment');

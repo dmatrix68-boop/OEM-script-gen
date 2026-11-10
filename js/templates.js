@@ -185,7 +185,11 @@ function Invoke-Step {
     Write-Log ('--- ' + $Name) -Level Step
     $sw = [Diagnostics.Stopwatch]::StartNew()
     try {
-        & $Body
+        # Out-Host: was das Modul nebenbei ausgibt, landet im Transcript, nicht im
+        # Rueckgabewert. Sonst gaebe die Funktion ein Array aus Ausgabe und $false
+        # zurueck - und ein nicht leeres Array gilt als wahr, die Zusammenfassung
+        # meldete OK, obwohl das Modul gescheitert war.
+        & $Body | Out-Host
         Write-Log ('{0} abgeschlossen ({1:n1} s)' -f $Name, $sw.Elapsed.TotalSeconds)
         return $true
     } catch {
@@ -551,6 +555,8 @@ function Invoke-OemProcess {
 
   function moduleList(st, phase) {
     const mods = [];
+    if (st.drivers && st.drivers.enabled && st.drivers.phase === phase &&
+        st.drivers.items.some((d) => d.enabled && d.dest !== 'winpe')) mods.push(['Install-Drivers.ps1', 'Treiber']);
     if (st.tweaks.enabled && st.tweaks.phase === phase && st.tweaks.selected.length) mods.push(['Set-Tweaks.ps1', 'System-Tweaks']);
     if (phase === 'firstlogon' && hasLateTweaks(st)) mods.push(['Set-Tweaks-Spaet.ps1', 'Tweaks mit Netzwerkbedarf']);
     if (st.bloat.enabled && st.bloat.phase === phase && st.bloat.selected.length) mods.push(['Remove-Bloatware.ps1', 'Bloatware entfernen']);
@@ -679,7 +685,7 @@ foreach ($step in $steps) {
         Write-Log ('Modul fehlt: ' + $step.Script) -Level Warn
         continue
     }
-    $ok = Invoke-Step -Name $step.Title -Body { & $path }
+    $ok = (@(Invoke-Step -Name $step.Title -Body { & $path }) | Select-Object -Last 1) -eq $true
     $results += [pscustomobject]@{ Modul = $step.Title; Erfolg = $ok }
 }
 
@@ -1581,6 +1587,169 @@ if ($restartNeeded) {
     return s;
   }
 
+  /* ---------- Modules/Install-Drivers.ps1 ---------- */
+
+  /*  Treiber ueber pnputil einspielen. Jedes Paket liegt in einem eigenen
+      Unterordner von Install\Drivers; pnputil durchsucht ihn mit /subdirs
+      nach INF-Dateien und installiert sie auf passende Geraete.
+      Ein Modellfilter beschraenkt ein Paket auf bestimmte Geraete, damit ein
+      Medium mehrere Modelle bedienen kann. Verglichen wird mit -like gegen
+      Modell, Hersteller + Modell, SKU und - fuer Lenovo, wo das Modell als
+      Maschinentyp im Feld Model steht - Win32_ComputerSystemProduct.Version.
+      Ein Muster ohne * oder ? gilt als Teilstring. */
+  function driverPatterns(models) {
+    return String(models || '').split(/[;,\n]/).map((m) => m.trim()).filter(Boolean)
+      .map((m) => (/[*?]/.test(m) ? m : '*' + m + '*'));
+  }
+
+  function driverFolder(name) {
+    return String(name || 'Treiber').replace(/[\\/:*?"<>|]+/g, '_').replace(/^[\s.]+|[\s.]+$/g, '') || 'Treiber';
+  }
+
+  function driversModule(st, phase) {
+    const items = st.drivers.items.filter((d) => d.enabled && d.dest !== 'winpe');
+    const timeout = Math.max(60, (st.drivers.timeoutMin || 10) * 60);
+    const row = (d) => '    [pscustomobject]@{ Name = ' + psq(driverFolder(d.name)) + '; Models = @(' +
+      driverPatterns(d.models).map(psq).join(', ') + ') }';
+
+    let s = banner('Spielt Treiber ueber pnputil ein.', st.meta.name);
+    s += bootstrapHeader('Install-Drivers');
+    s += toCRLF(`
+$driverRoot = Join-Path $Global:OemRoot 'Drivers'
+$timeout = ${timeout}
+$items = @(
+${items.map(row).join(NL)}
+)
+
+# 64-Bit-pnputil, auch wenn dieses Skript in einer 32-Bit-PowerShell laeuft.
+$pnputil = Join-Path $env:SystemRoot 'Sysnative\\pnputil.exe'
+if (-not (Test-Path -LiteralPath $pnputil)) { $pnputil = Join-Path $env:SystemRoot 'System32\\pnputil.exe' }
+
+# Kennungen dieses Geraets fuer den Modellfilter.
+$ids = @()
+try {
+    $cs = Get-CimInstance -ClassName Win32_ComputerSystem -ErrorAction Stop
+    $ids += $cs.Model
+    $ids += ('{0} {1}' -f $cs.Manufacturer, $cs.Model)
+    $ids += $cs.SystemSKUNumber
+} catch { }
+try {
+    $csp = Get-CimInstance -ClassName Win32_ComputerSystemProduct -ErrorAction Stop
+    $ids += $csp.Version
+    $ids += $csp.Name
+} catch { }
+$ids = @($ids | Where-Object { $_ -and ([string]$_).Trim() } | ForEach-Object { ([string]$_).Trim() } | Select-Object -Unique)
+Write-Log ('Geraet: ' + $(if ($ids.Count) { $ids -join ' | ' } else { 'unbekannt' }) + ', Treiberpakete: ' + $items.Count)
+
+$ok = 0
+$skip = 0
+$fehler = @()
+$restartNeeded = $false
+
+foreach ($item in $items) {
+    if ($item.Models.Count -gt 0) {
+        $hit = $false
+        foreach ($pattern in $item.Models) {
+            foreach ($id in $ids) { if ($id -like $pattern) { $hit = $true } }
+        }
+        if (-not $hit) {
+            Write-Log ('Uebersprungen (anderes Modell, Filter {0}): {1}' -f ($item.Models -join '; '), $item.Name)
+            $skip++
+            continue
+        }
+    }
+
+    $dir = Join-Path $driverRoot $item.Name
+    if (-not (Test-Path -LiteralPath $dir)) {
+        Write-Log ('Treiberordner fehlt: ' + $dir) -Level Error
+        $fehler += $item.Name
+        continue
+    }
+    $infs = @(Get-ChildItem -LiteralPath $dir -Filter '*.inf' -Recurse -File -ErrorAction SilentlyContinue)
+    if ($infs.Count -eq 0) {
+        Write-Log ('Keine INF-Datei in {0} - Treiber dort ablegen oder Paket entfernen.' -f $dir) -Level Warn
+        $skip++
+        continue
+    }
+
+    Write-Log ('Treiberpaket {0}: {1} INF-Datei(en)' -f $item.Name, $infs.Count) -Level Step
+    <#  pnputil-Exitcodes: 0 ok, 3010 ok mit Neustart. 259 (ERROR_NO_MORE_ITEMS)
+        heisst: Paket im Treiberspeicher, aber kein Geraet hat es uebernommen -
+        kein passendes Geraet oder schon ein besserer Treiber vorhanden. #>
+    $res = Invoke-OemProcess -FilePath $pnputil -Arguments @('/add-driver', (Join-Path $dir '*.inf'), '/subdirs', '/install') -SuccessCodes @(0, 3010, 259) -TimeoutSeconds $timeout -CaptureOutput
+    if ($res.Output) { Write-Log ('pnputil: ' + $res.Output) -Level Debug }
+    if ($res.Success) {
+        $ok++
+        switch ($res.ExitCode) {
+            3010 { $restartNeeded = $true; Write-Log ('Eingespielt (Neustart noetig): ' + $item.Name) }
+            259 { Write-Log ('Im Treiberspeicher, aber von keinem Geraet uebernommen: ' + $item.Name) }
+            default { Write-Log ('Eingespielt: ' + $item.Name) }
+        }
+    } else {
+        $grund = $(if ($res.TimedOut) { 'Zeitueberschreitung' } else { 'Exitcode ' + $res.ExitCode })
+        Write-Log ('Fehlgeschlagen ({0}): {1}' -f $grund, $item.Name) -Level Error
+        $fehler += $item.Name
+    }
+}
+
+Write-Log ('Treiber: {0} eingespielt, {1} uebersprungen, {2} fehlgeschlagen.' -f $ok, $skip, $fehler.Count)
+if ($restartNeeded) {
+    $key = 'HKLM:\\SOFTWARE\\OEM-Setup'
+    try {
+        if (-not (Test-Path -LiteralPath $key)) { New-Item -Path $key -Force -ErrorAction Stop | Out-Null }
+        New-ItemProperty -LiteralPath $key -Name 'RestartNeeded' -PropertyType DWord -Value 1 -Force -ErrorAction Stop | Out-Null
+    } catch { }
+}
+
+# Weiterreichen, sonst stuende in der Zusammenfassung trotzdem OK.
+if ($fehler.Count -gt 0) { throw ('Nicht eingespielt: ' + ($fehler -join ', ')) }
+`);
+    return s;
+  }
+
+  function driverPlaceholder(dest, en) {
+    const lines = en ? [
+      'Put the driver files for this package here (INF, SYS, CAT ... - unpacked,',
+      'not as an EXE installer). Subfolders are allowed.',
+      '',
+      dest === 'winpe'
+        ? 'Windows Setup reads $WinPEDriver$ on its own and loads the drivers before the installation.'
+        : 'Install-Drivers.ps1 installs every INF in here with pnputil /add-driver ... /subdirs /install.',
+      'This note can be deleted.'
+    ] : [
+      'Hier die Treiberdateien dieses Pakets ablegen (INF, SYS, CAT ... - entpackt,',
+      'nicht als EXE-Installer). Unterordner sind erlaubt.',
+      '',
+      dest === 'winpe'
+        ? 'Windows Setup liest $WinPEDriver$ selbst ein und laedt die Treiber schon vor der Installation.'
+        : 'Install-Drivers.ps1 spielt jede INF hier mit pnputil /add-driver ... /subdirs /install ein.',
+      'Diese Hinweisdatei kann geloescht werden.'
+    ];
+    return toCRLF(lines.join('\n') + '\n');
+  }
+
+  /*  Treiberpakete koennen tausende Dateien enthalten. Fuer Strukturbaum,
+      Vorschau und LIESMICH wird jedes Paket deshalb zu einer Zeile verdichtet. */
+  function collapseDriverFiles(files, en) {
+    const out = [];
+    const seen = new Map();
+    files.forEach((f) => {
+      if (!f.pkg) { out.push({ path: f.path, file: f }); return; }
+      let e = seen.get(f.pkg);
+      if (!e) {
+        e = { path: '', pkg: f.pkg, files: [] };
+        seen.set(f.pkg, e);
+        out.push(e);
+      }
+      e.files.push(f);
+    });
+    seen.forEach((e) => {
+      const n = e.files.length;
+      e.path = e.pkg + '/… (' + n + (en ? (n === 1 ? ' file' : ' files') : (n === 1 ? ' Datei' : ' Dateien')) + ')';
+    });
+    return out;
+  }
+
   /* ---------- Modules/Install-Files.ps1 ---------- */
 
   function filesModule(st, phase) {
@@ -1652,6 +1821,21 @@ if ($fehler.Count -gt 0) { throw ('Nicht ausgefuehrt: ' + ($fehler -join ', ')) 
     const pad = ' '.repeat(indent);
     const cmd = unattendCommands(st);
     const out = [];
+
+    /*  Ohne <UseConfigurationSet>true</UseConfigurationSet> hat Windows Setup
+        $OEM$ auf einem aktuellen Windows 11 (Build 26300) nicht kopiert - weder
+        aus sources\ noch aus dem Wurzelverzeichnis. Mit true sucht Setup den
+        Konfigurationssatz neben der Antwortdatei, also im Wurzelverzeichnis. */
+    if (st.options.configSet !== false) {
+      out.push([
+        '<settings pass="windowsPE">',
+        '  <component name="Microsoft-Windows-Setup" processorArchitecture="amd64"',
+        '             publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">',
+        '    <UseConfigurationSet>true</UseConfigurationSet>',
+        '  </component>',
+        '</settings>'
+      ].map((l) => pad + l).join('\n'));
+    }
 
     if (cmd.setup) {
       out.push([
@@ -1857,7 +2041,7 @@ if (Test-Path $panth) {
     $ua = Get-Content $panth -Raw
     $ucs = $ua -match '<UseConfigurationSet>\\s*true\\s*</UseConfigurationSet>'
     Show-Item 'Antwortdatei verwendet' $true $panth
-    Show-Item 'UseConfigurationSet = true' $ucs $(if ($ucs) { '$OEM$ gehoert ins WURZELVERZEICHNIS des Mediums' } else { '$OEM$ gehoert nach sources\\' })
+    Show-Item 'UseConfigurationSet = true' $ucs $(if ($ucs) { '$OEM$ gehoert ins WURZELVERZEICHNIS des Mediums' } else { 'Ohne true kopieren aktuelle Windows-11-Setups $OEM$ oft gar nicht - im Generator aktivieren' })
 } else {
     Write-Host '  C:\\Windows\\Panther\\unattend.xml nicht vorhanden.' -ForegroundColor DarkGray
     Write-Host '  (Manche Antwortdateien loeschen sie am Ende selbst.)' -ForegroundColor DarkGray
@@ -2035,11 +2219,15 @@ Write-Host ''
       '---------------------',
       'Das haengt von der Antwortdatei ab:',
       '',
-      ' * ohne autounattend.xml oder mit UseConfigurationSet = false:',
-      '     <Medium>\\sources\\$OEM$\\...',
-      ' * mit <UseConfigurationSet>true</UseConfigurationSet> in der autounattend.xml:',
+      ' * mit <UseConfigurationSet>true</UseConfigurationSet> in der autounattend.xml',
+      '   (setzt der Generator, empfohlen):',
       '     Setup sucht den Konfigurationssatz NEBEN der Antwortdatei, also',
       '     <Medium>\\$OEM$\\...   (Wurzelverzeichnis, nicht sources\\)',
+      ' * ohne autounattend.xml:',
+      '     <Medium>\\sources\\$OEM$\\...',
+      ' * mit autounattend.xml, aber UseConfigurationSet = false: auf aktuellen',
+      '   Windows-11-Builds kopiert Setup $OEM$ dann unter Umstaenden GAR NICHT -',
+      '   auch nicht aus sources\\. Deshalb setzt der Generator den Wert auf true.',
       '',
       'Wer beides bestueckt, ist auf der sicheren Seite - Setup wertet nur den',
       'passenden Ort aus, der andere Ordner wird ignoriert. Genau dafuer gibt es im',
@@ -2111,11 +2299,20 @@ Write-Host ''
       todo.push('Datei "' + f.name + '" fehlt im Archiv und muss manuell nach ' +
         (f.dest === 'scripts' ? '$OEM$\\$$\\Setup\\Scripts\\' : 'Files\\') + f.target + ' kopiert werden.');
     });
+    if (st.drivers && st.drivers.enabled) {
+      st.drivers.items.filter((d) => d.enabled && !(d.files || []).some((f) => f.blob)).forEach((d) => {
+        todo.push('Treiberordner "' + driverFolder(d.name) + '" ist leer - Treiberdateien nach ' +
+          (d.dest === 'winpe' ? '<Medium>\\$WinPEDriver$\\' : 'Install\\Drivers\\') + driverFolder(d.name) + '\\ kopieren.');
+      });
+    }
+    if (st.drivers && st.drivers.enabled && st.drivers.items.some((d) => d.enabled && d.dest === 'winpe')) {
+      todo.push('Den Ordner $WinPEDriver$ in das WURZELVERZEICHNIS des Mediums kopieren (neben sources\\).');
+    }
     if (!todo.length) todo.push('Nichts - das Archiv ist vollstaendig.');
     lines.push(todo.map((t) => ' * ' + t).join('\n'));
 
     lines.push('', 'ENTHALTENE DATEIEN', '------------------');
-    files.forEach((f) => lines.push(' ' + f.path));
+    collapseDriverFiles(files, false).forEach((f) => lines.push(' ' + f.path));
     lines.push('');
     return toCRLF(lines.join('\n'));
   }
@@ -2156,11 +2353,15 @@ Write-Host ''
       '------------------------',
       'That depends on the answer file:',
       '',
-      ' * without autounattend.xml, or with UseConfigurationSet = false:',
-      '     <media>\\sources\\$OEM$\\...',
-      ' * with <UseConfigurationSet>true</UseConfigurationSet> in autounattend.xml:',
+      ' * with <UseConfigurationSet>true</UseConfigurationSet> in autounattend.xml',
+      '   (set by the generator, recommended):',
       '     Setup looks for the configuration set NEXT TO the answer file, i.e.',
       '     <media>\\$OEM$\\...   (root directory, not sources\\)',
+      ' * without autounattend.xml:',
+      '     <media>\\sources\\$OEM$\\...',
+      ' * with autounattend.xml but UseConfigurationSet = false: on current',
+      '   Windows 11 builds Setup may then NOT copy $OEM$ AT ALL - not from',
+      '   sources\\ either. That is why the generator sets the value to true.',
       '',
       'Populating both locations is the safe bet - Setup only evaluates the matching',
       'one and ignores the other folder. That is exactly what the generator offers as',
@@ -2232,11 +2433,20 @@ Write-Host ''
       todo.push('File "' + f.name + '" is missing from the archive and has to be copied to ' +
         (f.dest === 'scripts' ? '$OEM$\\$$\\Setup\\Scripts\\' : 'Files\\') + f.target + ' by hand.');
     });
+    if (st.drivers && st.drivers.enabled) {
+      st.drivers.items.filter((d) => d.enabled && !(d.files || []).some((f) => f.blob)).forEach((d) => {
+        todo.push('Driver folder "' + driverFolder(d.name) + '" is empty - copy the driver files to ' +
+          (d.dest === 'winpe' ? '<medium>\\$WinPEDriver$\\' : 'Install\\Drivers\\') + driverFolder(d.name) + '\\.');
+      });
+    }
+    if (st.drivers && st.drivers.enabled && st.drivers.items.some((d) => d.enabled && d.dest === 'winpe')) {
+      todo.push('Copy the $WinPEDriver$ folder to the ROOT of the medium (next to sources\\).');
+    }
     if (!todo.length) todo.push('Nothing - the archive is complete.');
     lines.push(todo.map((t) => ' * ' + t).join('\n'));
 
     lines.push('', 'FILES INCLUDED', '--------------');
-    files.forEach((f) => lines.push(' ' + f.path));
+    collapseDriverFiles(files, true).forEach((f) => lines.push(' ' + f.path));
     lines.push('');
     return toCRLF(lines.join('\n'));
   }
@@ -2265,7 +2475,7 @@ Write-Host ''
       const imported = st.unattend && st.unattend.xml;
       if (imported) {
         try {
-          const res = Importers.patchUnattend(imported, unattendCommands(st));
+          const res = Importers.patchUnattend(imported, unattendCommands(st), { configSet: st.options.configSet !== false });
           add('autounattend.xml', res.xml);
         } catch (e) {
           add('autounattend-FEHLER.txt', toCRLF(
@@ -2285,6 +2495,7 @@ Write-Host ''
     const logonMods = moduleList(st, 'firstlogon').map((m) => m[0]);
     const all = new Set(setupMods.concat(logonMods));
 
+    if (all.has('Install-Drivers.ps1')) add(inst + '/Modules/Install-Drivers.ps1', driversModule(st));
     if (all.has('Set-Tweaks.ps1')) add(inst + '/Modules/Set-Tweaks.ps1', tweaksModule(st, 'main'));
     if (all.has('Set-Tweaks-Spaet.ps1')) add(inst + '/Modules/Set-Tweaks-Spaet.ps1', tweaksModule(st, 'late'));
     if (all.has('Remove-Bloatware.ps1')) add(inst + '/Modules/Remove-Bloatware.ps1', bloatModule(st));
@@ -2329,10 +2540,29 @@ Write-Host ''
       add(dir + f.target, f.blob, true);
     });
 
+    /*  Treiber: pnputil-Pakete unter Install\Drivers, Setup-Treiber unter
+        $WinPEDriver$ im Wurzelverzeichnis des Mediums - dort sucht Windows
+        Setup selbst danach. Ohne Dateien (z. B. nach dem Laden einer
+        Projektdatei) entsteht nur der Ordner mit einer Hinweisdatei. */
+    if (st.drivers && st.drivers.enabled) {
+      const en = uiLang() === 'en';
+      st.drivers.items.filter((d) => d.enabled).forEach((d) => {
+        const dir = (d.dest === 'winpe' ? '$WinPEDriver$' : inst + '/Drivers') + '/' + driverFolder(d.name);
+        const blobs = (d.files || []).filter((f) => f.blob);
+        if (!blobs.length) {
+          add(dir + '/' + (en ? 'PUT-DRIVERS-HERE.txt' : 'HIER-TREIBER-ABLEGEN.txt'), driverPlaceholder(d.dest, en));
+          return;
+        }
+        blobs.forEach((f) => files.push({ path: dir + '/' + f.rel, data: f.blob, binary: true, pkg: dir }));
+      });
+    }
+
     if (mirror) {
       files.slice().forEach((f) => {
         if (f.path.indexOf(base + '/') === 0) {
-          files.push({ path: mirror + f.path.slice(base.length), data: f.data, binary: f.binary });
+          const copy = { path: mirror + f.path.slice(base.length), data: f.data, binary: f.binary };
+          if (f.pkg) copy.pkg = mirror + f.pkg.slice(base.length);
+          files.push(copy);
         }
       });
     }
@@ -2346,5 +2576,5 @@ Write-Host ''
     return files;
   }
 
-  global.Templates = { build, relFromRoot, moduleList, hasLateTweaks };
+  global.Templates = { build, relFromRoot, moduleList, hasLateTweaks, collapseDriverFiles, driverFolder };
 })(window);
