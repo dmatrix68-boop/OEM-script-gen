@@ -269,3 +269,9 @@ body.dragging .dropzone{border-color:var(--acc)}
 .langswitch .lang+.lang{border-left:1px solid var(--line)}
 .langswitch .lang:hover{color:var(--fg)}
 .langswitch .lang.active{background:var(--acc);color:#fff}
+
+/* Leiste "Quellen einbinden" nach dem Laden eines Projekts */
+.source-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 16px;padding:10px 14px;
+  border:1px solid var(--warn);border-left-width:4px;border-radius:8px;background:var(--bg2)}
+.source-bar span{flex:1;min-width:220px}
+.source-bar[hidden]{display:none}

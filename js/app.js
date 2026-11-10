@@ -416,8 +416,11 @@
       const nameTd = document.createElement('td');
       nameTd.innerHTML = '<span class="mono"></span><br><span class="muted" style="font-size:11px"></span>';
       nameTd.querySelector('.mono').textContent = f.name;
+      const ss = srcState.get(f);
       nameTd.querySelector('.muted').textContent = f.blob
         ? fmtSize(byteSize(f.blob))
+        : ss === 'perm' ? F('Quelle „{0}“ bekannt – oben „Quellen einbinden“', f.src.name)
+        : ss === 'gone' ? F('Quelle „{0}“ nicht mehr vorhanden – Datei neu wählen', f.src.name)
         : T('fehlt – nicht im Archiv');
       if (!f.blob) {
         /* Nach dem Laden einer Projektdatei: Datei neu zuordnen, Einstellungen bleiben. */
@@ -510,7 +513,20 @@
   let driverRefill = null;
 
   /* Datei fuer einen Platzhalter unter "Eigene Dateien" neu waehlen. */
-  function pickFileFor(f) {
+  async function pickFileFor(f) {
+    if (hasPickers) {
+      let hs;
+      try { hs = await window.showOpenFilePicker({ id: 'oem-files', multiple: false }); }
+      catch (e) { if (!e || e.name !== 'AbortError') toast(F('Ordner nicht verfügbar: {0}', e.message), 'err'); return; }
+      const file = await hs[0].getFile();
+      f.blob = file; f.blobPresent = true;
+      f.src = await rememberSource(hs[0], 'file');
+      srcState.delete(f);
+      if (file.name !== f.name) toast(F('„{0}“ zugeordnet (Eintrag hieß „{1}“).', file.name, f.name), 'warn');
+      else toast(F('„{0}“ zugeordnet.', file.name), 'ok');
+      renderSourceBar(); renderFiles(); refresh();
+      return;
+    }
     const inp = document.createElement('input');
     inp.type = 'file';
     inp.addEventListener('change', async () => {
@@ -518,6 +534,7 @@
       if (!file) return;
       f.blob = file;
       f.blobPresent = true;
+      f.src = null;
       if (file.name !== f.name) toast(F('„{0}“ zugeordnet (Eintrag hieß „{1}“).', file.name, f.name), 'warn');
       else toast(F('„{0}“ zugeordnet.', file.name), 'ok');
       renderFiles(); refresh();
@@ -562,7 +579,10 @@
       } else if (d.missing) {
         infoTd.firstChild.textContent = F('fehlt – {0} Dateien nicht im Archiv', d.missing);
         infoTd.firstChild.style.color = 'var(--warn)';
-        infoTd.lastChild.textContent = T('Treiberdateien fehlen – Ordner neu wählen');
+        const ss = srcState.get(d);
+        infoTd.lastChild.textContent = ss === 'perm' ? F('Quelle „{0}“ bekannt – oben „Quellen einbinden“', d.src.name)
+          : ss === 'gone' ? F('Quelle „{0}“ nicht mehr vorhanden – Ordner neu wählen', d.src.name)
+          : T('Treiberdateien fehlen – Ordner neu wählen');
       } else {
         infoTd.firstChild.textContent = T('leer');
         infoTd.lastChild.textContent = T('Dateien später in den Ordner kopieren');
@@ -571,7 +591,10 @@
         const pick = document.createElement('button');
         pick.type = 'button'; pick.className = 'btn small mt-s';
         pick.textContent = T('Ordner wählen …');
-        pick.addEventListener('click', () => { driverRefill = d; $('#driversFolderInput').click(); });
+        pick.addEventListener('click', () => {
+          if (hasPickers) { pickDriverFolder(d); return; }
+          driverRefill = d; $('#driversFolderInput').click();
+        });
         infoTd.appendChild(document.createElement('br'));
         infoTd.appendChild(pick);
       }
@@ -1118,7 +1141,8 @@
     if (BINARY_EXT.test(name) && !/\.reg$/i.test(name)) {
       state.files.items.push({
         name, target: name, run: /\.msi$/i.test(name) ? '/qn /norestart' : '',
-        phase: 'firstlogon', enabled: true, dest: 'files', blob: file, blobPresent: true
+        phase: 'firstlogon', enabled: true, dest: 'files', blob: file, blobPresent: true,
+        src: opts.handle ? await rememberSource(opts.handle, 'file') : null
       });
       logImport(F('Datei übernommen: {0} ({1} KB)', name, Math.round(file.size / 1024)));
       renderFiles(); refresh();
@@ -1226,8 +1250,10 @@
   }
 
   async function importFiles(fileList, opts) {
+    const handles = (opts && opts.handles) || [];
     for (const f of Array.from(fileList)) {
-      try { await importFile(f, opts); }
+      const handle = handles.find((h) => h.name === f.name) || null;
+      try { await importFile(f, Object.assign({}, opts, { handle })); }
       catch (e) { console.error(e); logImport('Fehler bei ' + f.name + ': ' + e.message, 'err'); toast('Import fehlgeschlagen: ' + f.name, 'err'); }
     }
   }
@@ -1263,17 +1289,29 @@
     state.files.items = (state.files.items || []).map((f) => ({
       name: f.name, target: f.target || f.name, run: f.run || '',
       phase: f.phase || 'firstlogon', dest: f.dest || 'files',
-      enabled: f.enabled !== false, blob: null, blobPresent: false
+      enabled: f.enabled !== false, blob: null, blobPresent: false, src: validSrc(f.src)
     }));
     state.drivers.items = (state.drivers.items || []).map((d) => ({
       name: d.name || 'Treiber', dest: d.dest === 'winpe' ? 'winpe' : 'pnp', models: d.models || '',
-      enabled: d.enabled !== false, files: [], missing: d.fileCount > 0 ? d.fileCount : 0
+      enabled: d.enabled !== false, files: [], missing: d.fileCount > 0 ? d.fileCount : 0, src: validSrc(d.src)
     }));
     renderAll();
-    const lost = missingBinaries();
-    if (lost.length) {
-      toast(F('Die Projektdatei enthält keine Binärdateien. Neu zuordnen: {0}', lost.join(', ')), 'warn');
-    }
+    /* Gemerkte Quellen pruefen und gleich einbinden; die Freigabe-Abfrage
+       klappt nur, solange der Klick auf "Projekt laden" frisch ist. */
+    reattachSources(true).then((res) => {
+      reportSources(res);
+      const lost = missingBinaries();
+      if (res.perm.length) {
+        toast(F('{0} Quellen brauchen deine Freigabe – oben „Quellen einbinden“ klicken.', res.perm.length), 'warn');
+      } else if (lost.length) {
+        toast(F('Die Projektdatei enthält keine Binärdateien. Neu zuordnen: {0}', lost.join(', ')), 'warn');
+      }
+    });
+  }
+
+  function validSrc(src) {
+    return src && typeof src.id === 'string' && /^(dir|files|file)$/.test(src.kind)
+      ? { id: src.id, kind: src.kind, name: String(src.name || '') } : null;
   }
 
   function download(blob, filename) {
@@ -1334,6 +1372,184 @@
   })();
 
   const PLACE_KEYS = ['oem-project', 'oem-zip', 'oem-folder'];
+
+  /* ---------------- Quellen merken und wieder einbinden ---------------- */
+  /*  Die Projektdatei enthaelt keine Binaerdateien, und der Browser verraet
+      keine Pfade. Werden Treiberordner und Dateien aber ueber die Dialoge der
+      File System Access API gewaehlt (Chrome, Edge), gibt es Handles - und die
+      lassen sich in IndexedDB ablegen. Die Projektdatei traegt nur deren
+      Kennung (src.id). Beim Laden werden die Quellen geprueft und direkt wieder
+      eingebunden; verlangt Chrome eine neue Freigabe und fehlt dafuer der
+      Klick, erscheint oben die Leiste "Quellen einbinden". Das gilt nur im
+      selben Browserprofil - auf einem anderen PC bleibt es bei Platzhaltern. */
+  const hasPickers = typeof window.showOpenFilePicker === 'function' && typeof window.showDirectoryPicker === 'function';
+  /* Zustand je Eintrag (perm, gone) - bewusst nicht im Projekt-Objekt */
+  const srcState = new WeakMap();
+
+  async function rememberSource(handle, kind) {
+    const id = 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    await lastPlace.set('src:' + id, handle);
+    const name = Array.isArray(handle) ? handle.map((h) => h.name).join(', ') : handle.name;
+    return { id, kind, name };
+  }
+
+  async function readDirEntries(dir, prefix, out) {
+    out = out || [];
+    for await (const [name, h] of dir.entries()) {
+      if (h.kind === 'directory') await readDirEntries(h, prefix + name + '/', out);
+      else out.push({ rel: prefix + name, file: await h.getFile() });
+    }
+    return out;
+  }
+
+  const byRel = (a, b) => a.rel.localeCompare(b.rel, undefined, { numeric: true, sensitivity: 'base' });
+
+  async function sourcePermission(handles, ask) {
+    for (const h of handles) {
+      let p = 'prompt';
+      try { p = await h.queryPermission({ mode: 'read' }); } catch (e) { /* alter Browser */ }
+      if (p !== 'granted' && ask) {
+        /* Ohne frischen Klick wirft Chrome hier einen SecurityError. */
+        try { p = await h.requestPermission({ mode: 'read' }); } catch (e) { p = 'prompt'; }
+      }
+      if (p !== 'granted') return p;
+    }
+    return 'granted';
+  }
+
+  /*  Ergebnis: ok (mit entries), perm (Freigabe noetig), gone (nicht mehr da),
+      unknown (in diesem Browserprofil nie gewaehlt) */
+  async function loadSource(src, ask) {
+    const stored = src && src.id ? await lastPlace.get('src:' + src.id) : null;
+    if (!stored) return { status: 'unknown' };
+    const handles = Array.isArray(stored) ? stored : [stored];
+    if ((await sourcePermission(handles, ask)) !== 'granted') return { status: 'perm' };
+    try {
+      if (src.kind === 'dir') return { status: 'ok', entries: (await readDirEntries(handles[0], '')).sort(byRel) };
+      const entries = [];
+      for (const h of handles) entries.push({ rel: h.name, file: await h.getFile() });
+      return { status: 'ok', entries };
+    } catch (e) {
+      return { status: 'gone', error: e };
+    }
+  }
+
+  function pendingSources() {
+    const list = [];
+    state.drivers.items.forEach((d) => { if (d.src && !driverStats(d).count) list.push({ driver: true, item: d }); });
+    state.files.items.forEach((f) => { if (f.src && !f.blob) list.push({ driver: false, item: f }); });
+    return list;
+  }
+
+  let sourcesBusy = false;
+  async function reattachSources(ask) {
+    const res = { ok: [], perm: [], gone: [], changed: [] };
+    if (sourcesBusy) return res;
+    sourcesBusy = true;
+    try {
+      for (const p of pendingSources()) {
+        const it = p.item;
+        const r = await loadSource(it.src, ask);
+        if (r.status === 'ok' && (p.driver || r.entries.length)) {
+          if (p.driver) {
+            const before = it.missing;
+            it.files = r.entries.map((e) => ({ rel: e.rel, blob: e.file }));
+            it.missing = 0;
+            if (before && before !== it.files.length) res.changed.push(F('„{0}“: {1} statt {2} Dateien', it.name, it.files.length, before));
+          } else {
+            it.blob = r.entries[0].file;
+            it.blobPresent = true;
+          }
+          srcState.delete(it);
+          res.ok.push(it.name);
+        } else if (r.status === 'perm') {
+          srcState.set(it, 'perm'); res.perm.push(it.name);
+        } else if (r.status === 'gone') {
+          srcState.set(it, 'gone'); res.gone.push(it.name);
+        }
+      }
+    } finally {
+      sourcesBusy = false;
+    }
+    renderSourceBar();
+    renderDrivers(); renderFiles(); refresh();
+    return res;
+  }
+
+  function reportSources(res) {
+    if (res.ok.length) toast(F('{0} Quellen wieder eingebunden: {1}', res.ok.length, res.ok.join(', ')), 'ok');
+    if (res.changed.length) toast(F('Inhalt geändert seit dem Speichern – {0}', res.changed.join('; ')), 'warn');
+    if (res.gone.length) toast(F('Quelle nicht mehr vorhanden: {0} – bitte neu wählen.', res.gone.join(', ')), 'warn');
+  }
+
+  function renderSourceBar() {
+    const n = pendingSources().filter((p) => srcState.get(p.item) === 'perm').length;
+    let bar = $('#sourceBar');
+    if (!n) { if (bar) bar.hidden = true; return; }
+    if (!bar) {
+      bar = document.createElement('div');
+      bar.id = 'sourceBar'; bar.className = 'source-bar';
+      bar.innerHTML = '<span></span><button type="button" class="btn small primary"></button>';
+      bar.querySelector('button').addEventListener('click', async () => reportSources(await reattachSources(true)));
+      $('main.content').insertBefore(bar, $('main.content').firstChild);
+    }
+    bar.hidden = false;
+    bar.querySelector('span').textContent = F('{0} Quellen aus dem gespeicherten Projekt sind bekannt – Chrome braucht für den Zugriff einmal deine Freigabe.', n);
+    bar.querySelector('button').textContent = T('Quellen einbinden');
+  }
+
+  /*  Auswahl ueber die Dialoge statt ueber <input type=file> - nur so gibt es
+      Handles, die sich merken lassen. */
+  async function pickDriverFolder(refill) {
+    let dir;
+    try { dir = await window.showDirectoryPicker({ id: 'oem-drivers', mode: 'read' }); }
+    catch (e) { if (!e || e.name !== 'AbortError') toast(F('Ordner nicht verfügbar: {0}', e.message), 'err'); return; }
+    let entries;
+    try { entries = (await readDirEntries(dir, '')).sort(byRel); }
+    catch (e) { toast(F('Ordner nicht lesbar: {0}', e.message), 'err'); return; }
+    const src = await rememberSource(dir, 'dir');
+    let d = refill;
+    if (d) {
+      d.files = entries.map((x) => ({ rel: x.rel, blob: x.file }));
+      d.missing = 0;
+    } else {
+      d = await addDriverPackage(dir.name, entries);
+    }
+    d.src = src;
+    srcState.delete(d);
+    const st = driverStats(d);
+    toast(F(st.count === 1 ? 'Treiberpaket „{0}“: {1} Datei, {2} INF.' : 'Treiberpaket „{0}“: {1} Dateien, {2} INF.', d.name, st.count, st.inf), st.inf ? 'ok' : 'warn');
+    syncInputs(); renderSourceBar(); renderDrivers(); refresh();
+  }
+
+  async function pickDriverFiles() {
+    let hs;
+    try { hs = await window.showOpenFilePicker({ id: 'oem-drivers', multiple: true }); }
+    catch (e) { if (!e || e.name !== 'AbortError') toast(F('Ordner nicht verfügbar: {0}', e.message), 'err'); return; }
+    if (!hs || !hs.length) return;
+    const list = [];
+    for (const h of hs) list.push({ rel: h.name, file: await h.getFile() });
+    const inf = list.find((x) => /\.inf$/i.test(x.rel)) || list[0];
+    const d = await addDriverPackage(inf.rel.replace(/\.[^.]+$/, ''), list);
+    d.src = await rememberSource(hs, 'files');
+    syncInputs(); renderDrivers(); refresh();
+  }
+
+  async function pickFiles() {
+    let hs;
+    try { hs = await window.showOpenFilePicker({ id: 'oem-files', multiple: true }); }
+    catch (e) { if (!e || e.name !== 'AbortError') toast(F('Ordner nicht verfügbar: {0}', e.message), 'err'); return; }
+    for (const h of hs || []) {
+      const f = await h.getFile();
+      state.files.items.push({
+        name: f.name, target: f.name,
+        run: /\.msi$/i.test(f.name) ? '/qn /norestart' : '',
+        phase: 'firstlogon', enabled: true, dest: 'files', blob: f, blobPresent: true,
+        src: await rememberSource(h, 'file')
+      });
+    }
+    renderFiles(); refresh();
+  }
 
   async function startInFor(id) {
     const own = await lastPlace.get(id);
@@ -1826,8 +2042,14 @@
       dragDepth = 0;
       document.body.classList.remove('dragging'); $('#dropzone').classList.remove('hot');
       if (e.dataTransfer && e.dataTransfer.files.length) {
+        /* Handles muessen noch im Ereignis angefordert werden - danach ist
+           dataTransfer leer. */
+        const files = Array.from(e.dataTransfer.files);
+        const hp = Array.from(e.dataTransfer.items || []).filter((i) => i.kind === 'file')
+          .map((i) => (typeof i.getAsFileSystemHandle === 'function' ? i.getAsFileSystemHandle().catch(() => null) : null));
         setView('import');
-        await importFiles(e.dataTransfer.files);
+        const handles = (await Promise.all(hp)).filter((h) => h && h.kind === 'file');
+        await importFiles(files, { handles });
       }
     });
 
@@ -1883,10 +2105,10 @@
     });
 
     /* Dateien */
-    $('#btnFilesAdd').addEventListener('click', () => $('#filesInput').click());
+    $('#btnFilesAdd').addEventListener('click', () => (hasPickers ? pickFiles() : $('#filesInput').click()));
     /* Treiber */
-    $('#btnDriversFolder').addEventListener('click', () => $('#driversFolderInput').click());
-    $('#btnDriversFiles').addEventListener('click', () => $('#driversFilesInput').click());
+    $('#btnDriversFolder').addEventListener('click', () => (hasPickers ? pickDriverFolder(null) : $('#driversFolderInput').click()));
+    $('#btnDriversFiles').addEventListener('click', () => (hasPickers ? pickDriverFiles() : $('#driversFilesInput').click()));
     $('#btnDriversEmpty').addEventListener('click', () => {
       state.drivers.items.push({ name: uniqueDriverName(T('Treiber'), null), dest: 'pnp', models: '', enabled: true, files: [] });
       state.drivers.enabled = true;
@@ -1910,6 +2132,7 @@
         d.files = [];
         for (const list of groups.values()) for (const x of list) d.files.push({ rel: x.rel, blob: x.file });
         d.missing = 0;
+        d.src = null;
         const st = driverStats(d);
         toast(F(st.count === 1 ? 'Treiberpaket „{0}“: {1} Datei, {2} INF.' : 'Treiberpaket „{0}“: {1} Dateien, {2} INF.', d.name, st.count, st.inf), st.inf ? 'ok' : 'warn');
         renderDrivers(); refresh();

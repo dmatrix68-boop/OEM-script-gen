@@ -333,7 +333,9 @@ der Maschinentyp (z. B. <code>21AH…</code>); der lesbare Name kommt aus dem Pr
 
 <h3>Gut zu wissen</h3>
 <ul>
-  <li>Treiberdateien stehen nur im ZIP, nicht in der Projektdatei. Nach dem Laden sind die Pakete wieder da, aber leer.</li>
+  <li>Treiberdateien stehen nur im ZIP, nicht in der Projektdatei. In Chrome und Edge merkt sich der Browser aber den
+  Quellordner und bindet ihn beim Laden des Projekts wieder ein (siehe <a data-help="files">Eigene Dateien</a>);
+  sonst sind die Pakete nach dem Laden wieder da, aber leer.</li>
   <li>Mit der ZIP-Wurzel „beide Orte“ liegen pnputil-Pakete doppelt im Archiv.</li>
   <li><b>Große Pakete</b> (Grafiktreiber haben entpackt oft 1–2 GB) sind kein Problem: Über 4 GB schreibt der Generator
   ZIP64, und große Dateien werden direkt von der Platte übernommen statt im Arbeitsspeicher gesammelt. Bequemer ist
@@ -370,6 +372,12 @@ Lizenzdateien. Auf Wunsch werden Installer mit Silent-Parametern ausgeführt.</p
 <ul>
   <li>Binärdateien werden nur ins ZIP gepackt, nicht in die Projektdatei. Nach dem Laden eines Projekts bleiben die
   Einträge als Platzhalter stehen; die <code>LIESMICH.txt</code> nennt, was von Hand nachzulegen ist.</li>
+  <li><b>Quellen merken (Chrome, Edge):</b> Der Browser merkt sich, aus welchem Ordner bzw. welcher Datei ein Eintrag
+  stammt. Beim Laden des Projekts werden diese Quellen geprüft und direkt wieder eingebunden. Braucht Chrome dafür
+  erneut deine Freigabe, erscheint oben die Leiste <b>Quellen einbinden</b>; ein Klick genügt. Wählst du in der
+  Abfrage „Bei jedem Besuch zulassen“, entfällt auch das. Das gilt nur im selben Browser und Profil; auf einem anderen
+  PC bleibt es bei Platzhaltern. Hat sich der Inhalt eines Treiberordners geändert, meldet der Generator die neue
+  Dateizahl; eine gelöschte Quelle wird als „nicht mehr vorhanden“ markiert.</li>
   <li>Entpackte Treiber (INF) gehören ins <a data-help="drivers">Treiber</a>-Modul.</li>
 </ul>`
     },
@@ -807,7 +815,9 @@ type (e.g. <code>21AH…</code>); the readable name comes from the product name.
 
 <h3>Good to know</h3>
 <ul>
-  <li>Driver files are only in the ZIP, not in the project file. After loading, the packages are back but empty.</li>
+  <li>Driver files are only in the ZIP, not in the project file. In Chrome and Edge the browser remembers the source
+  folder, though, and attaches it again when the project is loaded (see <a data-help="files">Own files</a>);
+  otherwise the packages are back after loading, but empty.</li>
   <li>With the ZIP root "both places" pnputil packages are in the archive twice.</li>
   <li><b>Large packages</b> (graphics drivers are often 1–2 GB unpacked) are no problem: above 4 GB the generator writes
   ZIP64, and large files are taken straight from disk instead of being collected in memory. With such amounts
@@ -844,6 +854,12 @@ Installers can be run with silent parameters.</p>
 <ul>
   <li>Binary files only go into the ZIP, not into the project file. After loading a project the entries stay as
   placeholders; the <code>README.txt</code> names what has to be added by hand.</li>
+  <li><b>Remembered sources (Chrome, Edge):</b> the browser remembers which folder or file an entry came from. When
+  the project is loaded, these sources are checked and attached again right away. If Chrome needs your permission
+  again, the bar <b>Attach sources</b> appears at the top; one click is enough. Choosing "Allow on every visit" in the
+  prompt removes that step too. This only works in the same browser and profile; on another PC the entries stay
+  placeholders. If the content of a driver folder changed, the generator reports the new file count; a deleted
+  source is marked as "no longer available".</li>
   <li>Unpacked drivers (INF) belong in the <a data-help="drivers">Drivers</a> module.</li>
 </ul>`
     },

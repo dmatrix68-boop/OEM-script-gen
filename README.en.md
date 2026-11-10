@@ -271,8 +271,12 @@ detected values are written to the log. To show them on the target device:
 Get-CimInstance Win32_ComputerSystem | Select Manufacturer, Model, SystemSKUNumber
 ```
 
-Driver files go into the ZIP only, not into the project file: after loading a
-project the packages are back, but empty. With the ZIP root "both places" the
+Driver files go into the ZIP only, not into the project file. In Chrome and Edge
+the browser remembers which folder a package (or which file an entry under *Own
+files*) came from, though: when the project is loaded these sources are checked
+and attached again right away – if Chrome needs permission again, one click on
+**Attach sources** is enough. This only works in the same browser profile;
+elsewhere the packages are back after loading, but empty. With the ZIP root "both places" the
 pnputil packages are in the archive twice. Driver installers as EXE still belong
 under *Own files* in the interface.
 
