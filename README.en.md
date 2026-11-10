@@ -345,7 +345,10 @@ disk as a stream. Existing `$OEM$`, `sources\$OEM$` and `$WinPEDriver$` folders 
 are emptied first after a confirmation – otherwise removed drivers, for example, would
 stay behind. Everything else on the stick stays untouched; an existing
 `autounattend.xml` that was not imported would be replaced, which the confirmation
-points out.
+points out. File types Chrome does not write to folders (above all `.dll`, plus `.ini`,
+`.cfg`, `.manifest`) end up on the stick as `*.oemrename` and in `Umbenennen.txt`;
+`Install.ps1` renames them back before the first module. That does not work for drivers
+under `$WinPEDriver$` – use the ZIP for those.
 
 Large packages fit into the ZIP as well: from 4 GB or 65,535 files on the generator
 writes **ZIP64** automatically, which Windows Explorer (Windows 10 and later) and 7-Zip

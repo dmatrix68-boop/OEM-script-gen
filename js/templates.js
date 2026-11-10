@@ -663,6 +663,43 @@ if ($Phase -ne 'Manual' -and -not $Force) {
 
 Set-OemRunning -Key $markerKey -Name $runningName
 
+<#  Nach "In Ordner exportieren" aus Chrome/Edge: Dateitypen wie .dll, .ini
+    oder .cfg darf der Browser nicht in Ordner schreiben. Sie liegen deshalb
+    mit der Zusatzendung .oemrename vor und bekommen hier - vor allen Modulen -
+    ihren Namen zurueck. Umbenennen.txt listet sie relativ zu diesem Ordner,
+    andere Ziele mit $1\\ bzw. $$\\ wie unter $OEM$. #>
+$renameList = Join-Path $scriptRoot 'Umbenennen.txt'
+if (Test-Path -LiteralPath $renameList) {
+    $oemAt = $scriptRoot.IndexOf('\\$OEM$\\$1\\')
+    $fixed = 0; $broken = 0
+    foreach ($line in @(Get-Content -LiteralPath $renameList -Encoding UTF8)) {
+        $rel = $line.Trim()
+        if (-not $rel -or $rel.StartsWith('#')) { continue }
+        if ($rel.StartsWith('$$\\')) {
+            $base = $(if ($oemAt -ge 0) { $scriptRoot.Substring(0, $oemAt) + '\\$OEM$\\$$' } else { $env:windir })
+            $target = Join-Path $base $rel.Substring(3)
+        } elseif ($rel.StartsWith('$1\\')) {
+            $base = $(if ($oemAt -ge 0) { $scriptRoot.Substring(0, $oemAt) + '\\$OEM$\\$1' } else { $env:SystemDrive + '\\' })
+            $target = Join-Path $base $rel.Substring(3)
+        } else {
+            $target = Join-Path $scriptRoot $rel
+        }
+        $src = $target + '.oemrename'
+        if (-not (Test-Path -LiteralPath $src)) { continue }
+        try {
+            if (Test-Path -LiteralPath $target) { Remove-Item -LiteralPath $target -Force -ErrorAction Stop }
+            Rename-Item -LiteralPath $src -NewName (Split-Path -Leaf $target) -ErrorAction Stop
+            $fixed++
+        } catch {
+            $broken++
+            Write-Log ('Umbenennen fehlgeschlagen: ' + $src + ' - ' + $_.Exception.Message) -Level Warn
+        }
+    }
+    if ($fixed -or $broken) {
+        Write-Log ('Dateinamen aus dem Ordner-Export wiederhergestellt: ' + $fixed + $(if ($broken) { ' (Fehler: ' + $broken + ')' } else { '' }))
+    }
+}
+
 $setupSteps = @(
 ${fmt(setupMods)}
 )
@@ -1968,6 +2005,10 @@ Show-Item 'Installationsordner' (Test-Path $root) $root
 Show-Item 'Install.ps1' (Test-Path (Join-OemPath $root 'Install.ps1')) (Join-OemPath $root 'Install.ps1')
 $modCount = @(Get-ChildItem (Join-OemPath $root 'Modules') -Filter *.ps1 -ErrorAction SilentlyContinue).Count
 Show-Item 'Modules-Ordner' (Test-Path (Join-OemPath $root 'Modules')) ("$modCount Module")
+if (Test-Path -LiteralPath (Join-OemPath $root 'Umbenennen.txt')) {
+    $left = @(Get-ChildItem -LiteralPath $root -Recurse -Filter '*.oemrename' -File -ErrorAction SilentlyContinue).Count
+    Show-Item 'Namen aus Ordner-Export' ($left -eq 0) $(if ($left) { "$left Dateien noch *.oemrename - Install.ps1 lief noch nicht oder konnte nicht umbenennen" } else { 'alle zurueckbenannt' })
+}
 $sc = Join-OemPath $env:SystemRoot 'Setup\\Scripts\\SetupComplete.cmd'
 Show-Item 'SetupComplete.cmd' (Test-Path $sc) $sc
 if (-not (Test-Path $sc)) {

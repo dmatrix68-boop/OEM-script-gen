@@ -43,6 +43,11 @@ und spart das Entpacken. Liegen im Ziel schon
 geleert, damit keine alten Dateien (etwa entfernte Treiber) mit eingespielt werden; alles andere, etwa
 <code>sources\install.wim</code>, bleibt unberührt. Eine vorhandene, nicht importierte <code>autounattend.xml</code>
 würde ersetzt – auch darauf weist die Rückfrage hin.</p>
+<p>Bestimmte Dateitypen – vor allem <code>.dll</code>, dazu <code>.ini</code>, <code>.cfg</code>, <code>.manifest</code>
+und Verknüpfungen – schreibt Chrome aus Sicherheitsgründen nicht unter ihrem Namen in Ordner. Der Export legt sie mit der
+Zusatzendung <code>.oemrename</code> ab und listet sie in <code>Umbenennen.txt</code> neben <code>Install.ps1</code>;
+<code>Install.ps1</code> gibt ihnen bei der Installation vor allen Modulen den Namen zurück. Für Treiber unter
+<code>$WinPEDriver$</code> geht das nicht, weil dort kein Skript läuft – solche Pakete per ZIP ausliefern.</p>
 
 <h3>Das Zwei-Phasen-Modell</h3>
 <table>
@@ -333,7 +338,8 @@ der Maschinentyp (z. B. <code>21AH…</code>); der lesbare Name kommt aus dem Pr
   <li><b>Große Pakete</b> (Grafiktreiber haben entpackt oft 1–2 GB) sind kein Problem: Über 4 GB schreibt der Generator
   ZIP64, und große Dateien werden direkt von der Platte übernommen statt im Arbeitsspeicher gesammelt. Bequemer ist
   bei solchen Mengen <b>In Ordner exportieren</b> (Chrome, Edge) – das schreibt direkt auf den Stick, das Entpacken
-  entfällt. Alternativ das Paket als <b>Leeres Paket</b> anlegen und den Inhalt selbst kopieren.</li>
+  entfällt; DLLs heißen dort bis zur Installation <code>*.dll.oemrename</code> (siehe Übersicht). Für Pakete unter
+  <code>$WinPEDriver$</code> das ZIP nehmen. Alternativ das Paket als <b>Leeres Paket</b> anlegen und den Inhalt selbst kopieren.</li>
   <li>Damit Windows Update die Treiber nicht wieder ersetzt: Tweak „Keine Treiber über Windows Update“.</li>
 </ul>`
     },
@@ -512,6 +518,11 @@ over 128 MB go into the ZIP uncompressed (they are usually compressed already), 
 <code>$WinPEDriver$</code>, exactly these folders are emptied after a confirmation so no old files (such as removed
 drivers) get installed; everything else, such as <code>sources\install.wim</code>, stays untouched. An existing
 <code>autounattend.xml</code> that was not imported would be replaced – the confirmation points that out too.</p>
+<p>Certain file types – above all <code>.dll</code>, plus <code>.ini</code>, <code>.cfg</code>, <code>.manifest</code>
+and shortcuts – Chrome does not write to folders under their own name for security reasons. The export stores them with
+the extra extension <code>.oemrename</code> and lists them in <code>Umbenennen.txt</code> next to <code>Install.ps1</code>;
+<code>Install.ps1</code> gives them their names back during installation, before any module. That is not possible for
+drivers under <code>$WinPEDriver$</code> because no script runs there – deliver such packages as ZIP.</p>
 
 <h3>The two-phase model</h3>
 <table>
@@ -800,8 +811,9 @@ type (e.g. <code>21AH…</code>); the readable name comes from the product name.
   <li>With the ZIP root "both places" pnputil packages are in the archive twice.</li>
   <li><b>Large packages</b> (graphics drivers are often 1–2 GB unpacked) are no problem: above 4 GB the generator writes
   ZIP64, and large files are taken straight from disk instead of being collected in memory. With such amounts
-  <b>Export to folder</b> (Chrome, Edge) is more convenient – it writes straight to the stick, no unpacking needed.
-  Alternatively create the package as an <b>Empty package</b> and copy the content yourself.</li>
+  <b>Export to folder</b> (Chrome, Edge) is more convenient – it writes straight to the stick, no unpacking needed; DLLs are
+  named <code>*.dll.oemrename</code> there until installation (see overview). Use the ZIP for packages under
+  <code>$WinPEDriver$</code>. Alternatively create the package as an <b>Empty package</b> and copy the content yourself.</li>
   <li>To keep Windows Update from replacing the drivers: tweak "No drivers through Windows Update".</li>
 </ul>`
     },

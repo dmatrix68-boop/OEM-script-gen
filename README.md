@@ -356,6 +356,10 @@ als Datenstrom von der Platte kopiert. Vorhandene Ordner `$OEM$`, `sources\$OEM$
 `$WinPEDriver$` im Ziel werden nach Rückfrage vorher geleert – sonst blieben etwa
 entfernte Treiber liegen. Alles andere auf dem Stick bleibt unberührt; eine vorhandene,
 nicht importierte `autounattend.xml` würde ersetzt, darauf weist die Rückfrage hin.
+Dateitypen, die Chrome nicht in Ordner schreibt (vor allem `.dll`, dazu `.ini`, `.cfg`,
+`.manifest`), landen als `*.oemrename` auf dem Stick und in `Umbenennen.txt`;
+`Install.ps1` benennt sie vor dem ersten Modul zurück. Für Treiber unter
+`$WinPEDriver$` geht das nicht – dafür das ZIP verwenden.
 
 Große Pakete passen auch ins ZIP: Ab 4 GB oder 65.535 Dateien schreibt der Generator
 automatisch **ZIP64**, das der Windows-Explorer ab Windows 10 und 7-Zip entpacken.

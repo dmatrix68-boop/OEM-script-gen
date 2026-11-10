@@ -1454,19 +1454,55 @@
   }
 
   /*  Namen, die Chrome beim Schreiben auf die Platte ablehnt ("Name is not
-      allowed") - nach den Regeln von Chromium (net/base/filename_util):
-      reservierte Windows-Namen, die Explorer-Dateien desktop.ini/Thumbs.db,
-      Verknuepfungen (.lnk, .local, CLSID-Endung) und Namen mit Punkt oder
-      Leerzeichen am Ende. In Treiberordnern stecken davon oft Thumbs.db oder
-      desktop.ini - die werden uebersprungen statt den Export abzubrechen. */
+      allowed") und die sich auch durch Umbenennen nicht retten lassen (Regeln
+      aus Chromium, FileSystemAccessManagerImpl::IsSafePathComponent):
+      unzulaessige Zeichen, reservierte Windows-Namen und Namen mit Punkt oder
+      Leerzeichen am Ende. Dazu die Explorer-Hilfsdateien desktop.ini und
+      Thumbs.db, die in Treiberordnern oft herumliegen und nichts bewirken.
+      Gesperrte Dateitypen (.dll, .ini, .cfg, .lnk ...) behandelt exportFolder
+      ueber RENAME_EXT. */
   function unsafeNameReason(name) {
     if (!name || name === '.' || name === '..') return T('ungültiger Name');
     if (/[<>:"|?*\\/\u0000-\u001f]/.test(name)) return T('unzulässige Zeichen');
     if (/[. ]$/.test(name)) return T('endet auf Punkt oder Leerzeichen');
     if (/^(con|prn|aux|nul|com[0-9]|lpt[0-9]|clock\$)(\..*)?$/i.test(name)) return T('reservierter Gerätename');
     if (/^(desktop\.ini|thumbs\.db)$/i.test(name)) return T('Explorer-Hilfsdatei');
-    if (/\.(lnk|local)$/i.test(name) || /\.\{[^}]*\}$/.test(name)) return T('Verknüpfung bzw. Shell-Dateityp');
     return null;
+  }
+
+  /*  Dateitypen, die Safe Browsing als gefaehrlich fuehrt (unter Windows u. a.
+      .dll, .ini, .cfg, .manifest), dazu .lnk, .scf, .url und CLSID-Endungen,
+      schreibt Chrome nicht in echte Ordner - Treiberpakete bestehen aber zum
+      grossen Teil aus DLLs. Solche Dateien bekommen die Zusatzendung
+      RENAME_EXT und landen in Umbenennen.txt neben Install.ps1; Install.ps1
+      gibt ihnen vor dem ersten Modul ihren Namen zurueck. Erkannt wird das an
+      der Ablehnung selbst (TypeError), weil Chrome die Liste aktualisiert. */
+  const RENAME_EXT = '.oemrename';
+  function isNameRejected(err) {
+    return !!err && (err instanceof TypeError || err.name === 'TypeError');
+  }
+
+  /*  Umbenennen.txt je Install-Ordner: Pfade unterhalb des Install-Ordners
+      relativ, alles andere unter $OEM$ mit $1\ bzw. $$\ davor. */
+  function renameLists(renamed, files) {
+    const instDirs = files.map((f) => f.path).filter((p) => /\$OEM\$\/\$1\/.+\/Install\.ps1$/.test(p))
+      .map((p) => p.slice(0, -'/Install.ps1'.length));
+    const lists = new Map();
+    for (const p of renamed) {
+      const at = p.indexOf('$OEM$/');
+      if (at < 0) continue;
+      const prefix = p.slice(0, at + 6);
+      const inst = instDirs.find((d) => d.indexOf(prefix) === 0);
+      if (!inst) continue;
+      const rel = p.indexOf(inst + '/') === 0 ? p.slice(inst.length + 1) : p.slice(at + 6);
+      if (!lists.has(inst)) lists.set(inst, []);
+      lists.get(inst).push(rel.replace(/\//g, '\\'));
+    }
+    return Array.from(lists, ([inst, rels]) => ({
+      path: inst + '/Umbenennen.txt',
+      data: '\uFEFF' + ['# Vom Ordner-Export mit ' + RENAME_EXT + ' geschrieben, Install.ps1 benennt sie zurueck.']
+        .concat(rels).join('\r\n') + '\r\n'
+    }));
   }
 
   /* Datei, die beim Export nicht mehr lesbar war, als fehlend markieren -
@@ -1612,7 +1648,7 @@
       }
       const entries = previewFiles.map((f) => ({ path: f.path, data: f.data }));
       entries.push({ path: (state.meta.name || 'Projekt').replace(/[^\w.-]+/g, '_') + '.oemproj.json', data: projectJson() });
-      const skipped = [], failed = [], lostNow = new Set();
+      const skipped = [], failed = [], lostNow = new Set(), renamed = [], winpeBlocked = [];
       let n = 0;
       for (const e of entries) {
         n++;
@@ -1624,12 +1660,23 @@
         let w = null;
         try {
           const dir = await dirFor(root, parts);
-          const fh = await dir.getFileHandle(fileName, { create: true });
+          let fh, asRenamed = false;
+          try {
+            fh = await dir.getFileHandle(fileName, { create: true });
+          } catch (err) {
+            if (!isNameRejected(err)) throw err;
+            /* $WinPEDriver$ liest Windows Setup selbst - dort laeuft kein
+               Skript, das den Namen zurueckgeben koennte. */
+            if (parts[0] === '$WinPEDriver$') { winpeBlocked.push(e.path); continue; }
+            fh = await dir.getFileHandle(fileName + RENAME_EXT, { create: true });
+            asRenamed = true;
+          }
           w = await fh.createWritable();
           /* Blob/File als Datenstrom, Text und Bytes direkt */
           if (typeof Blob !== 'undefined' && e.data instanceof Blob) await e.data.stream().pipeTo(w);
           else { await w.write(e.data); await w.close(); }
           done++;
+          if (asRenamed) renamed.push(e.path);
         } catch (err) {
           if (w) { try { await w.abort(); } catch (x) { /* schon abgebrochen */ } }
           const unreadable = isReadError(err) || !(await stillReadable(e.data));
@@ -1639,6 +1686,25 @@
           if (err && (err.name === 'QuotaExceededError' || failed.length >= 25)) break;
         }
       }
+      for (const list of renameLists(renamed, entries)) {
+        try {
+          const parts = list.path.split('/');
+          const fileName = parts.pop();
+          const fh = await (await dirFor(root, parts)).getFileHandle(fileName, { create: true });
+          const w = await fh.createWritable();
+          await w.write(list.data); await w.close();
+        } catch (err) {
+          failed.push(list.path + ': ' + ((err && err.message) || err));
+        }
+      }
+      if (winpeBlocked.length) {
+        failed.push(F('$WinPEDriver$: {0} Dateien mit gesperrtem Dateityp (z. B. .dll) – Chrome schreibt sie nicht in Ordner, und Windows Setup liest diesen Ordner ohne Skript. ' +
+          'Diese Treiber per „ZIP erzeugen“ ausliefern oder auf Phase „Setup“ (pnputil) umstellen. Erste Datei: {1}', winpeBlocked.length, winpeBlocked[0]));
+      }
+      if (renamed.length) {
+        toast(F('{0} Dateien (z. B. .dll) schreibt Chrome nicht unter ihrem Namen in Ordner – sie tragen die Endung {1}, Install.ps1 benennt sie bei der Installation zurück.',
+          renamed.length, RENAME_EXT), 'info');
+      }
       if (!skipped.length && !failed.length) {
         toast(F('{0} Dateien nach „{1}“ geschrieben.', done, root.name), 'ok');
       } else {
@@ -1646,6 +1712,7 @@
         let msg = F('{0} Dateien nach „{1}“ geschrieben.', done, root.name);
         if (skipped.length) msg += '\n\n' + F('Übersprungen, weil der Browser diese Namen nicht schreiben darf ({0}):', skipped.length) + '\n' + list(skipped);
         if (failed.length) msg += '\n\n' + F('Nicht geschrieben ({0}):', failed.length) + '\n' + list(failed);
+        if (renamed.length) msg += '\n\n' + F('{0} Dateien (z. B. .dll) schreibt Chrome nicht unter ihrem Namen in Ordner – sie tragen die Endung {1}, Install.ps1 benennt sie bei der Installation zurück.', renamed.length, RENAME_EXT);
         if (lostNow.size) msg += '\n\n' + F('Nicht mehr lesbar – seit dem Hinzufügen geändert, verschoben oder gelöscht. Bitte neu zuordnen: {0}', Array.from(lostNow).join(', '));
         toast(failed.length ? T('Export unvollständig – Details im Hinweisfenster.') : F('{0} Dateien geschrieben, {1} übersprungen.', done, skipped.length), failed.length ? 'err' : 'warn');
         alert(msg);
