@@ -352,7 +352,7 @@ are emptied first after a confirmation – otherwise removed drivers, for exampl
 stay behind. Everything else on the stick stays untouched; an existing
 `autounattend.xml` that was not imported would be replaced, which the confirmation
 points out. File types Chrome does not write to folders (above all `.dll`, plus `.ini`,
-`.cfg`, `.manifest`) end up on the stick as `*.oemrename` and in `Umbenennen.txt`;
+`.cfg`, `.manifest`) end up on the stick as `*.oemrename`;
 `Install.ps1` renames them back before the first module. That does not work for drivers
 under `$WinPEDriver$` – use the ZIP for those.
 

@@ -1644,36 +1644,14 @@
       .dll, .ini, .cfg, .manifest), dazu .lnk, .scf, .url und CLSID-Endungen,
       schreibt Chrome nicht in echte Ordner - Treiberpakete bestehen aber zum
       grossen Teil aus DLLs. Solche Dateien bekommen die Zusatzendung
-      RENAME_EXT und landen in Umbenennen.txt neben Install.ps1; Install.ps1
-      gibt ihnen vor dem ersten Modul ihren Namen zurueck. Erkannt wird das an
+      RENAME_EXT; Install.ps1 sucht vor dem ersten Modul nach *.oemrename und
+      gibt ihnen ihren Namen zurueck. Erkannt wird das an
       der Ablehnung selbst (TypeError), weil Chrome die Liste aktualisiert. */
   const RENAME_EXT = '.oemrename';
   function isNameRejected(err) {
     return !!err && (err instanceof TypeError || err.name === 'TypeError');
   }
 
-  /*  Umbenennen.txt je Install-Ordner: Pfade unterhalb des Install-Ordners
-      relativ, alles andere unter $OEM$ mit $1\ bzw. $$\ davor. */
-  function renameLists(renamed, files) {
-    const instDirs = files.map((f) => f.path).filter((p) => /\$OEM\$\/\$1\/.+\/Install\.ps1$/.test(p))
-      .map((p) => p.slice(0, -'/Install.ps1'.length));
-    const lists = new Map();
-    for (const p of renamed) {
-      const at = p.indexOf('$OEM$/');
-      if (at < 0) continue;
-      const prefix = p.slice(0, at + 6);
-      const inst = instDirs.find((d) => d.indexOf(prefix) === 0);
-      if (!inst) continue;
-      const rel = p.indexOf(inst + '/') === 0 ? p.slice(inst.length + 1) : p.slice(at + 6);
-      if (!lists.has(inst)) lists.set(inst, []);
-      lists.get(inst).push(rel.replace(/\//g, '\\'));
-    }
-    return Array.from(lists, ([inst, rels]) => ({
-      path: inst + '/Umbenennen.txt',
-      data: '\uFEFF' + ['# Vom Ordner-Export mit ' + RENAME_EXT + ' geschrieben, Install.ps1 benennt sie zurueck.']
-        .concat(rels).join('\r\n') + '\r\n'
-    }));
-  }
 
   /* Datei, die beim Export nicht mehr lesbar war, als fehlend markieren -
      dann zeigt die Oberflaeche den Platzhalter mit "Datei/Ordner wählen". */
@@ -1861,17 +1839,6 @@
           if (unreadable) { const who = markUnreadable(e.data); if (who) lostNow.add(who); }
           /* Platte voll o. ae.: weitere Versuche sind zwecklos */
           if (err && (err.name === 'QuotaExceededError' || failed.length >= 25)) break;
-        }
-      }
-      for (const list of renameLists(renamed, entries)) {
-        try {
-          const parts = list.path.split('/');
-          const fileName = parts.pop();
-          const fh = await (await dirFor(root, parts)).getFileHandle(fileName, { create: true });
-          const w = await fh.createWritable();
-          await w.write(list.data); await w.close();
-        } catch (err) {
-          failed.push(list.path + ': ' + ((err && err.message) || err));
         }
       }
       if (winpeBlocked.length) {

@@ -45,8 +45,8 @@ geleert, damit keine alten Dateien (etwa entfernte Treiber) mit eingespielt werd
 würde ersetzt – auch darauf weist die Rückfrage hin.</p>
 <p>Bestimmte Dateitypen – vor allem <code>.dll</code>, dazu <code>.ini</code>, <code>.cfg</code>, <code>.manifest</code>
 und Verknüpfungen – schreibt Chrome aus Sicherheitsgründen nicht unter ihrem Namen in Ordner. Der Export legt sie mit der
-Zusatzendung <code>.oemrename</code> ab und listet sie in <code>Umbenennen.txt</code> neben <code>Install.ps1</code>;
-<code>Install.ps1</code> gibt ihnen bei der Installation vor allen Modulen den Namen zurück. Für Treiber unter
+Zusatzendung <code>.oemrename</code> ab;
+<code>Install.ps1</code> sucht danach und gibt ihnen bei der Installation vor allen Modulen den Namen zurück. Für Treiber unter
 <code>$WinPEDriver$</code> geht das nicht, weil dort kein Skript läuft – solche Pakete per ZIP ausliefern.</p>
 
 <h3>Das Zwei-Phasen-Modell</h3>
@@ -531,8 +531,8 @@ drivers) get installed; everything else, such as <code>sources\install.wim</code
 <code>autounattend.xml</code> that was not imported would be replaced – the confirmation points that out too.</p>
 <p>Certain file types – above all <code>.dll</code>, plus <code>.ini</code>, <code>.cfg</code>, <code>.manifest</code>
 and shortcuts – Chrome does not write to folders under their own name for security reasons. The export stores them with
-the extra extension <code>.oemrename</code> and lists them in <code>Umbenennen.txt</code> next to <code>Install.ps1</code>;
-<code>Install.ps1</code> gives them their names back during installation, before any module. That is not possible for
+the extra extension <code>.oemrename</code>;
+<code>Install.ps1</code> looks for them and gives them their names back during installation, before any module. That is not possible for
 drivers under <code>$WinPEDriver$</code> because no script runs there – deliver such packages as ZIP.</p>
 
 <h3>The two-phase model</h3>

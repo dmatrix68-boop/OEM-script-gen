@@ -363,7 +363,7 @@ als Datenstrom von der Platte kopiert. Vorhandene Ordner `$OEM$`, `sources\$OEM$
 entfernte Treiber liegen. Alles andere auf dem Stick bleibt unberührt; eine vorhandene,
 nicht importierte `autounattend.xml` würde ersetzt, darauf weist die Rückfrage hin.
 Dateitypen, die Chrome nicht in Ordner schreibt (vor allem `.dll`, dazu `.ini`, `.cfg`,
-`.manifest`), landen als `*.oemrename` auf dem Stick und in `Umbenennen.txt`;
+`.manifest`), landen als `*.oemrename` auf dem Stick;
 `Install.ps1` benennt sie vor dem ersten Modul zurück. Für Treiber unter
 `$WinPEDriver$` geht das nicht – dafür das ZIP verwenden.
 
