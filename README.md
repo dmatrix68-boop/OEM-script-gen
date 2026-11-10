@@ -280,12 +280,14 @@ erkannten Werte stehen im Protokoll. Auf dem Zielgerät anzeigen:
 Get-CimInstance Win32_ComputerSystem | Select Manufacturer, Model, SystemSKUNumber
 ```
 
-Treiberdateien landen nur im ZIP, nicht in der Projektdatei. In Chrome und Edge
-merkt sich der Browser aber, aus welchem Ordner ein Paket bzw. aus welcher Datei
-ein Eintrag unter *Eigene Dateien* stammt: Beim Laden des Projekts werden diese
-Quellen geprüft und direkt wieder eingebunden – braucht Chrome dafür erneut die
-Freigabe, genügt ein Klick auf **Quellen einbinden**. Das gilt nur im selben
-Browserprofil; anderswo sind die Pakete nach dem Laden wieder da, aber leer. Mit der ZIP-Wurzel „beide
+Treiberdateien landen nur im ZIP, nicht in der Projektdatei: Nach dem Laden
+eines Projekts sind die Pakete wieder da, aber leer, mit dem Namen des Ordners,
+aus dem sie zuletzt kamen. Automatisch einbinden lassen sie sich nicht – liest
+eine Webseite einen gemerkten Ordner, lässt Chrome alle als gefährlich
+eingestuften Dateitypen weg, also gerade die DLLs. Dateien unter *Eigene
+Dateien* dagegen merkt sich Chrome/Edge und bindet sie beim Laden direkt wieder
+ein; braucht Chrome dafür erneut die Freigabe, genügt ein Klick auf **Quellen
+einbinden** (nur im selben Browserprofil). Mit der ZIP-Wurzel „beide
 Orte“ liegen die pnputil-Pakete doppelt im Archiv. Treiber-Installer als EXE
 gehören weiterhin unter *Eigene Dateien*.
 
