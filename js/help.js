@@ -28,9 +28,19 @@ Anwendungen.</p>
   <li><b>Ablauf festlegen</b> – Auslöser, Ablage von <code>$OEM$</code> und was am Ende passiert
     (<a data-help="settings">Einstellungen</a>).</li>
   <li><b>Prüfen</b> – in der <a data-help="preview">Vorschau</a> jede erzeugte Datei ansehen.</li>
-  <li><b>ZIP erzeugen</b> und den Inhalt in das <b>Wurzelverzeichnis</b> des Mediums kopieren. Die
-    <code>LIESMICH.txt</code> im ZIP listet auf, was noch von Hand ergänzt werden muss.</li>
+  <li><b>ZIP erzeugen</b> und den Inhalt in das <b>Wurzelverzeichnis</b> des Mediums kopieren – oder in Chrome und Edge
+    <b>In Ordner exportieren</b> und gleich das Wurzelverzeichnis des USB-Sticks wählen. Die <code>LIESMICH.txt</code>
+    listet auf, was noch von Hand ergänzt werden muss.</li>
 </ol>
+
+<h3>ZIP oder Ordner?</h3>
+<p><b>ZIP erzeugen</b> funktioniert in jedem Browser, entsteht aber komplett im Arbeitsspeicher und fasst höchstens
+4 GB bzw. 65535 Dateien. <b>In Ordner exportieren</b> (Chrome, Edge) schreibt die Dateien direkt in einen Ordner,
+Installer und Treiber werden dabei als Datenstrom von der Platte kopiert – ohne Größengrenze. Liegen im Ziel schon
+<code>$OEM$</code>, <code>sources\$OEM$</code> oder <code>$WinPEDriver$</code>, werden genau diese Ordner nach Rückfrage
+geleert, damit keine alten Dateien (etwa entfernte Treiber) mit eingespielt werden; alles andere, etwa
+<code>sources\install.wim</code>, bleibt unberührt. Eine vorhandene, nicht importierte <code>autounattend.xml</code>
+würde ersetzt – auch darauf weist die Rückfrage hin.</p>
 
 <h3>Das Zwei-Phasen-Modell</h3>
 <table>
@@ -318,10 +328,10 @@ der Maschinentyp (z. B. <code>21AH…</code>); der lesbare Name kommt aus dem Pr
 <ul>
   <li>Treiberdateien stehen nur im ZIP, nicht in der Projektdatei. Nach dem Laden sind die Pakete wieder da, aber leer.</li>
   <li>Mit der ZIP-Wurzel „beide Orte“ liegen pnputil-Pakete doppelt im Archiv.</li>
-  <li><b>Große Pakete</b> (Grafiktreiber haben entpackt oft 1–2 GB): Der Browser hält beim Erzeugen alles im
-  Arbeitsspeicher, und das ZIP fasst höchstens 4 GB bzw. 65535 Dateien – darüber bricht der Generator mit einer
-  Meldung ab. Solche Pakete als <b>Leeres Paket</b> anlegen und den Inhalt nach dem Entpacken direkt in den Ordner auf
-  dem Medium kopieren.</li>
+  <li><b>Große Pakete</b> (Grafiktreiber haben entpackt oft 1–2 GB): Das ZIP entsteht im Arbeitsspeicher und fasst
+  höchstens 4 GB bzw. 65535 Dateien – darüber bricht der Generator mit einer Meldung ab. <b>In Ordner exportieren</b>
+  (Chrome, Edge) kennt diese Grenze nicht und kopiert die Treiber Datei für Datei direkt auf den Stick. Alternativ
+  das Paket als <b>Leeres Paket</b> anlegen und den Inhalt selbst in den Ordner auf dem Medium kopieren.</li>
   <li>Damit Windows Update die Treiber nicht wieder ersetzt: Tweak „Keine Treiber über Windows Update“.</li>
 </ul>`
     },
@@ -487,9 +497,18 @@ automatically: drivers, settings, bloatware, Windows components, Office and appl
   <li><b>Set the sequence</b> – trigger, location of <code>$OEM$</code> and what happens at the end
     (<a data-help="settings">Settings</a>).</li>
   <li><b>Check</b> – look at every generated file in the <a data-help="preview">Preview</a>.</li>
-  <li><b>Create ZIP</b> and copy its contents into the <b>root</b> of the medium. The <code>README.txt</code> in the
-    ZIP lists what still has to be added by hand.</li>
+  <li><b>Create ZIP</b> and copy its contents into the <b>root</b> of the medium – or, in Chrome and Edge, use
+    <b>Export to folder</b> and pick the root of the USB stick straight away. The <code>README.txt</code> lists what
+    still has to be added by hand.</li>
 </ol>
+
+<h3>ZIP or folder?</h3>
+<p><b>Create ZIP</b> works in every browser, but is built entirely in memory and holds 4 GB or 65535 files at most.
+<b>Export to folder</b> (Chrome, Edge) writes the files straight into a folder; installers and drivers are copied from
+disk as a stream – without a size limit. If the target already holds <code>$OEM$</code>, <code>sources\$OEM$</code> or
+<code>$WinPEDriver$</code>, exactly these folders are emptied after a confirmation so no old files (such as removed
+drivers) get installed; everything else, such as <code>sources\install.wim</code>, stays untouched. An existing
+<code>autounattend.xml</code> that was not imported would be replaced – the confirmation points that out too.</p>
 
 <h3>The two-phase model</h3>
 <table>
@@ -776,9 +795,10 @@ type (e.g. <code>21AH…</code>); the readable name comes from the product name.
 <ul>
   <li>Driver files are only in the ZIP, not in the project file. After loading, the packages are back but empty.</li>
   <li>With the ZIP root "both places" pnputil packages are in the archive twice.</li>
-  <li><b>Large packages</b> (graphics drivers are often 1–2 GB unpacked): the browser keeps everything in memory while
-  building, and the ZIP holds 4 GB or 65535 files at most – beyond that the generator stops with a message. Create such
-  packages as an <b>Empty package</b> and copy the content straight into the folder on the medium after unpacking.</li>
+  <li><b>Large packages</b> (graphics drivers are often 1–2 GB unpacked): the ZIP is built in memory and holds 4 GB or
+  65535 files at most – beyond that the generator stops with a message. <b>Export to folder</b> (Chrome, Edge) has no
+  such limit and copies the drivers file by file straight to the stick. Alternatively create the package as an
+  <b>Empty package</b> and copy the content into the folder on the medium yourself.</li>
   <li>To keep Windows Update from replacing the drivers: tweak "No drivers through Windows Update".</li>
 </ul>`
     },

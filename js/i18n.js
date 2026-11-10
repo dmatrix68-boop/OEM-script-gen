@@ -228,6 +228,8 @@
     'th-ziel': 'Target',
     'th-modelle': 'Models',
     'useconfigurationset-setzen': 'Write <code>UseConfigurationSet=true</code> into the autounattend.xml – needed for Windows Setup to copy <code>$OEM$</code> (recommended)',
+    'in-ordner-exportieren': 'Export to folder',
+    'in-ordner-exportieren-titel': 'Write the structure straight into a folder – e.g. the root of the USB stick. No ZIP, no 4 GB limit (Chrome, Edge)',
   };
 
 
@@ -605,8 +607,6 @@
     'Diese Dateien fehlen und kommen nur als Platzhalter ins ZIP:\n\n{0}\n\nDie Projektdatei enthält keine Binärdateien – nach dem Laden müssen sie unter „Eigene Dateien“ bzw. „Treiber“ neu zugeordnet werden. Trotzdem erzeugen?': 'These files are missing and only go into the ZIP as placeholders:\n\n{0}\n\nThe project file holds no binary files – after loading they have to be assigned again under “Own files” or “Drivers”. Create anyway?',
     '„{0}“ zugeordnet (Eintrag hieß „{1}“).': '“{0}” assigned (the entry was called “{1}”).',
     '„{0}“ zugeordnet.': '“{0}” assigned.',
-    'Das ZIP würde {0} mit {1} Dateien groß – mehr, als ein ZIP ohne ZIP64 fassen kann (4 GB, 65535 Dateien).\n\nGroße Treiberpakete besser als „Leeres Paket“ anlegen und die Dateien nach dem Entpacken direkt aufs Medium kopieren. Die Ablage „beide Orte“ verdoppelt die pnputil-Treiber; „sources\\$OEM$“ allein halbiert die Größe.': 'The ZIP would be {0} with {1} files – more than a ZIP without ZIP64 can hold (4 GB, 65535 files).\n\nBetter create large driver packages as “Empty package” and copy the files straight to the medium after unpacking. The location “both places” doubles the pnputil drivers; “sources\\$OEM$” alone halves the size.',
-    'Über 1 GB: Der Browser hält alles im Arbeitsspeicher, und ein ZIP fasst höchstens 4 GB. Große Pakete besser als „Leeres Paket“ anlegen und die Dateien direkt aufs Medium kopieren.': 'Over 1 GB: the browser keeps everything in memory, and a ZIP holds 4 GB at most. Better create large packages as “Empty package” and copy the files straight to the medium.',
     'UseConfigurationSet=true: Setup sucht $OEM$ im Wurzelverzeichnis – Ablage auf „beide Orte“ gestellt.': 'UseConfigurationSet=true: Setup looks for $OEM$ in the root – location set to “both places”.',
     ' (setzt der Generator)': ' (set by the generator)',
     'UseConfigurationSet=false: Ohne true kopiert ein aktuelles Windows-11-Setup $OEM$ unter Umständen gar nicht – der Generator setzt den Wert beim Export auf true.': 'UseConfigurationSet=false: without true a current Windows 11 setup may not copy $OEM$ at all – the generator sets the value to true on export.',
@@ -614,6 +614,17 @@
     'Achtung: Ohne UseConfigurationSet hat Windows Setup (Windows 11, Build 26300) $OEM$ im Test gar nicht kopiert – kein Installationsordner, keine Phase 2.': 'Careful: without UseConfigurationSet Windows Setup (Windows 11, build 26300) did not copy $OEM$ at all in a test – no installation folder, no phase 2.',
     'Achtung: Mit UseConfigurationSet=true sucht Setup $OEM$ im Wurzelverzeichnis – die Ablage „sources“ allein wird ignoriert.': 'Careful: with UseConfigurationSet=true Setup looks for $OEM$ in the root – the location “sources” alone is ignored.',
     'Setup kopiert den Ordner der Antwortdatei nach C:\\Windows\\ConfigSetRoot. Auf einem normalen Installationsmedium unkritisch; auf Multiboot-Sticks (Ventoy) kann das sehr groß werden.': 'Setup copies the folder of the answer file to C:\\Windows\\ConfigSetRoot. Harmless on a normal installation medium; on multi-boot sticks (Ventoy) it can get very large.',
+    '„In Ordner exportieren“ gibt es nur in Chrome und Edge – bitte „ZIP erzeugen“ verwenden.': '“Export to folder” is only available in Chrome and Edge – please use “Create ZIP”.',
+    'Diese Dateien fehlen und kommen nur als Platzhalter in den Ordner:\n\n{0}\n\nDie Projektdatei enthält keine Binärdateien – nach dem Laden müssen sie unter „Eigene Dateien“ bzw. „Treiber“ neu zugeordnet werden. Trotzdem exportieren?': 'These files are missing and only go into the folder as placeholders:\n\n{0}\n\nThe project file holds no binary files – after loading they have to be assigned again under “Own files” or “Drivers”. Export anyway?',
+    'Ordner nicht verfügbar: {0}': 'Folder not available: {0}',
+    'Vorhandene Ordner werden vorher geleert: {0}': 'Existing folders are emptied first: {0}',
+    'Im Ziel liegt bereits eine autounattend.xml, die nicht importiert wurde – sie wird durch die des Generators ersetzt. Wer sie behalten will: abbrechen und sie unter Einstellungen → Auslöser importieren.': 'The target already holds an autounattend.xml that was not imported – it will be replaced by the generator\'s. To keep it: cancel and import it under Settings → Trigger.',
+    'Export nach „{0}“:\n\n{1}\n\nFortfahren?': 'Export to “{0}”:\n\n{1}\n\nContinue?',
+    'Schreibe {0}/{1} …': 'Writing {0}/{1} …',
+    '{0} Dateien nach „{1}“ geschrieben.': '{0} files written to “{1}”.',
+    'Export fehlgeschlagen nach {0} Dateien: {1}': 'Export failed after {0} files: {1}',
+    'Über 1 GB: Ein ZIP fasst höchstens 4 GB und entsteht im Arbeitsspeicher. „In Ordner exportieren“ (Chrome, Edge) schreibt direkt auf den Stick und kennt diese Grenze nicht.': 'Over 1 GB: a ZIP holds 4 GB at most and is built in memory. “Export to folder” (Chrome, Edge) writes straight to the stick and has no such limit.',
+    'Das ZIP würde {0} mit {1} Dateien groß – mehr, als ein ZIP ohne ZIP64 fassen kann (4 GB, 65535 Dateien).\n\n„In Ordner exportieren“ (Chrome, Edge) kennt diese Grenze nicht. Alternativ große Treiberpakete als „Leeres Paket“ anlegen und die Dateien nach dem Entpacken direkt aufs Medium kopieren. Die Ablage „beide Orte“ verdoppelt die pnputil-Treiber; „sources\\$OEM$“ allein halbiert die Größe.': 'The ZIP would be {0} with {1} files – more than a ZIP without ZIP64 can hold (4 GB, 65535 files).\n\n“Export to folder” (Chrome, Edge) has no such limit. Alternatively create large driver packages as “Empty package” and copy the files straight to the medium after unpacking. The location “both places” doubles the pnputil drivers; “sources\\$OEM$” alone halves the size.',
   };
 
   const DICTS = { de: null, en: EN };

@@ -21,9 +21,12 @@
 
   const enc = new TextEncoder();
 
-  function toBytes(data) {
+  /*  Binaerdateien kommen als Blob/File: der Browser haelt nur einen Verweis auf
+      die Datei auf der Platte und liest sie erst hier, Eintrag fuer Eintrag. */
+  async function toBytes(data) {
     if (data instanceof Uint8Array) return data;
     if (data instanceof ArrayBuffer) return new Uint8Array(data);
+    if (typeof Blob !== 'undefined' && data instanceof Blob) return new Uint8Array(await data.arrayBuffer());
     return enc.encode(String(data));
   }
 
@@ -67,7 +70,7 @@
 
     for (const entry of entries) {
       const nameBytes = enc.encode(entry.path.replace(/\\/g, '/'));
-      const raw = toBytes(entry.data);
+      const raw = await toBytes(entry.data);
       const crc = crc32(raw);
       const packed = await deflateRaw(raw);
       const method = packed ? 8 : 0;

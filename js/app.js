@@ -417,7 +417,7 @@
       nameTd.innerHTML = '<span class="mono"></span><br><span class="muted" style="font-size:11px"></span>';
       nameTd.querySelector('.mono').textContent = f.name;
       nameTd.querySelector('.muted').textContent = f.blob
-        ? (f.blob.length / 1024 > 1024 ? (f.blob.length / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(f.blob.length / 1024)) + ' KB')
+        ? fmtSize(byteSize(f.blob))
         : T('fehlt – nicht im Archiv');
       if (!f.blob) {
         /* Nach dem Laden einer Projektdatei: Datei neu zuordnen, Einstellungen bleiben. */
@@ -495,14 +495,14 @@
     return {
       count: files.length,
       inf: files.filter((f) => /\.inf$/i.test(f.rel)).length,
-      size: files.reduce((a, f) => a + f.blob.length, 0)
+      size: files.reduce((a, f) => a + byteSize(f.blob), 0)
     };
   }
 
   async function addDriverPackage(name, entries) {
     const d = { name: uniqueDriverName(name, null), dest: 'pnp', models: '', enabled: true, files: [] };
     state.drivers.items.push(d);
-    for (const e of entries) d.files.push({ rel: e.rel, blob: await readBytes(e.file) });
+    for (const e of entries) d.files.push({ rel: e.rel, blob: e.file });
     if (!state.drivers.enabled) state.drivers.enabled = true;
     return d;
   }
@@ -516,7 +516,7 @@
     inp.addEventListener('change', async () => {
       const file = inp.files[0];
       if (!file) return;
-      f.blob = await readBytes(file);
+      f.blob = file;
       f.blobPresent = true;
       if (file.name !== f.name) toast(F('„{0}“ zugeordnet (Eintrag hieß „{1}“).', file.name, f.name), 'warn');
       else toast(F('„{0}“ zugeordnet.', file.name), 'ok');
@@ -614,8 +614,8 @@
     const parts = [];
     if (total) parts.push(F('Zusammen {0} Treiberdateien im ZIP.', fmtSize(total)));
     if (total > 1024 * 1024 * 1024) {
-      parts.push(T('Über 1 GB: Der Browser hält alles im Arbeitsspeicher, und ein ZIP fasst höchstens 4 GB. ' +
-        'Große Pakete besser als „Leeres Paket“ anlegen und die Dateien direkt aufs Medium kopieren.'));
+      parts.push(T('Über 1 GB: Ein ZIP fasst höchstens 4 GB und entsteht im Arbeitsspeicher. ' +
+        '„In Ordner exportieren“ (Chrome, Edge) schreibt direkt auf den Stick und kennt diese Grenze nicht.'));
     }
     if (total && state.paths.zipRoot === 'both' && active.some((d) => d.dest !== 'winpe' && driverStats(d).count)) {
       parts.push(T('Mit der ZIP-Wurzel „beide Orte“ liegen die pnputil-Pakete doppelt im Archiv.'));
@@ -949,7 +949,7 @@
     const entry = entries.find((e) => e.path === previewActive);
     $('#previewPath').textContent = entry ? (entry.pkg || entry.path) : '–';
     if (entry && entry.pkg) {
-      const size = entry.files.reduce((a, f) => a + f.data.length, 0);
+      const size = entry.files.reduce((a, f) => a + byteSize(f.data), 0);
       const rels = entry.files.map((f) => f.path.slice(entry.pkg.length + 1)).sort();
       $('#previewBody').textContent = F('{0} Dateien, zusammen {1} – werden unverändert ins Archiv übernommen:', rels.length, fmtSize(size)) +
         '\n\n' + rels.slice(0, 1000).join('\n') + (rels.length > 1000 ? '\n…' : '');
@@ -959,8 +959,8 @@
     const cur = entry && entry.file;
     if (!cur) { $('#previewBody').textContent = ''; $('#previewSize').textContent = ''; return; }
     if (cur.binary) {
-      $('#previewBody').textContent = T('[Binärdatei – ') + (cur.data.length / 1024).toFixed(0) + T(' KB – wird unverändert ins Archiv übernommen]');
-      $('#previewSize').textContent = (cur.data.length / 1024).toFixed(0) + ' KB';
+      $('#previewBody').textContent = T('[Binärdatei – ') + (byteSize(cur.data) / 1024).toFixed(0) + T(' KB – wird unverändert ins Archiv übernommen]');
+      $('#previewSize').textContent = (byteSize(cur.data) / 1024).toFixed(0) + ' KB';
     } else {
       $('#previewBody').textContent = cur.data;
       $('#previewSize').textContent = new Blob([cur.data]).size + ' ' + T('Bytes') + ' · ' + cur.data.split('\n').length + ' ' + T('Zeilen');
@@ -1090,6 +1090,17 @@
       r.readAsText(file, 'utf-8');
     });
   }
+  /*  Binaerdateien (Installer, Treiber) werden nicht mehr beim Hinzufuegen
+      eingelesen: gespeichert wird das File-Objekt, also nur ein Verweis auf die
+      Datei auf der Platte. Gelesen wird erst beim Export - beim Ordner-Export
+      sogar als Datenstrom, ohne die Datei ganz in den Arbeitsspeicher zu holen.
+      Text aus Importen (z. B. .ps1) bleibt ein Uint8Array. */
+  function byteSize(x) {
+    if (!x) return 0;
+    if (typeof Blob !== 'undefined' && x instanceof Blob) return x.size;
+    return x.length || 0;
+  }
+
   function readBytes(file) {
     return new Promise((res, rej) => {
       const r = new FileReader();
@@ -1106,12 +1117,11 @@
     const name = file.name;
 
     if (BINARY_EXT.test(name) && !/\.reg$/i.test(name)) {
-      const bytes = await readBytes(file);
       state.files.items.push({
         name, target: name, run: /\.msi$/i.test(name) ? '/qn /norestart' : '',
-        phase: 'firstlogon', enabled: true, dest: 'files', blob: bytes, blobPresent: true
+        phase: 'firstlogon', enabled: true, dest: 'files', blob: file, blobPresent: true
       });
-      logImport(F('Datei übernommen: {0} ({1} KB)', name, Math.round(bytes.length / 1024)));
+      logImport(F('Datei übernommen: {0} ({1} KB)', name, Math.round(file.size / 1024)));
       renderFiles(); refresh();
       return;
     }
@@ -1324,7 +1334,7 @@
     };
   })();
 
-  const PLACE_KEYS = ['oem-project', 'oem-zip'];
+  const PLACE_KEYS = ['oem-project', 'oem-zip', 'oem-folder'];
 
   async function startInFor(id) {
     const own = await lastPlace.get(id);
@@ -1429,12 +1439,118 @@
   const ZIP_MAX_BYTES = 3.8 * 1024 * 1024 * 1024;
   const ZIP_MAX_ENTRIES = 65000;
 
+  /*  In Ordner exportieren (Chrome, Edge): schreibt die Struktur direkt in einen
+      Ordner - auch gleich ins Wurzelverzeichnis des USB-Sticks. Kein ZIP, also
+      weder 4-GB- noch Dateigrenze, und Binaerdateien werden als Datenstrom von
+      der Platte kopiert statt im Arbeitsspeicher gesammelt.
+      Vor dem Schreiben: Liegen im Ziel schon $OEM$, sources\$OEM$ oder
+      $WinPEDriver$, werden genau diese Ordner nach Rueckfrage geleert - sonst
+      blieben z. B. entfernte Treiber liegen und wuerden mit eingespielt. Alles
+      andere (etwa sources\install.wim) bleibt unberuehrt. */
+  async function entryExists(dir, name, kind) {
+    try {
+      if (kind === 'dir') await dir.getDirectoryHandle(name);
+      else await dir.getFileHandle(name);
+      return true;
+    } catch (e) { return false; }
+  }
+
+  async function dirFor(root, parts) {
+    let d = root;
+    for (const p of parts) d = await d.getDirectoryHandle(p, { create: true });
+    return d;
+  }
+
+  async function exportFolder() {
+    if (typeof window.showDirectoryPicker !== 'function') {
+      toast(T('„In Ordner exportieren“ gibt es nur in Chrome und Edge – bitte „ZIP erzeugen“ verwenden.'), 'warn');
+      return;
+    }
+    if (!previewFiles.length) previewFiles = Templates.build(state);
+    const lost = missingBinaries();
+    if (lost.length && !confirm(F('Diese Dateien fehlen und kommen nur als Platzhalter in den Ordner:\n\n{0}\n\n' +
+        'Die Projektdatei enthält keine Binärdateien – nach dem Laden müssen sie unter „Eigene Dateien“ bzw. „Treiber“ ' +
+        'neu zugeordnet werden. Trotzdem exportieren?', lost.map((x) => '• ' + x).join('\n')))) return;
+
+    const startIn = await startInFor('oem-folder');
+    const base = { id: 'oem-folder', mode: 'readwrite' };
+    let root;
+    try {
+      root = await window.showDirectoryPicker(startIn && startIn.kind === 'directory' ? Object.assign({ startIn }, base) : base);
+    } catch (e) {
+      if (e && e.name === 'AbortError') return;
+      try { root = await window.showDirectoryPicker(base); }
+      catch (e2) {
+        if (!e2 || e2.name !== 'AbortError') toast(F('Ordner nicht verfügbar: {0}', e2.message), 'err');
+        return;
+      }
+    }
+    await lastPlace.set('oem-folder', root);
+
+    /* Vorhandenes pruefen */
+    const old = [];
+    if (await entryExists(root, '$OEM$', 'dir')) old.push('$OEM$');
+    if (await entryExists(root, '$WinPEDriver$', 'dir')) old.push('$WinPEDriver$');
+    let sources = null;
+    if (await entryExists(root, 'sources', 'dir')) {
+      sources = await root.getDirectoryHandle('sources');
+      if (await entryExists(sources, '$OEM$', 'dir')) old.push('sources\\$OEM$');
+    }
+    const notes = [];
+    if (old.length) {
+      notes.push(F('Vorhandene Ordner werden vorher geleert: {0}', old.join(', ')));
+    }
+    const writesUnattend = previewFiles.some((f) => f.path === 'autounattend.xml');
+    if (writesUnattend && !(state.unattend && state.unattend.xml) && await entryExists(root, 'autounattend.xml', 'file')) {
+      notes.push(T('Im Ziel liegt bereits eine autounattend.xml, die nicht importiert wurde – sie wird durch die des Generators ersetzt. ' +
+        'Wer sie behalten will: abbrechen und sie unter Einstellungen → Auslöser importieren.'));
+    }
+    if (notes.length && !confirm(F('Export nach „{0}“:\n\n{1}\n\nFortfahren?', root.name, notes.map((x) => '• ' + x).join('\n\n')))) return;
+
+    const btn = $('#btnExportFolder');
+    const label = btn.textContent;
+    btn.disabled = true; $('#btnExport').disabled = true;
+    let done = 0;
+    try {
+      for (const name of old) {
+        if (name === 'sources\\$OEM$') await sources.removeEntry('$OEM$', { recursive: true });
+        else await root.removeEntry(name, { recursive: true });
+      }
+      const entries = previewFiles.map((f) => ({ path: f.path, data: f.data }));
+      entries.push({ path: (state.meta.name || 'Projekt').replace(/[^\w.-]+/g, '_') + '.oemproj.json', data: projectJson() });
+      for (const e of entries) {
+        const parts = e.path.split('/');
+        const fileName = parts.pop();
+        const dir = await dirFor(root, parts);
+        const fh = await dir.getFileHandle(fileName, { create: true });
+        const w = await fh.createWritable();
+        try {
+          /* Blob/File als Datenstrom, Text und Bytes direkt */
+          if (typeof Blob !== 'undefined' && e.data instanceof Blob) await e.data.stream().pipeTo(w);
+          else { await w.write(e.data); await w.close(); }
+        } catch (err) {
+          try { await w.abort(); } catch (x) { /* schon geschlossen */ }
+          throw new Error(e.path + ': ' + err.message);
+        }
+        done++;
+        if (done % 10 === 0 || done === entries.length) btn.textContent = F('Schreibe {0}/{1} …', done, entries.length);
+      }
+      toast(F('{0} Dateien nach „{1}“ geschrieben.', done, root.name), 'ok');
+    } catch (e) {
+      console.error(e);
+      toast(F('Export fehlgeschlagen nach {0} Dateien: {1}', done, e.message), 'err');
+    } finally {
+      btn.disabled = false; $('#btnExport').disabled = false; btn.textContent = label;
+      refresh();
+    }
+  }
+
   async function exportZip() {
     if (!previewFiles.length) previewFiles = Templates.build(state);
-    const total = previewFiles.reduce((a, f) => a + (f.data ? f.data.length : 0), 0);
+    const total = previewFiles.reduce((a, f) => a + byteSize(f.data), 0);
     if (total > ZIP_MAX_BYTES || previewFiles.length > ZIP_MAX_ENTRIES) {
       alert(F('Das ZIP würde {0} mit {1} Dateien groß – mehr, als ein ZIP ohne ZIP64 fassen kann (4 GB, 65535 Dateien).\n\n' +
-        'Große Treiberpakete besser als „Leeres Paket“ anlegen und die Dateien nach dem Entpacken direkt aufs Medium kopieren. ' +
+        '„In Ordner exportieren“ (Chrome, Edge) kennt diese Grenze nicht. Alternativ große Treiberpakete als „Leeres Paket“ anlegen und die Dateien nach dem Entpacken direkt aufs Medium kopieren. ' +
         'Die Ablage „beide Orte“ verdoppelt die pnputil-Treiber; „sources\\$OEM$“ allein halbiert die Größe.',
         fmtSize(total), previewFiles.length));
       return;
@@ -1475,6 +1591,8 @@
     $$('.nav-item').forEach((b) => b.addEventListener('click', () => setView(b.dataset.view)));
 
     $('#btnExport').addEventListener('click', exportZip);
+    $('#btnExportFolder').addEventListener('click', exportFolder);
+    if (typeof window.showDirectoryPicker !== 'function') $('#btnExportFolder').hidden = true;
     $('#btnSaveProject').addEventListener('click', saveProject);
     $('#btnLoadProject').addEventListener('click', openProjectFile);
     $('#projectInput').addEventListener('change', (e) => {
@@ -1599,7 +1717,7 @@
         const d = driverRefill;
         driverRefill = null;
         d.files = [];
-        for (const list of groups.values()) for (const x of list) d.files.push({ rel: x.rel, blob: await readBytes(x.file) });
+        for (const list of groups.values()) for (const x of list) d.files.push({ rel: x.rel, blob: x.file });
         d.missing = 0;
         const st = driverStats(d);
         toast(F(st.count === 1 ? 'Treiberpaket „{0}“: {1} Datei, {2} INF.' : 'Treiberpaket „{0}“: {1} Dateien, {2} INF.', d.name, st.count, st.inf), st.inf ? 'ok' : 'warn');
@@ -1624,11 +1742,10 @@
 
     $('#filesInput').addEventListener('change', async (e) => {
       for (const f of Array.from(e.target.files)) {
-        const bytes = await readBytes(f);
         state.files.items.push({
           name: f.name, target: f.name,
           run: /\.msi$/i.test(f.name) ? '/qn /norestart' : '',
-          phase: 'firstlogon', enabled: true, dest: 'files', blob: bytes, blobPresent: true
+          phase: 'firstlogon', enabled: true, dest: 'files', blob: f, blobPresent: true
         });
       }
       e.target.value = '';
