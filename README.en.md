@@ -25,6 +25,8 @@ determines whether the generated archive contains `LIESMICH.txt` or `README.txt`
 | **Tweaks** – settings with phase and network needs | **Windows components** – with help link and virtualisation check |
 | ![Settings: paths, trigger, sequence](docs/screenshots/en-settings.png) | ![Preview of every generated file](docs/screenshots/en-preview.png) |
 | **Settings** – trigger, phase 2, completion | **Preview** – every generated file before export |
+| ![Driver packages with target and model filter](docs/screenshots/en-drivers.png) | ![Help dialog for the current page](docs/screenshots/en-help.png) |
+| **Drivers** – packages for pnputil or Windows Setup, with a model filter | **Help** – a detailed description of every page, also via F1 |
 
 ## Download
 
@@ -449,8 +451,9 @@ checks, builds the package `dist/OEM-Script-Generator-<tag>.zip` with
 `node tools/build-release.js <tag>` and creates the GitHub release. The release
 notes come from `docs/releases/<tag>.md`. Inside the package the script replaces
 the embedded screenshots in both READMEs with links to the repository at the
-same tag.
+same tag. Adjust the version number in `js/version.js` first – the build script
+stops if it does not match the tag.
 
 ```bash
-git tag v1.00 && git push origin v1.00
+git tag v1.1 && git push origin v1.1
 ```

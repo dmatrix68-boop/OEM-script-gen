@@ -25,6 +25,8 @@ Sprache bestimmt auch, ob im erzeugten Archiv `LIESMICH.txt` oder `README.txt` l
 | **Tweaks** – Einstellungen mit Phase und Netzwerkbedarf | **Windows-Komponenten** – mit Hilfe-Link und Virtualisierungsprüfung |
 | ![Einstellungen: Pfade, Auslöser, Ablauf](docs/screenshots/de-settings.png) | ![Vorschau aller erzeugten Dateien](docs/screenshots/de-preview.png) |
 | **Einstellungen** – Auslöser, Phase 2, Abschluss | **Vorschau** – jede erzeugte Datei vor dem Export |
+| ![Treiberpakete mit Ziel und Modellfilter](docs/screenshots/de-drivers.png) | ![Hilfe-Dialog zur aktuellen Seite](docs/screenshots/de-help.png) |
+| **Treiber** – Pakete für pnputil oder Windows Setup, mit Modellfilter | **Hilfe** – ausführliche Beschreibung zu jeder Seite, auch per F1 |
 
 ## Download
 
@@ -461,8 +463,9 @@ beiden Prüfungen aus, baut mit `node tools/build-release.js <tag>` das Paket
 `dist/OEM-Script-Generator-<tag>.zip` und legt das GitHub-Release an. Die
 Release-Notes kommen aus `docs/releases/<tag>.md`. Im Paket ersetzt das Skript
 die eingebetteten Screenshots in beiden READMEs durch Links auf das Repository
-zum selben Tag.
+zum selben Tag. Vorher die Versionsnummer in `js/version.js` anpassen – das
+Build-Skript bricht ab, wenn sie nicht zum Tag passt.
 
 ```bash
-git tag v1.00 && git push origin v1.00
+git tag v1.1 && git push origin v1.1
 ```
