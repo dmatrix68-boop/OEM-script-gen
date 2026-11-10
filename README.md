@@ -71,7 +71,8 @@ ZIP entpacken, `index.html` öffnen. Im Paket sind die Screenshots nur verlinkt.
   öffnet eine ausführliche Beschreibung aller Optionen der Seite, auf Deutsch
   oder Englisch, mit Querverweisen zwischen den Themen.
 * **Vorschau** aller erzeugten Dateien, **Projektdatei** zum Speichern und
-  Weiterarbeiten, ZIP-Export. Chrome und Edge fragen beim Speichern mit einem
+  Weiterarbeiten, ZIP-Export (ab 4 GB automatisch ZIP64) oder (Chrome, Edge) **Export
+  direkt in einen Ordner** bzw. auf den USB-Stick. Chrome und Edge fragen beim Speichern mit einem
   „Speichern unter“-Dialog nach dem Ziel; Firefox und Safari laden die Datei herunter.
 
 ## Zwei-Phasen-Modell
@@ -280,7 +281,13 @@ Get-CimInstance Win32_ComputerSystem | Select Manufacturer, Model, SystemSKUNumb
 ```
 
 Treiberdateien landen nur im ZIP, nicht in der Projektdatei: Nach dem Laden
-eines Projekts sind die Pakete wieder da, aber leer. Mit der ZIP-Wurzel „beide
+eines Projekts sind die Pakete wieder da, aber leer, mit dem Namen des Ordners,
+aus dem sie zuletzt kamen. Automatisch einbinden lassen sie sich nicht – liest
+eine Webseite einen gemerkten Ordner, lässt Chrome alle als gefährlich
+eingestuften Dateitypen weg, also gerade die DLLs. Dateien unter *Eigene
+Dateien* dagegen merkt sich Chrome/Edge und bindet sie beim Laden direkt wieder
+ein; braucht Chrome dafür erneut die Freigabe, genügt ein Klick auf **Quellen
+einbinden** (nur im selben Browserprofil). Mit der ZIP-Wurzel „beide
 Orte“ liegen die pnputil-Pakete doppelt im Archiv. Treiber-Installer als EXE
 gehören weiterhin unter *Eigene Dateien*.
 
@@ -348,6 +355,23 @@ sources/$OEM$/  bzw.  $OEM$/
 4. Inhalt des ZIPs in das Wurzelverzeichnis des Installationsmediums kopieren, sodass
    `<Medium>\sources\$OEM$\...` entsteht. Der im ZIP enthaltene `LIESMICH.txt` listet
    auf, was noch fehlt (z. B. `setup.exe` des Office Deployment Tools).
+
+Statt 3. und 4. geht in Chrome und Edge auch **In Ordner exportieren**: Wurzelverzeichnis
+des USB-Sticks wählen, fertig – das Entpacken entfällt, Installer und Treiber werden
+als Datenstrom von der Platte kopiert. Vorhandene Ordner `$OEM$`, `sources\$OEM$` und
+`$WinPEDriver$` im Ziel werden nach Rückfrage vorher geleert – sonst blieben etwa
+entfernte Treiber liegen. Alles andere auf dem Stick bleibt unberührt; eine vorhandene,
+nicht importierte `autounattend.xml` würde ersetzt, darauf weist die Rückfrage hin.
+Dateitypen, die Chrome nicht in Ordner schreibt (vor allem `.dll`, dazu `.ini`, `.cfg`,
+`.manifest`), landen als `*.oemrename` auf dem Stick;
+`Install.ps1` benennt sie vor dem ersten Modul zurück. Für Treiber unter
+`$WinPEDriver$` geht das nicht – dafür das ZIP verwenden.
+
+Große Pakete passen auch ins ZIP: Ab 4 GB oder 65.535 Dateien schreibt der Generator
+automatisch **ZIP64**, das der Windows-Explorer ab Windows 10 und 7-Zip entpacken.
+Dateien über 128 MB kommen unkomprimiert hinein – Treiber und Installer sind meist
+schon gepackt –, dafür liest der Browser sie direkt von der Platte, statt sie im
+Arbeitsspeicher zu sammeln (getestet: 5,2-GB-Archiv mit unter 90 MB Speicherbedarf).
 
 ### Die Installation muss vom Medium gebootet werden
 
@@ -467,5 +491,5 @@ zum selben Tag. Vorher die Versionsnummer in `js/version.js` anpassen – das
 Build-Skript bricht ab, wenn sie nicht zum Tag passt.
 
 ```bash
-git tag v1.1 && git push origin v1.1
+git tag v1.2 && git push origin v1.2
 ```

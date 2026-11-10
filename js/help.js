@@ -28,9 +28,26 @@ Anwendungen.</p>
   <li><b>Ablauf festlegen</b> – Auslöser, Ablage von <code>$OEM$</code> und was am Ende passiert
     (<a data-help="settings">Einstellungen</a>).</li>
   <li><b>Prüfen</b> – in der <a data-help="preview">Vorschau</a> jede erzeugte Datei ansehen.</li>
-  <li><b>ZIP erzeugen</b> und den Inhalt in das <b>Wurzelverzeichnis</b> des Mediums kopieren. Die
-    <code>LIESMICH.txt</code> im ZIP listet auf, was noch von Hand ergänzt werden muss.</li>
+  <li><b>ZIP erzeugen</b> und den Inhalt in das <b>Wurzelverzeichnis</b> des Mediums kopieren – oder in Chrome und Edge
+    <b>In Ordner exportieren</b> und gleich das Wurzelverzeichnis des USB-Sticks wählen. Die <code>LIESMICH.txt</code>
+    listet auf, was noch von Hand ergänzt werden muss.</li>
 </ol>
+
+<h3>ZIP oder Ordner?</h3>
+<p><b>ZIP erzeugen</b> funktioniert in jedem Browser. Ab 4 GB oder 65535 Dateien schreibt der Generator automatisch
+ZIP64 – das entpackt der Windows-Explorer ab Windows 10 ebenso wie 7-Zip; sehr alte Werkzeuge kennen es unter Umständen
+nicht. Installer und Treiber über 128 MB kommen unkomprimiert ins ZIP (sie sind meist ohnehin schon gepackt), dafür ohne
+den Arbeitsspeicher zu belasten. <b>In Ordner exportieren</b> (Chrome, Edge) schreibt die Dateien direkt in einen Ordner
+und spart das Entpacken. Liegen im Ziel schon
+<code>$OEM$</code>, <code>sources\$OEM$</code> oder <code>$WinPEDriver$</code>, werden genau diese Ordner nach Rückfrage
+geleert, damit keine alten Dateien (etwa entfernte Treiber) mit eingespielt werden; alles andere, etwa
+<code>sources\install.wim</code>, bleibt unberührt. Eine vorhandene, nicht importierte <code>autounattend.xml</code>
+würde ersetzt – auch darauf weist die Rückfrage hin.</p>
+<p>Bestimmte Dateitypen – vor allem <code>.dll</code>, dazu <code>.ini</code>, <code>.cfg</code>, <code>.manifest</code>
+und Verknüpfungen – schreibt Chrome aus Sicherheitsgründen nicht unter ihrem Namen in Ordner. Der Export legt sie mit der
+Zusatzendung <code>.oemrename</code> ab;
+<code>Install.ps1</code> sucht danach und gibt ihnen bei der Installation vor allen Modulen den Namen zurück. Für Treiber unter
+<code>$WinPEDriver$</code> geht das nicht, weil dort kein Skript läuft – solche Pakete per ZIP ausliefern.</p>
 
 <h3>Das Zwei-Phasen-Modell</h3>
 <table>
@@ -316,12 +333,16 @@ der Maschinentyp (z. B. <code>21AH…</code>); der lesbare Name kommt aus dem Pr
 
 <h3>Gut zu wissen</h3>
 <ul>
-  <li>Treiberdateien stehen nur im ZIP, nicht in der Projektdatei. Nach dem Laden sind die Pakete wieder da, aber leer.</li>
+  <li>Treiberdateien stehen nur im ZIP, nicht in der Projektdatei. Nach dem Laden sind die Pakete wieder da, aber leer;
+  angezeigt wird der Ordner, aus dem sie zuletzt kamen. Automatisch einbinden wie bei
+  <a data-help="files">Eigenen Dateien</a> geht hier nicht: Liest eine Webseite einen gemerkten Ordner, lässt Chrome
+  alle „gefährlichen“ Dateitypen weg – also gerade die DLLs. Den Ordner deshalb neu wählen.</li>
   <li>Mit der ZIP-Wurzel „beide Orte“ liegen pnputil-Pakete doppelt im Archiv.</li>
-  <li><b>Große Pakete</b> (Grafiktreiber haben entpackt oft 1–2 GB): Der Browser hält beim Erzeugen alles im
-  Arbeitsspeicher, und das ZIP fasst höchstens 4 GB bzw. 65535 Dateien – darüber bricht der Generator mit einer
-  Meldung ab. Solche Pakete als <b>Leeres Paket</b> anlegen und den Inhalt nach dem Entpacken direkt in den Ordner auf
-  dem Medium kopieren.</li>
+  <li><b>Große Pakete</b> (Grafiktreiber haben entpackt oft 1–2 GB) sind kein Problem: Über 4 GB schreibt der Generator
+  ZIP64, und große Dateien werden direkt von der Platte übernommen statt im Arbeitsspeicher gesammelt. Bequemer ist
+  bei solchen Mengen <b>In Ordner exportieren</b> (Chrome, Edge) – das schreibt direkt auf den Stick, das Entpacken
+  entfällt; DLLs heißen dort bis zur Installation <code>*.dll.oemrename</code> (siehe Übersicht). Für Pakete unter
+  <code>$WinPEDriver$</code> das ZIP nehmen. Alternativ das Paket als <b>Leeres Paket</b> anlegen und den Inhalt selbst kopieren.</li>
   <li>Damit Windows Update die Treiber nicht wieder ersetzt: Tweak „Keine Treiber über Windows Update“.</li>
 </ul>`
     },
@@ -337,7 +358,10 @@ Lizenzdateien. Auf Wunsch werden Installer mit Silent-Parametern ausgeführt.</p
   <dt>Zielordner</dt>
   <dd><b>Install\\Files</b> – landet unter dem Installationsordner und wird vom Modul „Eigene Installer“ ausgeführt.
   <b>Setup\\Scripts</b> – liegt neben <code>SetupComplete.cmd</code> und ist dort über <code>%~dp0</code> erreichbar;
-  wird nicht automatisch ausgeführt, sondern aus <a data-help="custom">eigenen CMD-Zeilen</a> aufgerufen.</dd>
+  wird nicht automatisch ausgeführt, sondern aus <a data-help="custom">eigenen CMD-Zeilen</a> aufgerufen.
+  <b>Install\\Office</b> – für die <code>setup.exe</code> des Office Deployment Tools; das
+  <a data-help="office">Office-Modul</a> startet sie selbst. Eine <code>setup.exe</code> landet automatisch dort, wenn das
+  Office-Modul mit „liegt im OEM-Ordner (mitliefern)“ aktiv ist.</dd>
   <dt>Zielpfad (relativ)</dt><dd>Dateiname bzw. Unterordner innerhalb des Zielordners.</dd>
   <dt>Ausführen mit</dt>
   <dd>Parameter für die unbeaufsichtigte Installation. <b>Leer = nur kopieren.</b> <code>.msi</code> wird über
@@ -352,6 +376,11 @@ Lizenzdateien. Auf Wunsch werden Installer mit Silent-Parametern ausgeführt.</p
 <ul>
   <li>Binärdateien werden nur ins ZIP gepackt, nicht in die Projektdatei. Nach dem Laden eines Projekts bleiben die
   Einträge als Platzhalter stehen; die <code>LIESMICH.txt</code> nennt, was von Hand nachzulegen ist.</li>
+  <li><b>Quellen merken (Chrome, Edge):</b> Der Browser merkt sich, aus welcher Datei ein Eintrag stammt. Beim Laden
+  des Projekts werden diese Quellen geprüft und direkt wieder eingebunden. Braucht Chrome dafür
+  erneut deine Freigabe, erscheint oben die Leiste <b>Quellen einbinden</b>; ein Klick genügt. Wählst du in der
+  Abfrage „Bei jedem Besuch zulassen“, entfällt auch das. Das gilt nur im selben Browser und Profil; auf einem anderen
+  PC bleibt es bei Platzhaltern. Eine gelöschte Quelle wird als „nicht mehr vorhanden“ markiert.</li>
   <li>Entpackte Treiber (INF) gehören ins <a data-help="drivers">Treiber</a>-Modul.</li>
 </ul>`
     },
@@ -487,9 +516,24 @@ automatically: drivers, settings, bloatware, Windows components, Office and appl
   <li><b>Set the sequence</b> – trigger, location of <code>$OEM$</code> and what happens at the end
     (<a data-help="settings">Settings</a>).</li>
   <li><b>Check</b> – look at every generated file in the <a data-help="preview">Preview</a>.</li>
-  <li><b>Create ZIP</b> and copy its contents into the <b>root</b> of the medium. The <code>README.txt</code> in the
-    ZIP lists what still has to be added by hand.</li>
+  <li><b>Create ZIP</b> and copy its contents into the <b>root</b> of the medium – or, in Chrome and Edge, use
+    <b>Export to folder</b> and pick the root of the USB stick straight away. The <code>README.txt</code> lists what
+    still has to be added by hand.</li>
 </ol>
+
+<h3>ZIP or folder?</h3>
+<p><b>Create ZIP</b> works in every browser. From 4 GB or 65535 files on the generator writes ZIP64 automatically –
+Windows Explorer unpacks that from Windows 10 on, as does 7-Zip; very old tools may not know it. Installers and drivers
+over 128 MB go into the ZIP uncompressed (they are usually compressed already), but without weighing on memory.
+<b>Export to folder</b> (Chrome, Edge) writes the files straight into a folder and saves the unpacking. If the target already holds <code>$OEM$</code>, <code>sources\$OEM$</code> or
+<code>$WinPEDriver$</code>, exactly these folders are emptied after a confirmation so no old files (such as removed
+drivers) get installed; everything else, such as <code>sources\install.wim</code>, stays untouched. An existing
+<code>autounattend.xml</code> that was not imported would be replaced – the confirmation points that out too.</p>
+<p>Certain file types – above all <code>.dll</code>, plus <code>.ini</code>, <code>.cfg</code>, <code>.manifest</code>
+and shortcuts – Chrome does not write to folders under their own name for security reasons. The export stores them with
+the extra extension <code>.oemrename</code>;
+<code>Install.ps1</code> looks for them and gives them their names back during installation, before any module. That is not possible for
+drivers under <code>$WinPEDriver$</code> because no script runs there – deliver such packages as ZIP.</p>
 
 <h3>The two-phase model</h3>
 <table>
@@ -774,11 +818,16 @@ type (e.g. <code>21AH…</code>); the readable name comes from the product name.
 
 <h3>Good to know</h3>
 <ul>
-  <li>Driver files are only in the ZIP, not in the project file. After loading, the packages are back but empty.</li>
+  <li>Driver files are only in the ZIP, not in the project file. After loading, the packages are back but empty; the
+  folder they last came from is shown. Attaching them automatically as with <a data-help="files">Own files</a> is not
+  possible: when a web page reads a remembered folder, Chrome leaves out every "dangerous" file type – the DLLs, of
+  all things. So choose the folder again.</li>
   <li>With the ZIP root "both places" pnputil packages are in the archive twice.</li>
-  <li><b>Large packages</b> (graphics drivers are often 1–2 GB unpacked): the browser keeps everything in memory while
-  building, and the ZIP holds 4 GB or 65535 files at most – beyond that the generator stops with a message. Create such
-  packages as an <b>Empty package</b> and copy the content straight into the folder on the medium after unpacking.</li>
+  <li><b>Large packages</b> (graphics drivers are often 1–2 GB unpacked) are no problem: above 4 GB the generator writes
+  ZIP64, and large files are taken straight from disk instead of being collected in memory. With such amounts
+  <b>Export to folder</b> (Chrome, Edge) is more convenient – it writes straight to the stick, no unpacking needed; DLLs are
+  named <code>*.dll.oemrename</code> there until installation (see overview). Use the ZIP for packages under
+  <code>$WinPEDriver$</code>. Alternatively create the package as an <b>Empty package</b> and copy the content yourself.</li>
   <li>To keep Windows Update from replacing the drivers: tweak "No drivers through Windows Update".</li>
 </ul>`
     },
@@ -794,7 +843,10 @@ Installers can be run with silent parameters.</p>
   <dt>Target folder</dt>
   <dd><b>Install\\Files</b> – goes below the installation folder and is run by the "own installers" module.
   <b>Setup\\Scripts</b> – sits next to <code>SetupComplete.cmd</code> and is reachable there via <code>%~dp0</code>; it is
-  not run automatically but called from <a data-help="custom">own CMD lines</a>.</dd>
+  not run automatically but called from <a data-help="custom">own CMD lines</a>.
+  <b>Install\\Office</b> – for <code>setup.exe</code> of the Office Deployment Tool; the
+  <a data-help="office">Office module</a> starts it itself. A <code>setup.exe</code> goes there automatically when the
+  Office module is active with "ships in the OEM folder".</dd>
   <dt>Target path (relative)</dt><dd>File name or subfolder inside the target folder.</dd>
   <dt>Run with</dt>
   <dd>Parameters for the unattended installation. <b>Empty = copy only.</b> <code>.msi</code> is started through
@@ -809,6 +861,11 @@ Installers can be run with silent parameters.</p>
 <ul>
   <li>Binary files only go into the ZIP, not into the project file. After loading a project the entries stay as
   placeholders; the <code>README.txt</code> names what has to be added by hand.</li>
+  <li><b>Remembered sources (Chrome, Edge):</b> the browser remembers which file an entry came from. When the
+  project is loaded, these sources are checked and attached again right away. If Chrome needs your permission
+  again, the bar <b>Attach sources</b> appears at the top; one click is enough. Choosing "Allow on every visit" in the
+  prompt removes that step too. This only works in the same browser and profile; on another PC the entries stay
+  placeholders. A deleted source is marked as "no longer available".</li>
   <li>Unpacked drivers (INF) belong in the <a data-help="drivers">Drivers</a> module.</li>
 </ul>`
     },

@@ -416,8 +416,11 @@
       const nameTd = document.createElement('td');
       nameTd.innerHTML = '<span class="mono"></span><br><span class="muted" style="font-size:11px"></span>';
       nameTd.querySelector('.mono').textContent = f.name;
+      const ss = srcState.get(f);
       nameTd.querySelector('.muted').textContent = f.blob
-        ? (f.blob.length / 1024 > 1024 ? (f.blob.length / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(f.blob.length / 1024)) + ' KB')
+        ? fmtSize(byteSize(f.blob))
+        : ss === 'perm' ? F('Quelle „{0}“ bekannt – oben „Quellen einbinden“', f.src.name)
+        : ss === 'gone' ? F('Quelle „{0}“ nicht mehr vorhanden – Datei neu wählen', f.src.name)
         : T('fehlt – nicht im Archiv');
       if (!f.blob) {
         /* Nach dem Laden einer Projektdatei: Datei neu zuordnen, Einstellungen bleiben. */
@@ -433,11 +436,12 @@
 
       const destTd = document.createElement('td');
       const ds = document.createElement('select');
-      [['files', T('Install\\Files')], ['scripts', T('Setup\\Scripts')]].forEach(([v, l]) => {
+      [['files', T('Install\\Files')], ['scripts', T('Setup\\Scripts')], ['office', T('Install\\Office')]].forEach(([v, l]) => {
         const o = document.createElement('option'); o.value = v; o.textContent = l;
         if ((f.dest || 'files') === v) o.selected = true; ds.appendChild(o);
       });
-      ds.title = T('Install\\Files: wird vom Modul "Eigene Installer" ausgefuehrt.\nSetup\\Scripts: liegt neben SetupComplete.cmd und ist ueber %~dp0 erreichbar.');
+      ds.title = T('Install\\Files: wird vom Modul "Eigene Installer" ausgefuehrt.\nSetup\\Scripts: liegt neben SetupComplete.cmd und ist ueber %~dp0 erreichbar.') +
+        '\n' + T('Install\\Office: für die setup.exe des Office Deployment Tools – das Office-Modul startet sie.');
       ds.addEventListener('change', () => { f.dest = ds.value; renderFiles(); refresh(); });
       destTd.appendChild(ds); tr.appendChild(destTd);
 
@@ -451,6 +455,7 @@
       const ri = document.createElement('input');
       ri.type = 'text'; ri.value = f.run; ri.placeholder = T('/S  bzw.  /qn /norestart  – leer = nur kopieren');
       if (f.dest === 'scripts') { ri.disabled = true; ri.placeholder = T('Aufruf über eigene CMD-Zeilen (%~dp0)'); }
+      if (f.dest === 'office') { ri.disabled = true; ri.placeholder = T('wird vom Office-Modul gestartet'); }
       ri.addEventListener('change', () => { f.run = ri.value; refresh(); });
       runTd.appendChild(ri); tr.appendChild(runTd);
 
@@ -495,14 +500,14 @@
     return {
       count: files.length,
       inf: files.filter((f) => /\.inf$/i.test(f.rel)).length,
-      size: files.reduce((a, f) => a + f.blob.length, 0)
+      size: files.reduce((a, f) => a + byteSize(f.blob), 0)
     };
   }
 
   async function addDriverPackage(name, entries) {
     const d = { name: uniqueDriverName(name, null), dest: 'pnp', models: '', enabled: true, files: [] };
     state.drivers.items.push(d);
-    for (const e of entries) d.files.push({ rel: e.rel, blob: await readBytes(e.file) });
+    for (const e of entries) d.files.push({ rel: e.rel, blob: e.file });
     if (!state.drivers.enabled) state.drivers.enabled = true;
     return d;
   }
@@ -510,14 +515,28 @@
   let driverRefill = null;
 
   /* Datei fuer einen Platzhalter unter "Eigene Dateien" neu waehlen. */
-  function pickFileFor(f) {
+  async function pickFileFor(f) {
+    if (hasPickers) {
+      let hs;
+      try { hs = await window.showOpenFilePicker({ id: 'oem-files', multiple: false }); }
+      catch (e) { if (!e || e.name !== 'AbortError') toast(F('Ordner nicht verfügbar: {0}', e.message), 'err'); return; }
+      const file = await hs[0].getFile();
+      f.blob = file; f.blobPresent = true;
+      f.src = await rememberSource(hs[0], 'file');
+      srcState.delete(f);
+      if (file.name !== f.name) toast(F('„{0}“ zugeordnet (Eintrag hieß „{1}“).', file.name, f.name), 'warn');
+      else toast(F('„{0}“ zugeordnet.', file.name), 'ok');
+      renderSourceBar(); renderFiles(); refresh();
+      return;
+    }
     const inp = document.createElement('input');
     inp.type = 'file';
     inp.addEventListener('change', async () => {
       const file = inp.files[0];
       if (!file) return;
-      f.blob = await readBytes(file);
+      f.blob = file;
       f.blobPresent = true;
+      f.src = null;
       if (file.name !== f.name) toast(F('„{0}“ zugeordnet (Eintrag hieß „{1}“).', file.name, f.name), 'warn');
       else toast(F('„{0}“ zugeordnet.', file.name), 'ok');
       renderFiles(); refresh();
@@ -562,7 +581,9 @@
       } else if (d.missing) {
         infoTd.firstChild.textContent = F('fehlt – {0} Dateien nicht im Archiv', d.missing);
         infoTd.firstChild.style.color = 'var(--warn)';
-        infoTd.lastChild.textContent = T('Projektdatei enthält keine Treiberdateien – Ordner neu wählen');
+        infoTd.lastChild.textContent = d.srcName
+          ? F('Zuletzt aus Ordner „{0}“ – bitte neu wählen', d.srcName)
+          : T('Treiberdateien fehlen – Ordner neu wählen');
       } else {
         infoTd.firstChild.textContent = T('leer');
         infoTd.lastChild.textContent = T('Dateien später in den Ordner kopieren');
@@ -614,8 +635,7 @@
     const parts = [];
     if (total) parts.push(F('Zusammen {0} Treiberdateien im ZIP.', fmtSize(total)));
     if (total > 1024 * 1024 * 1024) {
-      parts.push(T('Über 1 GB: Der Browser hält alles im Arbeitsspeicher, und ein ZIP fasst höchstens 4 GB. ' +
-        'Große Pakete besser als „Leeres Paket“ anlegen und die Dateien direkt aufs Medium kopieren.'));
+      parts.push(T('Über 1 GB: Das ZIP wird dann sehr groß. „In Ordner exportieren“ (Chrome, Edge) schreibt direkt auf den Stick und spart das Entpacken.'));
     }
     if (total && state.paths.zipRoot === 'both' && active.some((d) => d.dest !== 'winpe' && driverStats(d).count)) {
       parts.push(T('Mit der ZIP-Wurzel „beide Orte“ liegen die pnputil-Pakete doppelt im Archiv.'));
@@ -949,7 +969,7 @@
     const entry = entries.find((e) => e.path === previewActive);
     $('#previewPath').textContent = entry ? (entry.pkg || entry.path) : '–';
     if (entry && entry.pkg) {
-      const size = entry.files.reduce((a, f) => a + f.data.length, 0);
+      const size = entry.files.reduce((a, f) => a + byteSize(f.data), 0);
       const rels = entry.files.map((f) => f.path.slice(entry.pkg.length + 1)).sort();
       $('#previewBody').textContent = F('{0} Dateien, zusammen {1} – werden unverändert ins Archiv übernommen:', rels.length, fmtSize(size)) +
         '\n\n' + rels.slice(0, 1000).join('\n') + (rels.length > 1000 ? '\n…' : '');
@@ -959,8 +979,8 @@
     const cur = entry && entry.file;
     if (!cur) { $('#previewBody').textContent = ''; $('#previewSize').textContent = ''; return; }
     if (cur.binary) {
-      $('#previewBody').textContent = T('[Binärdatei – ') + (cur.data.length / 1024).toFixed(0) + T(' KB – wird unverändert ins Archiv übernommen]');
-      $('#previewSize').textContent = (cur.data.length / 1024).toFixed(0) + ' KB';
+      $('#previewBody').textContent = T('[Binärdatei – ') + (byteSize(cur.data) / 1024).toFixed(0) + T(' KB – wird unverändert ins Archiv übernommen]');
+      $('#previewSize').textContent = (byteSize(cur.data) / 1024).toFixed(0) + ' KB';
     } else {
       $('#previewBody').textContent = cur.data;
       $('#previewSize').textContent = new Blob([cur.data]).size + ' ' + T('Bytes') + ' · ' + cur.data.split('\n').length + ' ' + T('Zeilen');
@@ -1090,6 +1110,17 @@
       r.readAsText(file, 'utf-8');
     });
   }
+  /*  Binaerdateien (Installer, Treiber) werden nicht mehr beim Hinzufuegen
+      eingelesen: gespeichert wird das File-Objekt, also nur ein Verweis auf die
+      Datei auf der Platte. Gelesen wird erst beim Export - beim Ordner-Export
+      sogar als Datenstrom, ohne die Datei ganz in den Arbeitsspeicher zu holen.
+      Text aus Importen (z. B. .ps1) bleibt ein Uint8Array. */
+  function byteSize(x) {
+    if (!x) return 0;
+    if (typeof Blob !== 'undefined' && x instanceof Blob) return x.size;
+    return x.length || 0;
+  }
+
   function readBytes(file) {
     return new Promise((res, rej) => {
       const r = new FileReader();
@@ -1106,12 +1137,12 @@
     const name = file.name;
 
     if (BINARY_EXT.test(name) && !/\.reg$/i.test(name)) {
-      const bytes = await readBytes(file);
       state.files.items.push({
         name, target: name, run: /\.msi$/i.test(name) ? '/qn /norestart' : '',
-        phase: 'firstlogon', enabled: true, dest: 'files', blob: bytes, blobPresent: true
+        phase: 'firstlogon', enabled: true, dest: defaultFileDest(name), blob: file, blobPresent: true,
+        src: opts.handle ? await rememberSource(opts.handle, 'file') : null
       });
-      logImport(F('Datei übernommen: {0} ({1} KB)', name, Math.round(bytes.length / 1024)));
+      logImport(F('Datei übernommen: {0} ({1} KB)', name, Math.round(file.size / 1024)));
       renderFiles(); refresh();
       return;
     }
@@ -1217,8 +1248,10 @@
   }
 
   async function importFiles(fileList, opts) {
+    const handles = (opts && opts.handles) || [];
     for (const f of Array.from(fileList)) {
-      try { await importFile(f, opts); }
+      const handle = handles.find((h) => h.name === f.name) || null;
+      try { await importFile(f, Object.assign({}, opts, { handle })); }
       catch (e) { console.error(e); logImport('Fehler bei ' + f.name + ': ' + e.message, 'err'); toast('Import fehlgeschlagen: ' + f.name, 'err'); }
     }
   }
@@ -1253,18 +1286,31 @@
     if (!state.unattend) state.unattend = { xml: null, name: '', info: null };
     state.files.items = (state.files.items || []).map((f) => ({
       name: f.name, target: f.target || f.name, run: f.run || '',
-      phase: f.phase || 'firstlogon', dest: f.dest || 'files',
-      enabled: f.enabled !== false, blob: null, blobPresent: false
+      phase: f.phase || 'firstlogon', dest: /^(files|scripts|office)$/.test(f.dest) ? f.dest : 'files',
+      enabled: f.enabled !== false, blob: null, blobPresent: false, src: validSrc(f.src)
     }));
     state.drivers.items = (state.drivers.items || []).map((d) => ({
       name: d.name || 'Treiber', dest: d.dest === 'winpe' ? 'winpe' : 'pnp', models: d.models || '',
-      enabled: d.enabled !== false, files: [], missing: d.fileCount > 0 ? d.fileCount : 0
+      enabled: d.enabled !== false, files: [], missing: d.fileCount > 0 ? d.fileCount : 0,
+      srcName: String(d.srcName || (d.src && d.src.name) || '')
     }));
     renderAll();
-    const lost = missingBinaries();
-    if (lost.length) {
-      toast(F('Die Projektdatei enthält keine Binärdateien. Neu zuordnen: {0}', lost.join(', ')), 'warn');
-    }
+    /* Gemerkte Quellen pruefen und gleich einbinden; die Freigabe-Abfrage
+       klappt nur, solange der Klick auf "Projekt laden" frisch ist. */
+    reattachSources(true).then((res) => {
+      reportSources(res);
+      const lost = missingBinaries();
+      if (res.perm.length) {
+        toast(F('{0} Quellen brauchen deine Freigabe – oben „Quellen einbinden“ klicken.', res.perm.length), 'warn');
+      } else if (lost.length) {
+        toast(F('Die Projektdatei enthält keine Binärdateien. Neu zuordnen: {0}', lost.join(', ')), 'warn');
+      }
+    });
+  }
+
+  function validSrc(src) {
+    return src && typeof src.id === 'string' && src.kind === 'file'
+      ? { id: src.id, kind: src.kind, name: String(src.name || '') } : null;
   }
 
   function download(blob, filename) {
@@ -1324,7 +1370,140 @@
     };
   })();
 
-  const PLACE_KEYS = ['oem-project', 'oem-zip'];
+  const PLACE_KEYS = ['oem-project', 'oem-zip', 'oem-folder'];
+
+  /* ---------------- Quellen merken und wieder einbinden ---------------- */
+  /*  Die Projektdatei enthaelt keine Binaerdateien, und der Browser verraet
+      keine Pfade. Werden Dateien unter "Eigene Dateien" aber ueber den Dialog der
+      File System Access API gewaehlt (Chrome, Edge), gibt es Handles - und die
+      lassen sich in IndexedDB ablegen.
+      Treiberordner bewusst NICHT: Beim Auflisten eines Ordners ueber diese
+      Schnittstelle laesst Chrome alle Dateitypen weg, die Safe Browsing als
+      gefaehrlich fuehrt (.dll, .ini, .cfg ...) - ein Treiberpaket kaeme ohne
+      seine DLLs an. Treiber laufen deshalb ueber <input webkitdirectory>, das
+      alle Dateien liefert; gemerkt wird nur der Ordnername als Hinweis. Die Projektdatei traegt nur deren
+      Kennung (src.id). Beim Laden werden die Quellen geprueft und direkt wieder
+      eingebunden; verlangt Chrome eine neue Freigabe und fehlt dafuer der
+      Klick, erscheint oben die Leiste "Quellen einbinden". Das gilt nur im
+      selben Browserprofil - auf einem anderen PC bleibt es bei Platzhaltern. */
+  const hasPickers = typeof window.showOpenFilePicker === 'function' && typeof window.showDirectoryPicker === 'function';
+  /* Zustand je Eintrag (perm, gone) - bewusst nicht im Projekt-Objekt */
+  const srcState = new WeakMap();
+
+  async function rememberSource(handle, kind) {
+    const id = 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    await lastPlace.set('src:' + id, handle);
+    const name = Array.isArray(handle) ? handle.map((h) => h.name).join(', ') : handle.name;
+    return { id, kind, name };
+  }
+
+  async function sourcePermission(handles, ask) {
+    for (const h of handles) {
+      let p = 'prompt';
+      try { p = await h.queryPermission({ mode: 'read' }); } catch (e) { /* alter Browser */ }
+      if (p !== 'granted' && ask) {
+        /* Ohne frischen Klick wirft Chrome hier einen SecurityError. */
+        try { p = await h.requestPermission({ mode: 'read' }); } catch (e) { p = 'prompt'; }
+      }
+      if (p !== 'granted') return p;
+    }
+    return 'granted';
+  }
+
+  /*  Ergebnis: ok (mit entries), perm (Freigabe noetig), gone (nicht mehr da),
+      unknown (in diesem Browserprofil nie gewaehlt) */
+  async function loadSource(src, ask) {
+    const stored = src && src.id && src.kind === 'file' ? await lastPlace.get('src:' + src.id) : null;
+    if (!stored) return { status: 'unknown' };
+    const handles = Array.isArray(stored) ? stored : [stored];
+    if ((await sourcePermission(handles, ask)) !== 'granted') return { status: 'perm' };
+    try {
+      const entries = [];
+      for (const h of handles) entries.push({ rel: h.name, file: await h.getFile() });
+      return { status: 'ok', entries };
+    } catch (e) {
+      return { status: 'gone', error: e };
+    }
+  }
+
+  function pendingSources() {
+    const list = [];
+    state.files.items.forEach((f) => { if (f.src && !f.blob) list.push({ item: f }); });
+    return list;
+  }
+
+  let sourcesBusy = false;
+  async function reattachSources(ask) {
+    const res = { ok: [], perm: [], gone: [] };
+    if (sourcesBusy) return res;
+    sourcesBusy = true;
+    try {
+      for (const p of pendingSources()) {
+        const it = p.item;
+        const r = await loadSource(it.src, ask);
+        if (r.status === 'ok' && r.entries.length) {
+          it.blob = r.entries[0].file;
+          it.blobPresent = true;
+          srcState.delete(it);
+          res.ok.push(it.name);
+        } else if (r.status === 'perm') {
+          srcState.set(it, 'perm'); res.perm.push(it.name);
+        } else if (r.status === 'gone') {
+          srcState.set(it, 'gone'); res.gone.push(it.name);
+        }
+      }
+    } finally {
+      sourcesBusy = false;
+    }
+    renderSourceBar();
+    renderFiles(); refresh();
+    return res;
+  }
+
+  function reportSources(res) {
+    if (res.ok.length) toast(F('{0} Quellen wieder eingebunden: {1}', res.ok.length, res.ok.join(', ')), 'ok');
+    if (res.gone.length) toast(F('Quelle nicht mehr vorhanden: {0} – bitte neu wählen.', res.gone.join(', ')), 'warn');
+  }
+
+  function renderSourceBar() {
+    const n = pendingSources().filter((p) => srcState.get(p.item) === 'perm').length;
+    let bar = $('#sourceBar');
+    if (!n) { if (bar) bar.hidden = true; return; }
+    if (!bar) {
+      bar = document.createElement('div');
+      bar.id = 'sourceBar'; bar.className = 'source-bar';
+      bar.innerHTML = '<span></span><button type="button" class="btn small primary"></button>';
+      bar.querySelector('button').addEventListener('click', async () => reportSources(await reattachSources(true)));
+      $('main.content').insertBefore(bar, $('main.content').firstChild);
+    }
+    bar.hidden = false;
+    bar.querySelector('span').textContent = F('{0} Quellen aus dem gespeicherten Projekt sind bekannt – Chrome braucht für den Zugriff einmal deine Freigabe.', n);
+    bar.querySelector('button').textContent = T('Quellen einbinden');
+  }
+
+  /*  Dateien ueber den Dialog statt ueber <input type=file> - nur so gibt es
+      Handles, die sich merken lassen. */
+  /*  setup.exe bei aktivem Office-Modul (setup.exe mitliefern): gehoert nach
+      Install\Office, nicht unter Install\Files. */
+  function defaultFileDest(name) {
+    return /^setup\.exe$/i.test(name) && state.office.enabled && state.office.setupSource === 'bundled' ? 'office' : 'files';
+  }
+
+  async function pickFiles() {
+    let hs;
+    try { hs = await window.showOpenFilePicker({ id: 'oem-files', multiple: true }); }
+    catch (e) { if (!e || e.name !== 'AbortError') toast(F('Ordner nicht verfügbar: {0}', e.message), 'err'); return; }
+    for (const h of hs || []) {
+      const f = await h.getFile();
+      state.files.items.push({
+        name: f.name, target: f.name,
+        run: /\.msi$/i.test(f.name) ? '/qn /norestart' : '',
+        phase: 'firstlogon', enabled: true, dest: defaultFileDest(f.name), blob: f, blobPresent: true,
+        src: await rememberSource(h, 'file')
+      });
+    }
+    renderFiles(); refresh();
+  }
 
   async function startInFor(id) {
     const own = await lastPlace.get(id);
@@ -1385,9 +1564,124 @@
     importFile(await handle.getFile(), { forceType: 'project' });
   }
 
+  /*  Schreibt Stueck fuer Stueck: kleine Teile werden zu Bloecken von bis zu
+      8 MB gesammelt, Blob-Teile (grosse Dateien) als Datenstrom weitergereicht.
+      Ein einzelner write() mit mehreren Gigabyte bleibt so aussen vor, und ein
+      Fehler laesst sich der Datei zuordnen, an der er auftrat. */
+  const WRITE_CHUNK = 8 * 1024 * 1024;
+
+  async function writeParts(w, parts, labels) {
+    let buf = [], bufLen = 0;
+    const flush = async () => {
+      if (!bufLen) return;
+      const all = new Uint8Array(bufLen);
+      let p = 0;
+      for (const b of buf) { all.set(b, p); p += b.length; }
+      buf = []; bufLen = 0;
+      await w.write(all);
+    };
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i];
+      try {
+        if (part instanceof Blob) {
+          await flush();
+          const reader = part.stream().getReader();
+          for (;;) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buf.push(value); bufLen += value.length;
+            if (bufLen >= WRITE_CHUNK) await flush();
+          }
+          await flush();
+        } else {
+          buf.push(part); bufLen += part.length;
+          if (bufLen >= WRITE_CHUNK) await flush();
+        }
+      } catch (err) {
+        const e = new Error(((labels && labels[i]) ? labels[i] + ': ' : '') + ((err && err.message) || err));
+        e.name = (err && err.name) || 'Error';
+        e.data = part;
+        e.path = labels && labels[i];
+        throw e;
+      }
+    }
+    await flush();
+  }
+
   async function writeToHandle(handle, blob) {
     const w = await handle.createWritable();
-    try { await w.write(blob); } finally { await w.close(); }
+    try {
+      if (blob.zipParts) await writeParts(w, blob.zipParts, blob.zipLabels);
+      else await w.write(blob);
+      await w.close();
+    } catch (e) {
+      /* Nach einem Schreibfehler ist der Datenstrom "errored"; ein close()
+         wuerde nur "Cannot close a ERRORED writable stream" melden und den
+         eigentlichen Fehler verdecken. */
+      try { await w.abort(); } catch (x) { /* bereits abgebrochen */ }
+      throw e;
+    }
+  }
+
+  /*  Namen, die Chrome beim Schreiben auf die Platte ablehnt ("Name is not
+      allowed") und die sich auch durch Umbenennen nicht retten lassen (Regeln
+      aus Chromium, FileSystemAccessManagerImpl::IsSafePathComponent):
+      unzulaessige Zeichen, reservierte Windows-Namen und Namen mit Punkt oder
+      Leerzeichen am Ende. Dazu die Explorer-Hilfsdateien desktop.ini und
+      Thumbs.db, die in Treiberordnern oft herumliegen und nichts bewirken.
+      Gesperrte Dateitypen (.dll, .ini, .cfg, .lnk ...) behandelt exportFolder
+      ueber RENAME_EXT. */
+  function unsafeNameReason(name) {
+    if (!name || name === '.' || name === '..') return T('ungültiger Name');
+    if (/[<>:"|?*\\/\u0000-\u001f]/.test(name)) return T('unzulässige Zeichen');
+    if (/[. ]$/.test(name)) return T('endet auf Punkt oder Leerzeichen');
+    if (/^(con|prn|aux|nul|com[0-9]|lpt[0-9]|clock\$)(\..*)?$/i.test(name)) return T('reservierter Gerätename');
+    if (/^(desktop\.ini|thumbs\.db)$/i.test(name)) return T('Explorer-Hilfsdatei');
+    return null;
+  }
+
+  /*  Dateitypen, die Safe Browsing als gefaehrlich fuehrt (unter Windows u. a.
+      .dll, .ini, .cfg, .manifest), dazu .lnk, .scf, .url und CLSID-Endungen,
+      schreibt Chrome nicht in echte Ordner - Treiberpakete bestehen aber zum
+      grossen Teil aus DLLs. Solche Dateien bekommen die Zusatzendung
+      RENAME_EXT; Install.ps1 sucht vor dem ersten Modul nach *.oemrename und
+      gibt ihnen ihren Namen zurueck. Erkannt wird das an
+      der Ablehnung selbst (TypeError), weil Chrome die Liste aktualisiert. */
+  const RENAME_EXT = '.oemrename';
+  function isNameRejected(err) {
+    return !!err && (err instanceof TypeError || err.name === 'TypeError');
+  }
+
+
+  /* Datei, die beim Export nicht mehr lesbar war, als fehlend markieren -
+     dann zeigt die Oberflaeche den Platzhalter mit "Datei/Ordner wählen". */
+  function markUnreadable(data) {
+    if (!data) return null;
+    for (const f of state.files.items) {
+      if (f.blob === data) { f.blob = null; f.blobPresent = false; return f.name; }
+    }
+    for (const d of state.drivers.items) {
+      const i = (d.files || []).findIndex((x) => x.blob === data);
+      if (i >= 0) {
+        d.missing = (d.files || []).length;
+        d.files = [];
+        return F('Treiber „{0}“', d.name);
+      }
+    }
+    return null;
+  }
+
+  function isReadError(e) {
+    return !!e && (e.name === 'NotReadableError' || e.name === 'NotFoundError');
+  }
+
+  /*  Ist die Quelldatei noch lesbar? Chrome meldet eine inzwischen geloeschte
+      oder geaenderte Datei beim Lesen als Datenstrom nur mit "network error" -
+      daran laesst sich nicht erkennen, ob das Lesen oder das Schreiben
+      scheiterte. Ein Byte lesen klaert es. */
+  async function stillReadable(data) {
+    if (!(data instanceof Blob) || data.size === 0) return true;
+    try { await data.slice(0, 1).arrayBuffer(); return true; } catch (e) { return false; }
   }
 
   async function saveProject() {
@@ -1424,21 +1718,161 @@
     return out;
   }
 
-  /*  js/zip.js schreibt kein ZIP64: ueber 4 GB Gesamtgroesse oder 65535
-      Eintraege entstuende ein defektes Archiv. Mit etwas Abstand abbrechen. */
-  const ZIP_MAX_BYTES = 3.8 * 1024 * 1024 * 1024;
-  const ZIP_MAX_ENTRIES = 65000;
+  /*  In Ordner exportieren (Chrome, Edge): schreibt die Struktur direkt in einen
+      Ordner - auch gleich ins Wurzelverzeichnis des USB-Sticks. Das spart das
+      Entpacken, und Binaerdateien werden als Datenstrom von der Platte kopiert.
+      Vor dem Schreiben: Liegen im Ziel schon $OEM$, sources\$OEM$ oder
+      $WinPEDriver$, werden genau diese Ordner nach Rueckfrage geleert - sonst
+      blieben z. B. entfernte Treiber liegen und wuerden mit eingespielt. Alles
+      andere (etwa sources\install.wim) bleibt unberuehrt. */
+  async function entryExists(dir, name, kind) {
+    try {
+      if (kind === 'dir') await dir.getDirectoryHandle(name);
+      else await dir.getFileHandle(name);
+      return true;
+    } catch (e) { return false; }
+  }
+
+  async function dirFor(root, parts) {
+    let d = root;
+    for (const p of parts) d = await d.getDirectoryHandle(p, { create: true });
+    return d;
+  }
+
+  async function exportFolder() {
+    if (typeof window.showDirectoryPicker !== 'function') {
+      toast(T('„In Ordner exportieren“ gibt es nur in Chrome und Edge – bitte „ZIP erzeugen“ verwenden.'), 'warn');
+      return;
+    }
+    if (!previewFiles.length) previewFiles = Templates.build(state);
+    const lost = missingBinaries();
+    if (lost.length && !confirm(F('Diese Dateien fehlen und kommen nur als Platzhalter in den Ordner:\n\n{0}\n\n' +
+        'Die Projektdatei enthält keine Binärdateien – nach dem Laden müssen sie unter „Eigene Dateien“ bzw. „Treiber“ ' +
+        'neu zugeordnet werden. Trotzdem exportieren?', lost.map((x) => '• ' + x).join('\n')))) return;
+
+    const startIn = await startInFor('oem-folder');
+    const base = { id: 'oem-folder', mode: 'readwrite' };
+    let root;
+    try {
+      root = await window.showDirectoryPicker(startIn && startIn.kind === 'directory' ? Object.assign({ startIn }, base) : base);
+    } catch (e) {
+      if (e && e.name === 'AbortError') return;
+      try { root = await window.showDirectoryPicker(base); }
+      catch (e2) {
+        if (!e2 || e2.name !== 'AbortError') toast(F('Ordner nicht verfügbar: {0}', e2.message), 'err');
+        return;
+      }
+    }
+    await lastPlace.set('oem-folder', root);
+
+    /* Vorhandenes pruefen */
+    const old = [];
+    if (await entryExists(root, '$OEM$', 'dir')) old.push('$OEM$');
+    if (await entryExists(root, '$WinPEDriver$', 'dir')) old.push('$WinPEDriver$');
+    let sources = null;
+    if (await entryExists(root, 'sources', 'dir')) {
+      sources = await root.getDirectoryHandle('sources');
+      if (await entryExists(sources, '$OEM$', 'dir')) old.push('sources\\$OEM$');
+    }
+    const notes = [];
+    if (old.length) {
+      notes.push(F('Vorhandene Ordner werden vorher geleert: {0}', old.join(', ')));
+    }
+    const writesUnattend = previewFiles.some((f) => f.path === 'autounattend.xml');
+    if (writesUnattend && !(state.unattend && state.unattend.xml) && await entryExists(root, 'autounattend.xml', 'file')) {
+      notes.push(T('Im Ziel liegt bereits eine autounattend.xml, die nicht importiert wurde – sie wird durch die des Generators ersetzt. ' +
+        'Wer sie behalten will: abbrechen und sie unter Einstellungen → Auslöser importieren.'));
+    }
+    if (notes.length && !confirm(F('Export nach „{0}“:\n\n{1}\n\nFortfahren?', root.name, notes.map((x) => '• ' + x).join('\n\n')))) return;
+
+    const btn = $('#btnExportFolder');
+    const label = btn.textContent;
+    btn.disabled = true; $('#btnExport').disabled = true;
+    let done = 0;
+    try {
+      for (const name of old) {
+        if (name === 'sources\\$OEM$') await sources.removeEntry('$OEM$', { recursive: true });
+        else await root.removeEntry(name, { recursive: true });
+      }
+      const entries = previewFiles.map((f) => ({ path: f.path, data: f.data }));
+      entries.push({ path: (state.meta.name || 'Projekt').replace(/[^\w.-]+/g, '_') + '.oemproj.json', data: projectJson() });
+      const skipped = [], failed = [], lostNow = new Set(), renamed = [], winpeBlocked = [];
+      let n = 0;
+      for (const e of entries) {
+        n++;
+        if (n % 10 === 0 || n === entries.length) btn.textContent = F('Schreibe {0}/{1} …', n, entries.length);
+        const parts = e.path.split('/');
+        const bad = parts.map((x) => [x, unsafeNameReason(x)]).find((x) => x[1]);
+        if (bad) { skipped.push(e.path + ' (' + bad[1] + ')'); continue; }
+        const fileName = parts.pop();
+        let w = null;
+        try {
+          const dir = await dirFor(root, parts);
+          let fh, asRenamed = false;
+          try {
+            fh = await dir.getFileHandle(fileName, { create: true });
+          } catch (err) {
+            if (!isNameRejected(err)) throw err;
+            /* $WinPEDriver$ liest Windows Setup selbst - dort laeuft kein
+               Skript, das den Namen zurueckgeben koennte. */
+            if (parts[0] === '$WinPEDriver$') { winpeBlocked.push(e.path); continue; }
+            fh = await dir.getFileHandle(fileName + RENAME_EXT, { create: true });
+            asRenamed = true;
+          }
+          w = await fh.createWritable();
+          /* Blob/File als Datenstrom, Text und Bytes direkt */
+          if (typeof Blob !== 'undefined' && e.data instanceof Blob) await e.data.stream().pipeTo(w);
+          else { await w.write(e.data); await w.close(); }
+          if (asRenamed) {
+            /* Nachpruefen: liegt die umbenannte Datei wirklich vollstaendig da? */
+            const chk = await (await dir.getFileHandle(fileName + RENAME_EXT)).getFile();
+            if (e.data instanceof Blob && chk.size !== e.data.size) {
+              throw new Error(F('nach dem Schreiben {0} statt {1} Bytes', chk.size, e.data.size));
+            }
+            renamed.push(e.path);
+          }
+          done++;
+        } catch (err) {
+          if (w) { try { await w.abort(); } catch (x) { /* schon abgebrochen */ } }
+          const unreadable = isReadError(err) || !(await stillReadable(e.data));
+          failed.push(e.path + ': ' + (unreadable ? T('Quelldatei nicht mehr lesbar') : ((err && err.message) || err)));
+          if (unreadable) { const who = markUnreadable(e.data); if (who) lostNow.add(who); }
+          /* Platte voll o. ae.: weitere Versuche sind zwecklos */
+          if (err && (err.name === 'QuotaExceededError' || failed.length >= 25)) break;
+        }
+      }
+      if (winpeBlocked.length) {
+        failed.push(F('$WinPEDriver$: {0} Dateien mit gesperrtem Dateityp (z. B. .dll) – Chrome schreibt sie nicht in Ordner, und Windows Setup liest diesen Ordner ohne Skript. ' +
+          'Diese Treiber per „ZIP erzeugen“ ausliefern oder auf Phase „Setup“ (pnputil) umstellen. Erste Datei: {1}', winpeBlocked.length, winpeBlocked[0]));
+      }
+      if (renamed.length) {
+        toast(F('{0} Dateien (z. B. .dll) schreibt Chrome nicht unter ihrem Namen in Ordner – sie tragen die Endung {1}, Install.ps1 benennt sie bei der Installation zurück.',
+          renamed.length, RENAME_EXT), 'info');
+      }
+      if (!skipped.length && !failed.length) {
+        toast(F('{0} Dateien nach „{1}“ geschrieben.', done, root.name), 'ok');
+      } else {
+        const list = (arr) => arr.slice(0, 15).map((x) => '• ' + x).join('\n') + (arr.length > 15 ? '\n• …' : '');
+        let msg = F('{0} Dateien nach „{1}“ geschrieben.', done, root.name);
+        if (skipped.length) msg += '\n\n' + F('Übersprungen, weil der Browser diese Namen nicht schreiben darf ({0}):', skipped.length) + '\n' + list(skipped);
+        if (failed.length) msg += '\n\n' + F('Nicht geschrieben ({0}):', failed.length) + '\n' + list(failed);
+        if (renamed.length) msg += '\n\n' + F('{0} Dateien (z. B. .dll) schreibt Chrome nicht unter ihrem Namen in Ordner – sie tragen die Endung {1}, Install.ps1 benennt sie bei der Installation zurück.', renamed.length, RENAME_EXT);
+        if (lostNow.size) msg += '\n\n' + F('Nicht mehr lesbar – seit dem Hinzufügen geändert, verschoben oder gelöscht. Bitte neu zuordnen: {0}', Array.from(lostNow).join(', '));
+        toast(failed.length ? T('Export unvollständig – Details im Hinweisfenster.') : F('{0} Dateien geschrieben, {1} übersprungen.', done, skipped.length), failed.length ? 'err' : 'warn');
+        alert(msg);
+        if (lostNow.size) { renderFiles(); renderDrivers(); }
+      }
+    } catch (e) {
+      console.error(e);
+      toast(F('Export fehlgeschlagen nach {0} Dateien: {1}', done, e.message), 'err');
+    } finally {
+      btn.disabled = false; $('#btnExport').disabled = false; btn.textContent = label;
+      refresh();
+    }
+  }
 
   async function exportZip() {
     if (!previewFiles.length) previewFiles = Templates.build(state);
-    const total = previewFiles.reduce((a, f) => a + (f.data ? f.data.length : 0), 0);
-    if (total > ZIP_MAX_BYTES || previewFiles.length > ZIP_MAX_ENTRIES) {
-      alert(F('Das ZIP würde {0} mit {1} Dateien groß – mehr, als ein ZIP ohne ZIP64 fassen kann (4 GB, 65535 Dateien).\n\n' +
-        'Große Treiberpakete besser als „Leeres Paket“ anlegen und die Dateien nach dem Entpacken direkt aufs Medium kopieren. ' +
-        'Die Ablage „beide Orte“ verdoppelt die pnputil-Treiber; „sources\\$OEM$“ allein halbiert die Größe.',
-        fmtSize(total), previewFiles.length));
-      return;
-    }
     const lost = missingBinaries();
     if (lost.length && !confirm(F('Diese Dateien fehlen und kommen nur als Platzhalter ins ZIP:\n\n{0}\n\n' +
         'Die Projektdatei enthält keine Binärdateien – nach dem Laden müssen sie unter „Eigene Dateien“ bzw. „Treiber“ ' +
@@ -1454,16 +1888,33 @@
       const entries = previewFiles.map((f) => ({ path: f.path, data: f.data }));
       entries.push({ path: (state.meta.name || 'Projekt').replace(/[^\w.-]+/g, '_') + '.oemproj.json', data: projectJson() });
       const blob = await MiniZip.createZip(entries);
+      const over4 = blob.size >= 4 * 1024 * 1024 * 1024;
       if (handle) {
-        await writeToHandle(handle, blob);
+        try {
+          await writeToHandle(handle, blob);
+        } catch (e) {
+          /* DOMException.message ist schreibgeschuetzt - daher neues Error-Objekt */
+          if (!over4) throw e;
+          const e2 = new Error(((e && e.message) || e) + ' ' + T('– Das ZIP ist größer als 4 GB. Liegt das Ziel auf einem FAT32-Laufwerk (viele USB-Sticks)? FAT32 erlaubt höchstens 4 GB je Datei – das ZIP auf die Festplatte speichern oder „In Ordner exportieren“ verwenden.'));
+          e2.name = e.name; e2.data = e.data; e2.path = e.path;
+          throw e2;
+        }
         toast(F('ZIP mit {0} Dateien gespeichert: {1}', entries.length, handle.name), 'ok');
       } else {
         download(blob, zipName);
         toast(F('ZIP mit {0} Dateien erstellt.', entries.length), 'ok');
       }
+      if (over4) toast(T('Das ZIP ist größer als 4 GB (ZIP64). Auf FAT32-Laufwerken lässt es sich nicht speichern – dort „In Ordner exportieren“ verwenden.'), 'warn');
     } catch (e) {
       console.error(e);
-      toast(F('Export fehlgeschlagen: {0}', e.message), 'err');
+      if (isReadError(e) || (e && e.data && !(await stillReadable(e.data)))) {
+        const who = markUnreadable(e.data);
+        alert(F('Export fehlgeschlagen: {0}', e.message) + '\n\n' +
+          F('Die Datei ist nicht mehr lesbar – sie wurde seit dem Hinzufügen geändert, verschoben oder gelöscht (etwa weil sie im Zielordner eines früheren Exports lag). Bitte neu zuordnen: {0}', who || e.path || '?'));
+        renderFiles(); renderDrivers(); refresh();
+      } else {
+        toast(F('Export fehlgeschlagen: {0}', e.message), 'err');
+      }
     } finally {
       btn.disabled = false; btn.textContent = T('ZIP erzeugen');
     }
@@ -1475,6 +1926,8 @@
     $$('.nav-item').forEach((b) => b.addEventListener('click', () => setView(b.dataset.view)));
 
     $('#btnExport').addEventListener('click', exportZip);
+    $('#btnExportFolder').addEventListener('click', exportFolder);
+    if (typeof window.showDirectoryPicker !== 'function') $('#btnExportFolder').hidden = true;
     $('#btnSaveProject').addEventListener('click', saveProject);
     $('#btnLoadProject').addEventListener('click', openProjectFile);
     $('#projectInput').addEventListener('change', (e) => {
@@ -1517,8 +1970,14 @@
       dragDepth = 0;
       document.body.classList.remove('dragging'); $('#dropzone').classList.remove('hot');
       if (e.dataTransfer && e.dataTransfer.files.length) {
+        /* Handles muessen noch im Ereignis angefordert werden - danach ist
+           dataTransfer leer. */
+        const files = Array.from(e.dataTransfer.files);
+        const hp = Array.from(e.dataTransfer.items || []).filter((i) => i.kind === 'file')
+          .map((i) => (typeof i.getAsFileSystemHandle === 'function' ? i.getAsFileSystemHandle().catch(() => null) : null));
         setView('import');
-        await importFiles(e.dataTransfer.files);
+        const handles = (await Promise.all(hp)).filter((h) => h && h.kind === 'file');
+        await importFiles(files, { handles });
       }
     });
 
@@ -1574,7 +2033,7 @@
     });
 
     /* Dateien */
-    $('#btnFilesAdd').addEventListener('click', () => $('#filesInput').click());
+    $('#btnFilesAdd').addEventListener('click', () => (hasPickers ? pickFiles() : $('#filesInput').click()));
     /* Treiber */
     $('#btnDriversFolder').addEventListener('click', () => $('#driversFolderInput').click());
     $('#btnDriversFiles').addEventListener('click', () => $('#driversFilesInput').click());
@@ -1599,8 +2058,9 @@
         const d = driverRefill;
         driverRefill = null;
         d.files = [];
-        for (const list of groups.values()) for (const x of list) d.files.push({ rel: x.rel, blob: await readBytes(x.file) });
+        for (const list of groups.values()) for (const x of list) d.files.push({ rel: x.rel, blob: x.file });
         d.missing = 0;
+        d.srcName = groups.keys().next().value || '';
         const st = driverStats(d);
         toast(F(st.count === 1 ? 'Treiberpaket „{0}“: {1} Datei, {2} INF.' : 'Treiberpaket „{0}“: {1} Dateien, {2} INF.', d.name, st.count, st.inf), st.inf ? 'ok' : 'warn');
         renderDrivers(); refresh();
@@ -1608,6 +2068,7 @@
       }
       for (const [name, list] of groups) {
         const d = await addDriverPackage(name, list);
+        d.srcName = name;
         const st = driverStats(d);
         toast(F(st.count === 1 ? 'Treiberpaket „{0}“: {1} Datei, {2} INF.' : 'Treiberpaket „{0}“: {1} Dateien, {2} INF.', d.name, st.count, st.inf), st.inf ? 'ok' : 'warn');
       }
@@ -1624,11 +2085,10 @@
 
     $('#filesInput').addEventListener('change', async (e) => {
       for (const f of Array.from(e.target.files)) {
-        const bytes = await readBytes(f);
         state.files.items.push({
           name: f.name, target: f.name,
           run: /\.msi$/i.test(f.name) ? '/qn /norestart' : '',
-          phase: 'firstlogon', enabled: true, dest: 'files', blob: bytes, blobPresent: true
+          phase: 'firstlogon', enabled: true, dest: defaultFileDest(f.name), blob: f, blobPresent: true
         });
       }
       e.target.value = '';

@@ -69,8 +69,9 @@ unpack the ZIP and open `index.html`. Inside the package the screenshots are lin
   opens a detailed description of every option on the page, in German or
   English, with cross references between the topics.
 * **Preview** of every generated file, a **project file** to save and continue
-  working, ZIP export. Chrome and Edge ask for the target with a "Save as" dialog;
-  Firefox and Safari download the file.
+  working, ZIP export (ZIP64 from 4 GB on) or (Chrome, Edge) **export straight into a
+  folder** or onto the USB stick. Chrome and Edge ask for the target with a "Save as"
+  dialog; Firefox and Safari download the file.
 
 ## Two-phase model
 
@@ -271,7 +272,13 @@ Get-CimInstance Win32_ComputerSystem | Select Manufacturer, Model, SystemSKUNumb
 ```
 
 Driver files go into the ZIP only, not into the project file: after loading a
-project the packages are back, but empty. With the ZIP root "both places" the
+project the packages are back, but empty, showing the folder they last came
+from. They cannot be attached automatically – when a web page reads a
+remembered folder, Chrome leaves out every file type it rates as dangerous, the
+DLLs of all things. Files under *Own files*, on the other hand, are remembered
+by Chrome/Edge and attached again right away when the project is loaded; if
+Chrome needs permission again, one click on **Attach sources** is enough (same
+browser profile only). With the ZIP root "both places" the
 pnputil packages are in the archive twice. Driver installers as EXE still belong
 under *Own files* in the interface.
 
@@ -337,6 +344,23 @@ sources/$OEM$/  or  $OEM$/
    that `<medium>\sources\$OEM$\...` results. The `README.txt` contained in the ZIP
    (`LIESMICH.txt` in German) lists what is still missing (e.g. `setup.exe` of the
    Office Deployment Tool).
+
+Instead of 3. and 4., Chrome and Edge also offer **Export to folder**: pick the root of
+the USB stick and you are done – no unpacking, installers and drivers are copied from
+disk as a stream. Existing `$OEM$`, `sources\$OEM$` and `$WinPEDriver$` folders in the target
+are emptied first after a confirmation – otherwise removed drivers, for example, would
+stay behind. Everything else on the stick stays untouched; an existing
+`autounattend.xml` that was not imported would be replaced, which the confirmation
+points out. File types Chrome does not write to folders (above all `.dll`, plus `.ini`,
+`.cfg`, `.manifest`) end up on the stick as `*.oemrename`;
+`Install.ps1` renames them back before the first module. That does not work for drivers
+under `$WinPEDriver$` – use the ZIP for those.
+
+Large packages fit into the ZIP as well: from 4 GB or 65,535 files on the generator
+writes **ZIP64** automatically, which Windows Explorer (Windows 10 and later) and 7-Zip
+unpack. Files over 128 MB go in uncompressed – drivers and installers are usually
+compressed already – but the browser reads them straight from disk instead of collecting
+them in memory (tested: a 5.2 GB archive with less than 90 MB of memory).
 
 ### The installation has to be booted from the medium
 
@@ -455,5 +479,5 @@ same tag. Adjust the version number in `js/version.js` first – the build scrip
 stops if it does not match the tag.
 
 ```bash
-git tag v1.1 && git push origin v1.1
+git tag v1.2 && git push origin v1.2
 ```

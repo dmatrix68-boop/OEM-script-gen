@@ -375,7 +375,18 @@ function Test-OemRunActive {
     $otherPid = 0
     if (-not [int]::TryParse(($val -split '\\|')[0], [ref]$otherPid)) { return $false }
     if ($otherPid -eq $PID) { return $false }
-    return [bool](Get-Process -Id $otherPid -ErrorAction SilentlyContinue)
+    $proc = Get-Process -Id $otherPid -ErrorAction SilentlyContinue
+    if (-not $proc) { return $false }
+    <#  Nach einem Abbruch mit Neustart bleibt die Markierung stehen, und die
+        Prozessnummer kann inzwischen einem ganz anderen Prozess gehoeren. Der
+        zaehlt nur, wenn er PowerShell ist und nicht nach der Markierung startete. #>
+    if ($proc.ProcessName -notmatch '^(powershell|pwsh)$') { return $false }
+    $stamp = [datetime]::MinValue
+    if ([datetime]::TryParseExact((($val -split '\\|') + @(''))[1], 'yyyy-MM-dd HH:mm:ss',
+            [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::None, [ref]$stamp)) {
+        try { if ($proc.StartTime -gt $stamp.AddSeconds(5)) { return $false } } catch { }
+    }
+    return $true
 }
 
 function Set-OemRunning {
@@ -553,6 +564,20 @@ function Invoke-OemProcess {
 
   /* ---------- Install.ps1 ---------- */
 
+  /*  Zielordner unter "Eigene Dateien": Install\Files (vom Modul "Eigene
+      Installer" ausgefuehrt), Setup\Scripts (neben SetupComplete.cmd) und
+      Install\Office - dort erwartet das Office-Modul die setup.exe des
+      Office Deployment Tools. */
+  function runsAsInstaller(f) {
+    return f.dest !== 'scripts' && f.dest !== 'office';
+  }
+  function fileDestLabel(f) {
+    return f.dest === 'scripts' ? '$OEM$\\$$\\Setup\\Scripts\\' : f.dest === 'office' ? 'Office\\' : 'Files\\';
+  }
+  function officeSetupBundled(st) {
+    return st.files.items.some((f) => f.enabled && f.blob && f.dest === 'office' && /^setup\.exe$/i.test(f.target));
+  }
+
   function moduleList(st, phase) {
     const mods = [];
     if (st.drivers && st.drivers.enabled && st.drivers.phase === phase &&
@@ -565,7 +590,7 @@ function Invoke-OemProcess {
     }
     if (st.office.enabled && st.office.phase === phase) mods.push(['Install-Office.ps1', 'Microsoft Office (ODT)']);
     if (st.apps.enabled && st.apps.phase === phase && st.apps.items.some((p) => p.enabled)) mods.push(['Install-Apps.ps1', 'Anwendungen']);
-    if (st.files.items.some((f) => f.enabled && f.dest !== 'scripts' && f.phase === phase && f.run)) {
+    if (st.files.items.some((f) => f.enabled && runsAsInstaller(f) && f.phase === phase && f.run)) {
       mods.push([phase === 'setup' ? 'Install-Files-P1.ps1' : 'Install-Files-P2.ps1', 'Eigene Installer']);
     }
     if (st.custom.psEnabled && st.custom.psPhase === phase && st.custom.ps.trim()) mods.push(['Invoke-Custom.ps1', 'Eigene PowerShell-Befehle']);
@@ -662,6 +687,32 @@ if ($Phase -ne 'Manual' -and -not $Force) {
 }
 
 Set-OemRunning -Key $markerKey -Name $runningName
+
+<#  Nach "In Ordner exportieren" aus Chrome/Edge: Dateitypen wie .dll, .ini
+    oder .cfg darf der Browser nicht in Ordner schreiben. Sie liegen deshalb
+    mit der Zusatzendung .oemrename vor und bekommen hier - vor allen Modulen -
+    ihren Namen zurueck. Gesucht wird direkt nach *.oemrename, ohne Liste. #>
+$fixed = 0; $broken = 0
+foreach ($dir in @($scriptRoot, (Join-Path $env:windir 'Setup\\Scripts'))) {
+    if (-not (Test-Path -LiteralPath $dir)) { continue }
+    $found = @(Get-ChildItem -LiteralPath $dir -Recurse -File -Force -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -like '*.oemrename' })
+    foreach ($f in $found) {
+        $name = $f.Name.Substring(0, $f.Name.Length - '.oemrename'.Length)
+        $target = Join-Path $f.DirectoryName $name
+        try {
+            if (Test-Path -LiteralPath $target) { Remove-Item -LiteralPath $target -Force -ErrorAction Stop }
+            Rename-Item -LiteralPath $f.FullName -NewName $name -ErrorAction Stop
+            $fixed++
+        } catch {
+            $broken++
+            Write-Log ('Umbenennen fehlgeschlagen: ' + $f.FullName + ' - ' + $_.Exception.Message) -Level Warn
+        }
+    }
+}
+if ($fixed -or $broken) {
+    Write-Log ('Dateinamen aus dem Ordner-Export wiederhergestellt: ' + $fixed + ', Fehler: ' + $broken)
+}
 
 $setupSteps = @(
 ${fmt(setupMods)}
@@ -1753,7 +1804,7 @@ if ($fehler.Count -gt 0) { throw ('Nicht eingespielt: ' + ($fehler -join ', ')) 
   /* ---------- Modules/Install-Files.ps1 ---------- */
 
   function filesModule(st, phase) {
-    const items = st.files.items.filter((f) => f.enabled && f.dest !== 'scripts' && f.run && f.phase === phase);
+    const items = st.files.items.filter((f) => f.enabled && runsAsInstaller(f) && f.run && f.phase === phase);
     let s = banner('Fuehrt mitgelieferte Setup-Dateien aus.', st.meta.name);
     s += bootstrapHeader('Install-Files');
     s += toCRLF(`
@@ -1968,6 +2019,10 @@ Show-Item 'Installationsordner' (Test-Path $root) $root
 Show-Item 'Install.ps1' (Test-Path (Join-OemPath $root 'Install.ps1')) (Join-OemPath $root 'Install.ps1')
 $modCount = @(Get-ChildItem (Join-OemPath $root 'Modules') -Filter *.ps1 -ErrorAction SilentlyContinue).Count
 Show-Item 'Modules-Ordner' (Test-Path (Join-OemPath $root 'Modules')) ("$modCount Module")
+$left = @(Get-ChildItem -LiteralPath $root -Recurse -File -Force -ErrorAction SilentlyContinue | Where-Object { $_.Name -like '*.oemrename' }).Count
+if ($left) {
+    Show-Item 'Namen aus Ordner-Export' $false "$left Dateien noch *.oemrename - Install.ps1 lief noch nicht oder konnte nicht umbenennen"
+}
 $sc = Join-OemPath $env:SystemRoot 'Setup\\Scripts\\SetupComplete.cmd'
 Show-Item 'SetupComplete.cmd' (Test-Path $sc) $sc
 if (-not (Test-Path $sc)) {
@@ -2285,7 +2340,7 @@ Write-Host ''
     ];
 
     const todo = [];
-    if (st.office.enabled && st.office.setupSource === 'bundled') {
+    if (st.office.enabled && st.office.setupSource === 'bundled' && !officeSetupBundled(st)) {
       todo.push('setup.exe des Office Deployment Tools nach ' + zipRoot + '\\$1\\' +
         relFromRoot(st.paths.installRoot) + '\\Office\\setup.exe kopieren.');
     }
@@ -2297,7 +2352,7 @@ Write-Host ''
     }
     st.files.items.filter((f) => f.enabled && !f.blobPresent).forEach((f) => {
       todo.push('Datei "' + f.name + '" fehlt im Archiv und muss manuell nach ' +
-        (f.dest === 'scripts' ? '$OEM$\\$$\\Setup\\Scripts\\' : 'Files\\') + f.target + ' kopiert werden.');
+        fileDestLabel(f) + f.target + ' kopiert werden.');
     });
     if (st.drivers && st.drivers.enabled) {
       st.drivers.items.filter((d) => d.enabled && !(d.files || []).some((f) => f.blob)).forEach((d) => {
@@ -2419,7 +2474,7 @@ Write-Host ''
     ];
 
     const todo = [];
-    if (st.office.enabled && st.office.setupSource === 'bundled') {
+    if (st.office.enabled && st.office.setupSource === 'bundled' && !officeSetupBundled(st)) {
       todo.push('Copy setup.exe of the Office Deployment Tool to ' + zipRoot + '\\$1\\' +
         relFromRoot(st.paths.installRoot) + '\\Office\\setup.exe.');
     }
@@ -2431,7 +2486,7 @@ Write-Host ''
     }
     st.files.items.filter((f) => f.enabled && !f.blobPresent).forEach((f) => {
       todo.push('File "' + f.name + '" is missing from the archive and has to be copied to ' +
-        (f.dest === 'scripts' ? '$OEM$\\$$\\Setup\\Scripts\\' : 'Files\\') + f.target + ' by hand.');
+        fileDestLabel(f) + f.target + ' by hand.');
     });
     if (st.drivers && st.drivers.enabled) {
       st.drivers.items.filter((d) => d.enabled && !(d.files || []).some((f) => f.blob)).forEach((d) => {
@@ -2517,7 +2572,7 @@ Write-Host ''
         add(inst + '/Office/' + folder + '/HIER-OFFICE-QUELLE-ABLEGEN.txt', officeSourceReadme(st));
         add(inst + '/Office/Download-Quelle.ps1', officeDownloadScript(st));
       }
-      if (st.office.setupSource === 'bundled') {
+      if (st.office.setupSource === 'bundled' && !officeSetupBundled(st)) {
         add(inst + '/Office/HIER-setup.exe-ABLEGEN.txt', toCRLF([
           'Das Office Deployment Tool (setup.exe) muss in diesem Ordner liegen.',
           '',
@@ -2536,7 +2591,7 @@ Write-Host ''
 
     st.files.items.filter((f) => f.enabled).forEach((f) => {
       if (!f.blob) return;
-      const dir = f.dest === 'scripts' ? base + '/$$/Setup/Scripts/' : inst + '/Files/';
+      const dir = f.dest === 'scripts' ? base + '/$$/Setup/Scripts/' : f.dest === 'office' ? inst + '/Office/' : inst + '/Files/';
       add(dir + f.target, f.blob, true);
     });
 
