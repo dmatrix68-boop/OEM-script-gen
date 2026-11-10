@@ -479,5 +479,5 @@ same tag. Adjust the version number in `js/version.js` first – the build scrip
 stops if it does not match the tag.
 
 ```bash
-git tag v1.1 && git push origin v1.1
+git tag v1.2 && git push origin v1.2
 ```

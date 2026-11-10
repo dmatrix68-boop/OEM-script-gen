@@ -491,5 +491,5 @@ zum selben Tag. Vorher die Versionsnummer in `js/version.js` anpassen – das
 Build-Skript bricht ab, wenn sie nicht zum Tag passt.
 
 ```bash
-git tag v1.1 && git push origin v1.1
+git tag v1.2 && git push origin v1.2
 ```
