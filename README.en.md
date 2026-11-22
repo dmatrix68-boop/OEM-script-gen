@@ -371,6 +371,21 @@ node tools/sync-schneegans.js ../unattend-generator --resources --write
 `--resources` regenerates `js/ug/resources.js`, `--write` sets the port state. Without
 these switches the tool only prints the report.
 
+### Golden test against the original
+
+`tools/test-golden.js` checks whether the port produces the same as the original: for every
+case in `tools/golden/cases.json` the port creates the answer file in Chromium, and a small
+C# program (`tools/golden`) compiles the **unchanged** sources of the original, translates
+the same configuration into its `Configuration` and writes its result. The comparison is
+byte by byte (only `<Build>` with the respective commit hash is masked), for error cases the
+message as well. The *Tests* workflow compares against the port state, the *Schneegans
+beobachten* workflow compares against the latest state on changes and adds the result to the
+issue. Locally (needs .NET 8 and Playwright; runs the original's code):
+
+```bash
+node tools/test-golden.js --upstream ../unattend-generator
+```
+
 ## Generated structure
 
 ```
@@ -589,6 +604,7 @@ tools/            check-escapes.js – checks the template literals for swallowe
                   test-reg.js      – checks the .reg import
                   test-unattend.js – checks the answer file designer (Playwright)
                   sync-schneegans.js – compares with the original, generates resources.js
+                  test-golden.js   – port against the C# original (golden/: harness, cases)
                   emit-scripts.js  – generates the scripts of several test profiles without a browser
                   test-powershell.ps1 – checks them on Windows (syntax, PSScriptAnalyzer,
                                      registry functional test, Diagnose.ps1)

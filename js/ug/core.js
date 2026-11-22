@@ -52,14 +52,13 @@
 
   /* ---------------- Validation.cs ---------------- */
 
-  function inRange(value, min, max) {
-    if (value === null || value === undefined || value === '' || isNaN(value)) {
-      throw new ConfigurationException('A value is required.');
+  function inRange(value, min, max, field) {
+    if (value === null || value === undefined || value === '' || (typeof value === 'number' && isNaN(value))) {
+      throw new ConfigurationException("Parameter '" + field + "' must be set.");
     }
     const v = Number(value);
-    if (!Number.isInteger(v) || v < min || v > max) {
-      throw new ConfigurationException('Value ' + value + ' must be between ' + min + ' and ' + max + '.');
-    }
+    if (v < min) throw new ConfigurationException("Value of parameter '" + field + "' must not be less than " + min + ', but was ' + v + '.');
+    if (v > max) throw new ConfigurationException("Value of parameter '" + field + "' must not be greater than " + max + ', but was ' + v + '.');
     return v;
   }
 

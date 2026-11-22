@@ -1,0 +1,45 @@
+[
+  { "name": "standard", "config": {} },
+  { "name": "sprache-de-en", "config": {
+      "language": { "mode": "unattended", "image": "de-DE", "locales": [{ "locale": "de-DE", "keyboard": "00000407" }, { "locale": "en-US", "keyboard": "00000409" }], "geo": "94" } } },
+  { "name": "sprache-standort-abweichend", "config": {
+      "language": { "mode": "unattended", "image": "en-US", "locales": [{ "locale": "de-CH", "keyboard": "00000807" }], "geo": "244" } } },
+  { "name": "sprache-ime-und-lcid1000", "config": {
+      "language": { "mode": "unattended", "image": "ja-JP", "locales": [{ "locale": "ja-JP", "keyboard": "0411:{03B5835F-F03C-411B-9CE2-AA23E1171E36}{A76C93D9-5523-4E90-AAFA-4DB112F9AC76}" }, { "locale": "aa-DJ", "keyboard": "00000409" }], "geo": "122" } } },
+  { "name": "konten-autologon-verschleiert", "config": {
+      "account": { "mode": "unattended", "accounts": [
+        { "name": "Jörg", "displayName": "Jörg Müller", "password": "geheim", "group": "Administrators" },
+        { "name": "Kind", "displayName": "", "password": "", "group": "Users" }], "autoLogon": "own", "obscure": true } } },
+  { "name": "konten-builtin-klartext", "config": {
+      "account": { "mode": "unattended", "accounts": [{ "name": "Anna", "displayName": "Anna", "password": "pw", "group": "Users" }], "autoLogon": "builtin", "builtinPassword": "Adm1n!", "obscure": false } } },
+  { "name": "konto-lokal-interaktiv", "config": { "account": { "mode": "interactive-local" } } },
+  { "name": "computername-fest-zeitzone", "config": {
+      "computerName": { "mode": "custom", "name": "BUERO-PC" }, "timeZone": { "mode": "explicit", "id": "W. Europe Standard Time" } } },
+  { "name": "computername-abfrage", "config": { "computerName": { "mode": "prompt" } } },
+  { "name": "edition-generisch-aktivierung", "config": {
+      "edition": { "mode": "edition", "edition": "pro" }, "activationKey": "VK7JG-NPHTM-C97JM-9MPGT-3V66T" } },
+  { "name": "edition-firmware", "config": { "edition": { "mode": "firmware" } } },
+  { "name": "edition-eigener-schluessel", "config": { "edition": { "mode": "key", "key": "nppr9-fwdcx-d2c8j-h872k-2yt43" } } },
+  { "name": "setup-schalter", "config": {
+      "bypassRequirements": false, "bypassNetwork": true, "useConfigurationSet": true, "useNarrator": true,
+      "hidePowerShellWindows": true, "expressSettings": "enableAll", "wifi": { "mode": "skip" } } },
+  { "name": "sicherheit", "config": {
+      "lockout": { "mode": "custom", "threshold": 5, "duration": 30, "window": 15 }, "passwordExpiration": { "mode": "custom", "maxAge": 90 } } },
+  { "name": "sicherheit-aus", "config": {
+      "lockout": { "mode": "disabled" }, "passwordExpiration": { "mode": "unlimited" }, "expressSettings": "interactive", "keepSensitiveFiles": true } },
+  { "name": "architekturen", "config": { "architectures": ["arm64", "amd64", "x86"] } },
+  { "name": "fehler-kein-admin", "config": {
+      "account": { "mode": "unattended", "accounts": [{ "name": "a", "displayName": "", "password": "", "group": "Users" }], "autoLogon": "none" } } },
+  { "name": "fehler-loeschen-ohne-autologon", "config": {
+      "account": { "mode": "unattended", "accounts": [{ "name": "a", "displayName": "", "password": "", "group": "Administrators" }], "autoLogon": "none" } } },
+  { "name": "fehler-computername", "config": { "computerName": { "mode": "custom", "name": "12345" } } },
+  { "name": "fehler-kontoname", "config": {
+      "account": { "mode": "unattended", "accounts": [{ "name": "Administrator", "displayName": "", "password": "", "group": "Administrators" }], "autoLogon": "own" } } },
+  { "name": "fehler-doppelter-kontoname", "config": {
+      "account": { "mode": "unattended", "accounts": [
+        { "name": "Max", "displayName": "", "password": "", "group": "Administrators" },
+        { "name": "max", "displayName": "", "password": "", "group": "Users" }], "autoLogon": "own" } } },
+  { "name": "fehler-produktschluessel", "config": { "edition": { "mode": "key", "key": "ABC" } } },
+  { "name": "fehler-sperrfenster", "config": { "lockout": { "mode": "custom", "threshold": 5, "duration": 10, "window": 20 } } },
+  { "name": "fehler-kennwortalter", "config": { "passwordExpiration": { "mode": "custom", "maxAge": 1000 } } }
+]

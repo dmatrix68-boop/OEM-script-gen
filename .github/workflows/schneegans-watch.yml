@@ -35,6 +35,41 @@ jobs:
           if [ "$code" -eq 3 ]; then echo "changed=true" >> "$GITHUB_OUTPUT"; elif [ "$code" -ne 0 ]; then exit "$code"; fi
           cat report.md >> "$GITHUB_STEP_SUMMARY"
 
+      - uses: actions/setup-node@v4
+        if: steps.sync.outputs.changed == 'true'
+        with:
+          node-version: 22
+      - uses: actions/setup-dotnet@v4
+        if: steps.sync.outputs.changed == 'true'
+        with:
+          dotnet-version: '8.0.x'
+
+      # Liefert der Port noch dasselbe wie der neueste Stand des Originals?
+      - name: Golden-Test gegen den neuesten Stand
+        if: steps.sync.outputs.changed == 'true'
+        run: |
+          npm install --no-save --no-package-lock playwright@1.63.0
+          npx playwright install --with-deps chromium
+          set +e
+          node tools/test-golden.js --upstream upstream --out golden-out --strict > golden.txt 2>&1
+          code=$?
+          set -e
+          {
+            echo
+            echo '## Golden-Test gegen den neuesten Stand'
+            echo
+            if [ "$code" -eq 0 ]; then
+              echo 'Der Port liefert fuer alle Faelle aus tools/golden/cases.json weiterhin dasselbe Ergebnis wie das Original.'
+            else
+              echo 'Der Port weicht vom neuesten Stand ab:'
+              echo
+              echo '```'
+              grep -E '^(FEHLER|test-golden|    |      )' golden.txt | head -150 || true
+              echo '```'
+            fi
+          } >> report.md
+          cat golden.txt
+
       - name: Issue anlegen oder ergaenzen
         if: steps.sync.outputs.changed == 'true'
         env:

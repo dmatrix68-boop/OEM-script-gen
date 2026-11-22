@@ -3,6 +3,8 @@ name: Tests
 # Bei jedem Push auf main und in jedem Pull Request:
 # - node: Pruefwerkzeuge, ISO-Schreiber (mit Gegenprobe 7-Zip/udfinfo),
 #   .reg-Import und Antwortdatei-Designer (Chromium ueber Playwright)
+# - golden: Antwortdatei-Designer (js/ug) gegen das C#-Original von
+#   cschneegans/unattend-generator auf dem Port-Stand - Byte fuer Byte
 # - powershell: die erzeugten Skripte auf einem Windows-Runner - Syntax und
 #   PSScriptAnalyzer unter Windows PowerShell 5.1 und PowerShell 7,
 #   Funktionstests (Registry, Default-Profil, Diagnose.ps1) unter 5.1.
@@ -54,3 +56,32 @@ jobs:
       - name: Windows PowerShell 5.1 - Syntax und Funktionstests
         shell: powershell
         run: ./tools/test-powershell.ps1 -Root out -Functional
+
+  golden:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Original auf dem Port-Stand klonen
+        run: |
+          commit=$(node -p "require('./vendor/schneegans/UPSTREAM.json').commit")
+          git clone --quiet https://github.com/cschneegans/unattend-generator.git upstream
+          git -C upstream checkout --quiet "$commit"
+          echo "Port-Stand: $commit"
+      - name: Playwright (Chromium)
+        run: |
+          npm install --no-save --no-package-lock playwright@1.63.0
+          npx playwright install --with-deps chromium
+      - name: Port gegen Original
+        run: node tools/test-golden.js --upstream upstream --out golden-out --strict
+      - name: Ergebnisse bei Abweichung
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: golden-out
+          path: golden-out

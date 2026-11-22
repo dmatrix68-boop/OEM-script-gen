@@ -331,9 +331,9 @@
       if (s.mode === 'default') return;
       if (s.mode === 'disabled') { c.specializeScript.append('net.exe accounts /lockoutthreshold:0;'); return; }
       if (s.mode !== 'custom') throw new Error('Unbekannte Sperr-Einstellung: ' + s.mode);
-      const threshold = inRange(s.threshold, 0, 999);
-      const duration = inRange(s.duration, 1, 99999);
-      const window = inRange(s.window, 1, 99999);
+      const threshold = inRange(s.threshold, 0, 999, 'lockoutThreshold');
+      const duration = inRange(s.duration, 1, 99999, 'lockoutDuration');
+      const window = inRange(s.window, 1, 99999, 'lockoutWindow');
       if (window > duration) {
         throw new ConfigurationException("Value of 'LockoutWindow' (" + window + ") must be less than or equal to value of 'LockoutDuration' (" + duration + ').');
       }
@@ -349,7 +349,7 @@
       if (s.mode === 'default') return;
       if (s.mode === 'unlimited') { c.specializeScript.append('net.exe accounts /maxpwage:UNLIMITED;'); return; }
       if (s.mode !== 'custom') throw new Error('Unbekannte Kennwortablauf-Einstellung: ' + s.mode);
-      c.specializeScript.append('net.exe accounts /maxpwage:' + inRange(s.maxAge, 1, 999) + ';');
+      c.specializeScript.append('net.exe accounts /maxpwage:' + inRange(s.maxAge, 1, 999, 'maxAge') + ';');
     }
   };
 
@@ -462,7 +462,11 @@
   const ProcessorArchitecture = {
     name: 'ProcessorArchitecture',
     process(c) {
-      const archs = (c.config.architectures && c.config.architectures.length) ? c.config.architectures : null;
+      /* Im Original ein ImmutableHashSet<ProcessorArchitecture> - der zaehlt nach
+         Enum-Wert auf (x86, amd64, arm64), nicht in der Reihenfolge der Auswahl. */
+      const ORDER = ['x86', 'amd64', 'arm64'];
+      const picked = (c.config.architectures || []).filter((a, i, all) => ORDER.includes(a) && all.indexOf(a) === i);
+      const archs = picked.length ? picked.sort((a, b) => ORDER.indexOf(a) - ORDER.indexOf(b)) : null;
       for (const component of c.selAll('//*[@processorArchitecture]')) {
         if (!archs) throw new ConfigurationException('At least one processor architecture must be selected.');
         component.setAttribute('processorArchitecture', archs[0]);
