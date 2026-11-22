@@ -548,6 +548,21 @@ Chromium und setzt Playwright voraus (ohne Playwright meldet er „übersprungen
 node tools/test-unattend.js
 ```
 
+Die erzeugten PowerShell-Skripte prüft der Workflow *Tests* bei jedem Push und Pull
+Request auf einem Windows-Runner: Syntax und PSScriptAnalyzer unter Windows PowerShell 5.1
+und PowerShell 7, dazu Funktionstests unter 5.1 – das Tweak-Modul schreibt die Werte aus
+`samples/Beispiel.reg` wirklich in die Registry (auch ins Default-Profil) und liest sie
+zurück, `Diagnose.ps1` muss durchlaufen. Lokal (nur auf einem Wegwerf-System, die Tweaks
+ändern das System):
+
+```bash
+node tools/emit-scripts.js out
+```
+
+```bash
+powershell -ExecutionPolicy Bypass -File tools/test-powershell.ps1 -Root out -Functional
+```
+
 Der ISO-Schreiber (`js/iso.js`) lässt sich ohne Browser prüfen: Das Testwerkzeug baut
 eine synthetische Windows-ISO, liest sie zurück, schreibt sie wie die Oberfläche neu
 und vergleicht – mit `udfinfo` und 7-Zip, sofern installiert, auch gegen unabhängige
@@ -588,6 +603,9 @@ tools/            check-escapes.js – prüft die Template-Literale auf verschlu
                   test-reg.js      – prüft den .reg-Import
                   test-unattend.js – prüft den Antwortdatei-Designer (Playwright)
                   sync-schneegans.js – Abgleich mit dem Original, erzeugt resources.js
+                  emit-scripts.js  – erzeugt die Skripte mehrerer Testprofile ohne Browser
+                  test-powershell.ps1 – prüft sie unter Windows (Syntax, PSScriptAnalyzer,
+                                     Registry-Funktionstest, Diagnose.ps1)
                   build-release.js – schnürt das Release-Paket
 docs/screenshots/ Bilder für das README (nicht im Release-Paket)
 docs/releases/    Release-Notes je Version

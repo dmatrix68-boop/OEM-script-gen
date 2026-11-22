@@ -1,0 +1,56 @@
+name: Tests
+
+# Bei jedem Push auf main und in jedem Pull Request:
+# - node: Pruefwerkzeuge, ISO-Schreiber (mit Gegenprobe 7-Zip/udfinfo),
+#   .reg-Import und Antwortdatei-Designer (Chromium ueber Playwright)
+# - powershell: die erzeugten Skripte auf einem Windows-Runner - Syntax und
+#   PSScriptAnalyzer unter Windows PowerShell 5.1 und PowerShell 7,
+#   Funktionstests (Registry, Default-Profil, Diagnose.ps1) unter 5.1.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  node:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Werkzeuge fuer die ISO-Gegenprobe
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq p7zip-full udftools
+      - run: node tools/check-escapes.js
+      - run: node tools/check-i18n.js
+      - run: node tools/test-reg.js
+      - run: node tools/test-iso.js
+      - name: Playwright (Chromium)
+        run: |
+          npm install --no-save --no-package-lock playwright@1.63.0
+          npx playwright install --with-deps chromium
+      - run: node tools/test-unattend.js
+
+  powershell:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Skripte erzeugen
+        run: node tools/emit-scripts.js out
+      - name: PowerShell 7 - Syntax und PSScriptAnalyzer
+        shell: pwsh
+        run: |
+          if (-not (Get-Module -ListAvailable -Name PSScriptAnalyzer)) {
+            Install-Module PSScriptAnalyzer -Force -Scope CurrentUser
+          }
+          ./tools/test-powershell.ps1 -Root out
+      - name: Windows PowerShell 5.1 - Syntax und Funktionstests
+        shell: powershell
+        run: ./tools/test-powershell.ps1 -Root out -Functional

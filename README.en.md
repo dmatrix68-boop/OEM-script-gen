@@ -535,6 +535,21 @@ Chromium and requires Playwright (without Playwright it reports "skipped"):
 node tools/test-unattend.js
 ```
 
+The *Tests* workflow checks the generated PowerShell scripts on every push and pull request
+on a Windows runner: syntax and PSScriptAnalyzer under Windows PowerShell 5.1 and
+PowerShell 7, plus functional tests under 5.1 – the tweak module really writes the values
+from `samples/Beispiel.reg` into the registry (including the default profile) and reads them
+back, and `Diagnose.ps1` has to run through. Locally (only on a throwaway system, the tweaks
+change the system):
+
+```bash
+node tools/emit-scripts.js out
+```
+
+```bash
+powershell -ExecutionPolicy Bypass -File tools/test-powershell.ps1 -Root out -Functional
+```
+
 The ISO writer (`js/iso.js`) can be checked without a browser: the test tool builds a
 synthetic Windows ISO, reads it back, rewrites it the way the interface does and compares –
 with `udfinfo` and 7-Zip, if installed, against independent UDF implementations too:
@@ -574,6 +589,9 @@ tools/            check-escapes.js – checks the template literals for swallowe
                   test-reg.js      – checks the .reg import
                   test-unattend.js – checks the answer file designer (Playwright)
                   sync-schneegans.js – compares with the original, generates resources.js
+                  emit-scripts.js  – generates the scripts of several test profiles without a browser
+                  test-powershell.ps1 – checks them on Windows (syntax, PSScriptAnalyzer,
+                                     registry functional test, Diagnose.ps1)
                   build-release.js – builds the release package
 docs/screenshots/ images for the README (not in the release package)
 docs/releases/    release notes per version
