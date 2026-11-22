@@ -153,7 +153,8 @@ if ($Functional) {
             try {
                 $testKey = 'Registry::HKEY_LOCAL_MACHINE\OEMTESTDEFAULT\Software\OEM-Script-Gen-Test'
                 $v = (Get-ItemProperty -LiteralPath $testKey -ErrorAction SilentlyContinue).DwordMax
-                if ($v -ne -1) {
+                <#  0xFFFFFFFF: je nach Weg als Int32 -1 oder als 4294967295 gelesen #>
+                if (-not ($v -eq -1 -or $v -eq 4294967295)) {
                     Fail ('Default-Profil: Wert aus Beispiel.reg fehlt (gelesen: ' + $v + ')')
                     Write-Host ('        Schluessel vorhanden: ' + (Test-Path -LiteralPath $testKey))
                     Get-ChildItem -LiteralPath 'Registry::HKEY_LOCAL_MACHINE\OEMTESTDEFAULT\Software' -ErrorAction SilentlyContinue |
