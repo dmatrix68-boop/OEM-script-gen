@@ -46,7 +46,8 @@
       },
       tweaks: {
         enabled: true, phase: 'setup', allUsers: true,
-        selected: ['fileExt', 'hiddenFiles', 'launchToThisPC', 'longPaths', 'taskbarSearch', 'clockSeconds']
+        selected: ['fileExt', 'hiddenFiles', 'launchToThisPC', 'longPaths', 'taskbarSearch', 'clockSeconds'],
+        regFiles: []
       },
       bloat: { enabled: false, phase: 'setup', provisioned: true, selected: [] },
       features: { enabled: false, phase: 'firstlogon', timeoutMin: 20, selected: [] },
@@ -337,6 +338,7 @@
       box.appendChild(lab);
     }
     renderTweakDeferHint();
+    renderRegFiles();
   }
 
   function renderTweakDeferHint() {
@@ -361,6 +363,102 @@
     el.innerHTML = teile.join('. ') +
       T('. Diese Einstellungen werden automatisch in Phase 2 nachgeholt, jeweils mit Zeitgrenze. Die Registry-Anteile bleiben in Phase 1.');
     el.style.color = 'var(--acc2)';
+  }
+
+  /* ---------------- Registry-Dateien ---------------- */
+  /*  Importierte .reg-Dateien laufen im Tweaks-Modul mit: gleiche Phase,
+      HKCU wie die Benutzer-Tweaks ins Default-Profil bzw. zu allen Benutzern.
+      Eine Datei gleichen Namens ersetzt die vorherige. */
+  async function importReg(name, text) {
+    let res;
+    try { res = Importers.parseReg(text, name); }
+    catch (e) {
+      logImport(name + ': ' + e.message, 'err');
+      toast(F('{0} ist keine gültige .reg-Datei.', name), 'err');
+      return;
+    }
+    if (!state.tweaks.regFiles) state.tweaks.regFiles = [];
+    const entry = { name, enabled: true, entries: res.entries, warnings: res.warnings };
+    const idx = state.tweaks.regFiles.findIndex((f) => f.name.toLowerCase() === name.toLowerCase());
+    if (idx >= 0) state.tweaks.regFiles[idx] = entry; else state.tweaks.regFiles.push(entry);
+    state.tweaks.enabled = true;
+    logImport(F('Registry-Datei übernommen: {0} – {1} Einträge', name, res.entries.length));
+    res.warnings.slice(0, 20).forEach((w) => logImport(w, 'warnl'));
+    if (res.warnings.length > 20) logImport(F('… und {0} weitere Hinweise', res.warnings.length - 20), 'warnl');
+    toast(res.warnings.length
+      ? F('{0}: {1} Einträge übernommen, {2} – siehe Tweaks.', name, res.entries.length, hinweise(res.warnings.length))
+      : F('{0}: {1} Einträge übernommen.', name, res.entries.length), res.warnings.length ? 'warn' : 'ok');
+    syncInputs(); renderTweaks(); refresh();
+  }
+
+  function hinweise(n) { return n === 1 ? T('1 Hinweis') : F('{0} Hinweise', n); }
+
+  function regValueText(e) {
+    if (e.op === 'delkey') return T('Schlüssel löschen');
+    if (e.op === 'delvalue') return T('Wert löschen');
+    switch (e.type) {
+      case 'DWord': return '0x' + e.value.toString(16).padStart(8, '0') + ' (' + e.value + ')';
+      case 'QWord': return e.value;
+      case 'MultiString': return e.value.join(' ¦ ');
+      case 'Binary': {
+        const hex = e.value.slice(0, 24).map((b) => b.toString(16).padStart(2, '0')).join(' ');
+        return hex + (e.value.length > 24 ? ' … (' + e.value.length + ' Bytes)' : '');
+      }
+      default: return e.value;
+    }
+  }
+
+  function renderRegFiles() {
+    const box = $('#regFilesBox');
+    if (!box) return;
+    const files = state.tweaks.regFiles || [];
+    box.innerHTML = '';
+    if (!files.length) {
+      box.innerHTML = '<p class="muted">' + T('Keine .reg-Datei importiert.') + '</p>';
+      return;
+    }
+    files.forEach((f, fi) => {
+      const on = f.entries.filter((e) => e.enabled).length;
+      const wrap = document.createElement('details');
+      wrap.className = 'regfile';
+      wrap.open = f.entries.length <= 30;
+      const sum = document.createElement('summary');
+      sum.innerHTML = '<label class="chk"><input type="checkbox"' + (f.enabled ? ' checked' : '') + '> <b>' + esc(f.name) + '</b></label> ' +
+        '<span class="muted">' + esc(F('{0} von {1} Einträgen aktiv', on, f.entries.length)) +
+        (f.warnings.length ? ' · <span style="color:var(--warn)">' + esc(hinweise(f.warnings.length)) + '</span>' : '') +
+        '</span> <button class="btn small danger" type="button">' + T('Entfernen') + '</button>';
+      sum.querySelector('input').addEventListener('click', (ev) => ev.stopPropagation());
+      sum.querySelector('input').addEventListener('change', (ev) => { f.enabled = ev.target.checked; refresh(); });
+      sum.querySelector('button').addEventListener('click', (ev) => {
+        ev.preventDefault();
+        state.tweaks.regFiles.splice(fi, 1);
+        renderRegFiles(); refresh();
+      });
+      wrap.appendChild(sum);
+      if (f.warnings.length) {
+        const ul = document.createElement('ul');
+        ul.className = 'log';
+        f.warnings.forEach((w) => { const li = document.createElement('li'); li.className = 'warnl'; li.textContent = w; ul.appendChild(li); });
+        wrap.appendChild(ul);
+      }
+      const tw = document.createElement('div');
+      tw.className = 'table-wrap';
+      const rows = f.entries.map((e, ei) =>
+        '<tr><td><input type="checkbox" data-i="' + ei + '"' + (e.enabled ? ' checked' : '') + '></td>' +
+        '<td>' + (e.scope === 'user' ? T('Benutzer') : T('Rechner')) + '</td>' +
+        '<td class="mono">' + esc(e.path) + '</td>' +
+        '<td class="mono">' + esc(e.op === 'delkey' ? '' : e.name) + '</td>' +
+        '<td>' + esc(e.type || '') + '</td>' +
+        '<td class="mono">' + esc(regValueText(e)) + '</td></tr>').join('');
+      tw.innerHTML = '<table class="tbl"><thead><tr><th></th><th>' + T('Ziel') + '</th><th>' + T('Schlüssel') + '</th><th>' +
+        T('Name') + '</th><th>' + T('Typ') + '</th><th>' + T('Wert') + '</th></tr></thead><tbody>' + rows + '</tbody></table>';
+      tw.querySelectorAll('input[data-i]').forEach((cb) => cb.addEventListener('change', () => {
+        f.entries[+cb.dataset.i].enabled = cb.checked;
+        renderRegFiles(); refresh();
+      }));
+      wrap.appendChild(tw);
+      box.appendChild(wrap);
+    });
   }
 
   /* ---------------- Bloatware ---------------- */
@@ -1007,7 +1105,7 @@
          ganze Elementinhalte neu und wuerde sie sonst wieder ueberbuegeln. */
       I18n.apply();
       $('#badgeApps').textContent = state.apps.items.filter((p) => p.enabled).length;
-      $('#badgeTweaks').textContent = state.tweaks.selected.length;
+      $('#badgeTweaks').textContent = state.tweaks.selected.length + Templates.regEntries(state).length;
       $('#badgeBloat').textContent = state.bloat.selected.length;
       $('#badgeFeatures').textContent = state.features.selected.length;
       labelHelp();
@@ -1140,6 +1238,12 @@
     opts = opts || {};
     const name = file.name;
 
+    /* .reg zuerst: regedit exportiert UTF-16, readText ginge von UTF-8 aus */
+    if (/\.reg$/i.test(name)) {
+      await importReg(name, Importers.decodeRegBytes(new Uint8Array(await file.arrayBuffer())));
+      return;
+    }
+
     if (BINARY_EXT.test(name) && !/\.reg$/i.test(name)) {
       state.files.items.push({
         name, target: name, run: /\.msi$/i.test(name) ? '/qn /norestart' : '',
@@ -1221,6 +1325,10 @@
         logImport(F('PowerShell-Skript übernommen und Aufruf ergänzt: {0}', name));
         toast(T('PowerShell-Skript importiert.'), 'ok');
         renderAll();
+        return;
+      }
+      case 'reg': {
+        await importReg(name, text);
         return;
       }
       case 'unattend': {
@@ -2187,6 +2295,8 @@
     $('#btnExportIso').addEventListener('click', exportIso);
     $('#btnIsoPick').addEventListener('click', chooseIsoSource);
     $('#btnIsoDrop').addEventListener('click', () => { isoSource = null; renderIsoSource(); });
+    $('#btnRegImport').addEventListener('click', () => $('#regInput').click());
+    $('#regInput').addEventListener('change', async (e) => { await importFiles(e.target.files); e.target.value = ''; });
     if (typeof window.showDirectoryPicker !== 'function') $('#btnExportFolder').hidden = true;
     $('#btnSaveProject').addEventListener('click', saveProject);
     $('#btnLoadProject').addEventListener('click', openProjectFile);

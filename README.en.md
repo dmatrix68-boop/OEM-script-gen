@@ -52,6 +52,10 @@ unpack the ZIP and open `index.html`. Inside the package the screenshots are lin
   network. User-scoped values are written to `C:\Users\Default\NTUSER.DAT` in phase 1
   and therefore apply to new accounts. Settings that need a running network or
   service stack are automatically deferred to phase 2 (see below).
+* **Registry files** – `.reg` exports (REGEDIT4 and 5.00, UTF-16) are taken over value
+  by value and run with the tweaks. `HKCU` goes into the default profile or to all users
+  instead of – as with `reg import` as SYSTEM – the SYSTEM profile; `HKCR` becomes
+  `HKLM\SOFTWARE\Classes`, `HKEY_USERS` is skipped.
 * **Bloatware** – pick pre-installed AppX packages, provisioning removal included.
 * **Windows components** – turn on Windows Sandbox, Hyper-V, WSL, .NET 3.5, OpenSSH,
   RSAT and other features along the way (see below).
@@ -508,6 +512,7 @@ samples/          sample files for testing the import function
 tools/            check-escapes.js – checks the template literals for swallowed escapes
                   check-i18n.js    – checks the dictionary against the interface
                   test-iso.js      – checks the ISO writer
+                  test-reg.js      – checks the .reg import
                   build-release.js – builds the release package
 docs/screenshots/ images for the README (not in the release package)
 docs/releases/    release notes per version

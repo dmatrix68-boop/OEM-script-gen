@@ -180,6 +180,44 @@ function Set-RegValue {
     }
 }
 
+function Remove-RegValue {
+    param(
+        [ValidateSet('Machine','User')][string]$Scope = 'Machine',
+        [Parameter(Mandatory)][string]$Path,
+        [Parameter(Mandatory)][string]$Name
+    )
+    $roots = if ($Scope -eq 'Machine') { @('Registry::HKEY_LOCAL_MACHINE') } else { Get-UserRegRoots }
+    $propName = if ($Name -eq '(Default)') { '(default)' } else { $Name }
+    foreach ($root in $roots) {
+        $full = $root.TrimEnd('\\') + '\\' + $Path.TrimStart('\\')
+        if (-not (Test-Path -LiteralPath $full)) { continue }
+        try {
+            Remove-ItemProperty -LiteralPath $full -Name $propName -Force -ErrorAction Stop
+        } catch [System.Management.Automation.PSArgumentException] {
+            # Wert gibt es nicht - nichts zu tun
+        } catch {
+            Write-Log ('Registry-Wert nicht entfernt: {0} -> {1} ({2})' -f $full, $propName, $_.Exception.Message) -Level Warn
+        }
+    }
+}
+
+function Remove-RegKey {
+    param(
+        [ValidateSet('Machine','User')][string]$Scope = 'Machine',
+        [Parameter(Mandatory)][string]$Path
+    )
+    $roots = if ($Scope -eq 'Machine') { @('Registry::HKEY_LOCAL_MACHINE') } else { Get-UserRegRoots }
+    foreach ($root in $roots) {
+        $full = $root.TrimEnd('\\') + '\\' + $Path.TrimStart('\\')
+        if (-not (Test-Path -LiteralPath $full)) { continue }
+        try {
+            Remove-Item -LiteralPath $full -Recurse -Force -ErrorAction Stop
+        } catch {
+            Write-Log ('Registry-Schluessel nicht entfernt: {0} ({1})' -f $full, $_.Exception.Message) -Level Warn
+        }
+    }
+}
+
 function Invoke-Step {
     param([Parameter(Mandatory)][string]$Name, [Parameter(Mandatory)][scriptblock]$Body)
     Write-Log ('--- ' + $Name) -Level Step
@@ -582,7 +620,7 @@ function Invoke-OemProcess {
     const mods = [];
     if (st.drivers && st.drivers.enabled && st.drivers.phase === phase &&
         st.drivers.items.some((d) => d.enabled && d.dest !== 'winpe')) mods.push(['Install-Drivers.ps1', 'Treiber']);
-    if (st.tweaks.enabled && st.tweaks.phase === phase && st.tweaks.selected.length) mods.push(['Set-Tweaks.ps1', 'System-Tweaks']);
+    if (st.tweaks.enabled && st.tweaks.phase === phase && (st.tweaks.selected.length || regEntries(st).length)) mods.push(['Set-Tweaks.ps1', 'System-Tweaks']);
     if (phase === 'firstlogon' && hasLateTweaks(st)) mods.push(['Set-Tweaks-Spaet.ps1', 'Tweaks mit Netzwerkbedarf']);
     if (st.bloat.enabled && st.bloat.phase === phase && st.bloat.selected.length) mods.push(['Remove-Bloatware.ps1', 'Bloatware entfernen']);
     if (st.features.enabled && st.features.phase === phase && st.features.selected.length) {
@@ -1306,7 +1344,9 @@ if (Test-Path -LiteralPath $data) {
     let s = banner(title, st.meta.name);
     s += bootstrapHeader(late ? 'Set-Tweaks-Spaet' : 'Set-Tweaks');
 
-    const needsUser = !late && sel.some((t) => (t.reg || []).some((r) => r.scope === 'user'));
+    const regs = late ? [] : regEntries(st);
+    const needsUser = !late && (sel.some((t) => (t.reg || []).some((r) => r.scope === 'user')) ||
+      regs.some((e) => e.scope === 'user'));
     if (needsUser) {
       s += toCRLF(`
 $roots = Open-UserHives${st.tweaks.allUsers ? ' -IncludeExistingProfiles' : ''}
@@ -1355,6 +1395,15 @@ try {
       }
     }
 
+    /* Importierte .reg-Dateien: in Dateireihenfolge, Loeschungen zuerst wie bei regedit */
+    for (const f of (late ? [] : (st.tweaks.regFiles || []).filter((x) => x.enabled))) {
+      const items = f.entries.filter((e) => e.enabled);
+      if (!items.length) continue;
+      s += NL + pad + '# ---------- Registry-Datei: ' + f.name.replace(/[\r\n]/g, ' ') + ' ----------' + NL;
+      s += pad + 'Write-Log ' + psq('Registry-Datei ' + f.name + ' (' + items.length + ' Eintraege)') + NL;
+      for (const e of items) s += pad + regLine(e) + NL;
+    }
+
     if (needsUser) {
       s += toCRLF(`
 } finally {
@@ -1366,6 +1415,35 @@ try {
 Write-Log '${late ? 'Nachgeholte Einstellungen abgeschlossen.' : 'Tweaks angewendet.'}'
 `);
     return s;
+  }
+
+  /* Aktive Eintraege aller importierten .reg-Dateien */
+  function regEntries(st) {
+    return (st.tweaks.regFiles || []).filter((f) => f.enabled)
+      .reduce((a, f) => a.concat(f.entries.filter((e) => e.enabled)), []);
+  }
+
+  /*  Ein Eintrag als PowerShell-Zeile. DWord/QWord vorzeichenbehaftet:
+      New-ItemProperty erwartet Int32/Int64, 0xFFFFFFFF als 4294967295
+      scheitert mit "Der Wert war zu gross". */
+  function regValueLiteral(e) {
+    switch (e.type) {
+      case 'DWord': return String(e.value > 0x7FFFFFFF ? e.value - 0x100000000 : e.value);
+      case 'QWord': {
+        let v = BigInt(e.value);
+        if (v > 0x7FFFFFFFFFFFFFFFn) v -= 0x10000000000000000n;
+        return "([int64]'" + v.toString() + "')";
+      }
+      case 'MultiString': return '([string[]]@(' + e.value.map(psq).join(', ') + '))';
+      case 'Binary': return '([byte[]]@(' + e.value.map((b) => '0x' + b.toString(16).padStart(2, '0')).join(',') + '))';
+      default: return psq(e.value);
+    }
+  }
+  function regLine(e) {
+    const scope = ' -Scope ' + (e.scope === 'user' ? 'User' : 'Machine') + ' -Path ' + psq(e.path);
+    if (e.op === 'delkey') return 'Remove-RegKey' + scope;
+    if (e.op === 'delvalue') return 'Remove-RegValue' + scope + ' -Name ' + psq(e.name);
+    return 'Set-RegValue' + scope + ' -Name ' + psq(e.name) + ' -Type ' + e.type + ' -Value ' + regValueLiteral(e);
   }
 
   /* Gibt es aufgeschobene PowerShell-Teile, die ein eigenes Phase-2-Modul brauchen? */
@@ -2631,5 +2709,5 @@ Write-Host ''
     return files;
   }
 
-  global.Templates = { build, relFromRoot, moduleList, hasLateTweaks, collapseDriverFiles, driverFolder };
+  global.Templates = { build, relFromRoot, moduleList, hasLateTweaks, collapseDriverFiles, driverFolder, regEntries };
 })(window);

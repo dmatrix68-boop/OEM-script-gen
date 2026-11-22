@@ -215,6 +215,26 @@ Setup wartet mit. Der Generator legt diese Anteile deshalb automatisch in ein zw
 <code>Set-Tweaks-Spaet.ps1</code>, das in Phase 2 läuft; der Hinweis oben nennt die betroffenen Tweaks. Jeder dieser
 Aufrufe hat eine eigene Zeitgrenze.</p>
 
+<h3>Registry-Dateien (.reg)</h3>
+<p>Mit <b>.reg-Datei importieren</b> (oder per Drag &amp; Drop auf der Import-Seite) werden exportierte
+Registry-Dateien Wert für Wert übernommen und laufen mit den Tweaks in derselben Phase. Gelesen werden
+<code>REGEDIT4</code> und <code>Windows Registry Editor Version 5.00</code> (UTF-16, wie <code>regedit</code> exportiert),
+alle üblichen Werttypen, der Standardwert <code>@</code> sowie Löschungen (<code>"Wert"=-</code>,
+<code>[-Schlüssel]</code>).</p>
+<table>
+  <tr><th>Zweig in der Datei</th><th>Ziel</th></tr>
+  <tr><td><code>HKEY_LOCAL_MACHINE</code></td><td>Rechner</td></tr>
+  <tr><td><code>HKEY_CURRENT_USER</code></td><td>Default-Profil (und auf Wunsch alle Benutzer) – wie die Benutzer-Tweaks</td></tr>
+  <tr><td><code>HKEY_CLASSES_ROOT</code></td><td><code>HKLM\SOFTWARE\Classes</code></td></tr>
+  <tr><td><code>HKEY_CURRENT_CONFIG</code></td><td><code>HKLM\SYSTEM\CurrentControlSet\Hardware Profiles\Current</code></td></tr>
+  <tr><td><code>HKEY_USERS</code></td><td>übersprungen – <code>.DEFAULT</code> ist das Profil von SYSTEM, SIDs gibt es auf einem neuen System nicht</td></tr>
+</table>
+<p>Ein schlichtes <code>reg import</code> im Skript wäre falsch: Es läuft als SYSTEM und schriebe <code>HKCU</code> ins
+Profil von SYSTEM. Jeder Eintrag lässt sich einzeln abwählen; Hinweise (übersprungene Zweige, seltene Typen, die als
+<code>REG_BINARY</code> geschrieben werden) stehen über der Tabelle. Das Löschen sehr weit oben liegender Schlüssel
+(etwa <code>[-HKEY_LOCAL_MACHINE\SOFTWARE]</code>) verweigert der Import. Eine Datei gleichen Namens ersetzt die
+vorherige; die Werte stehen in der Projektdatei.</p>
+
 <h3>Tipps</h3>
 <ul>
   <li>Das Filterfeld durchsucht Name, Kategorie und Beschreibung.</li>
@@ -728,6 +748,25 @@ shows category, description and particulars.</p>
 existing user account. Such cmdlets can wait forever in phase 1 – and Windows Setup waits with them. The generator
 therefore moves these parts into a second module <code>Set-Tweaks-Spaet.ps1</code> that runs in phase 2; the note above
 names the tweaks concerned. Each of these calls has its own time limit.</p>
+
+<h3>Registry files (.reg)</h3>
+<p><b>Import .reg file</b> (or drag &amp; drop on the import page) takes over exported registry files value by value;
+they run with the tweaks in the same phase. Read are <code>REGEDIT4</code> and <code>Windows Registry Editor Version
+5.00</code> (UTF-16, as exported by <code>regedit</code>), all common value types, the default value <code>@</code> and
+deletions (<code>"Value"=-</code>, <code>[-Key]</code>).</p>
+<table>
+  <tr><th>Hive in the file</th><th>Target</th></tr>
+  <tr><td><code>HKEY_LOCAL_MACHINE</code></td><td>machine</td></tr>
+  <tr><td><code>HKEY_CURRENT_USER</code></td><td>default profile (and all users if selected) – like the user tweaks</td></tr>
+  <tr><td><code>HKEY_CLASSES_ROOT</code></td><td><code>HKLM\SOFTWARE\Classes</code></td></tr>
+  <tr><td><code>HKEY_CURRENT_CONFIG</code></td><td><code>HKLM\SYSTEM\CurrentControlSet\Hardware Profiles\Current</code></td></tr>
+  <tr><td><code>HKEY_USERS</code></td><td>skipped – <code>.DEFAULT</code> is the SYSTEM profile, SIDs do not exist on a new system</td></tr>
+</table>
+<p>A plain <code>reg import</code> in the script would be wrong: it runs as SYSTEM and would write <code>HKCU</code> into
+the SYSTEM profile. Every entry can be deselected on its own; notes (skipped hives, rare types written as
+<code>REG_BINARY</code>) appear above the table. The import refuses to delete keys very high up (such as
+<code>[-HKEY_LOCAL_MACHINE\SOFTWARE]</code>). A file with the same name replaces the previous one; the values are
+stored in the project file.</p>
 
 <h3>Tips</h3>
 <ul>

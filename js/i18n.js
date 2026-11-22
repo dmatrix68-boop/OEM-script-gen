@@ -228,6 +228,12 @@
     'th-ziel': 'Target',
     'th-modelle': 'Models',
     'useconfigurationset-setzen': 'Write <code>UseConfigurationSet=true</code> into the autounattend.xml – needed for Windows Setup to copy <code>$OEM$</code> (recommended)',
+    'registry-dateien': 'Registry files (.reg)',
+    'registry-dateien-hinweis': 'Exported <code>.reg</code> files are taken over value by value and run with the tweaks in the same '
+      + 'phase. <code>HKEY_CURRENT_USER</code> goes into the default profile like every user tweak (and to all users if '
+      + 'selected) – a <code>reg import</code> as SYSTEM would write into the SYSTEM profile instead. '
+      + '<code>HKEY_CLASSES_ROOT</code> becomes <code>HKLM\\SOFTWARE\\Classes</code>; <code>HKEY_USERS</code> is skipped.',
+    'reg-datei-importieren': 'Import .reg file',
     'iso-erzeugen': 'Create ISO',
     'iso-erzeugen-titel': 'Pick a Windows ISO – the generated files are added and a new bootable ISO (BIOS and UEFI) is written. No extra tools needed',
     'iso-abbild': 'ISO image',
@@ -631,6 +637,25 @@
     'Achtung: Ohne UseConfigurationSet hat Windows Setup (Windows 11, Build 26300) $OEM$ im Test gar nicht kopiert – kein Installationsordner, keine Phase 2.': 'Careful: without UseConfigurationSet Windows Setup (Windows 11, build 26300) did not copy $OEM$ at all in a test – no installation folder, no phase 2.',
     'Achtung: Mit UseConfigurationSet=true sucht Setup $OEM$ im Wurzelverzeichnis – die Ablage „sources“ allein wird ignoriert.': 'Careful: with UseConfigurationSet=true Setup looks for $OEM$ in the root – the location “sources” alone is ignored.',
     'Setup kopiert den Ordner der Antwortdatei nach C:\\Windows\\ConfigSetRoot. Auf einem normalen Installationsmedium unkritisch; auf Multiboot-Sticks (Ventoy) kann das sehr groß werden.': 'Setup copies the folder of the answer file to C:\\Windows\\ConfigSetRoot. Harmless on a normal installation medium; on multi-boot sticks (Ventoy) it can get very large.',
+    /* Registry-Dateien */
+    '{0} ist keine gültige .reg-Datei.': '{0} is not a valid .reg file.',
+    'Registry-Datei übernommen: {0} – {1} Einträge': 'Registry file taken over: {0} – {1} entries',
+    '… und {0} weitere Hinweise': '… and {0} more notes',
+    '{0}: {1} Einträge übernommen, {2} – siehe Tweaks.': '{0}: {1} entries taken over, {2} – see Tweaks.',
+    '1 Hinweis': '1 note',
+    '{0}: {1} Einträge übernommen.': '{0}: {1} entries taken over.',
+    'Schlüssel löschen': 'delete key',
+    'Wert löschen': 'delete value',
+    'Keine .reg-Datei importiert.': 'No .reg file imported.',
+    '{0} von {1} Einträgen aktiv': '{0} of {1} entries active',
+    '{0} Hinweise': '{0} notes',
+    'Benutzer': 'User',
+    'Rechner': 'Machine',
+    'Ziel': 'Target',
+    'Schlüssel': 'Key',
+    'Name': 'Name',
+    'Typ': 'Type',
+    'Wert': 'Value',
     /* ISO-Abbild */
     '{0} statt {1} Bytes gelesen – die Datei wurde verändert': '{0} instead of {1} bytes read – the file was changed',
     'Die Datei enthält kein UDF-Dateisystem – das ist keine Windows-Installations-ISO.': 'The file holds no UDF file system – this is not a Windows installation ISO.',

@@ -264,6 +264,19 @@
         </div>
         <div id="tweaksList" class="tweaks"></div>
       </div>
+
+      <div class="panel">
+        <h3 data-i18n="registry-dateien">Registry-Dateien (.reg)</h3>
+        <p class="hint" data-i18n="registry-dateien-hinweis">Exportierte <code>.reg</code>-Dateien werden Wert für Wert übernommen
+        und laufen mit den Tweaks in derselben Phase. <code>HKEY_CURRENT_USER</code> landet wie jeder Benutzer-Tweak im Default-Profil
+        (und auf Wunsch bei allen Benutzern) – ein <code>reg import</code> als SYSTEM schriebe dagegen ins Profil von SYSTEM.
+        <code>HKEY_CLASSES_ROOT</code> wird zu <code>HKLM\SOFTWARE\Classes</code>; <code>HKEY_USERS</code> wird übersprungen.</p>
+        <div id="regFilesBox"></div>
+        <div class="row">
+          <button class="btn small" id="btnRegImport" data-i18n="reg-datei-importieren">.reg-Datei importieren</button>
+          <input type="file" id="regInput" accept=".reg" multiple hidden>
+        </div>
+      </div>
     </section>
 
     <!-- BLOATWARE -->

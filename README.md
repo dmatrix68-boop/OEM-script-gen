@@ -54,6 +54,10 @@ ZIP entpacken, `index.html` öffnen. Im Paket sind die Screenshots nur verlinkt.
   `C:\Users\Default\NTUSER.DAT` geschrieben und gelten damit für neue Konten.
   Einstellungen, die einen laufenden Netzwerk- oder Dienststack brauchen, werden
   automatisch in Phase 2 nachgeholt (siehe unten).
+* **Registry-Dateien** – `.reg`-Exporte (REGEDIT4 und 5.00, UTF-16) werden Wert für
+  Wert übernommen und laufen mit den Tweaks. `HKCU` landet im Default-Profil bzw. bei
+  allen Benutzern statt – wie bei `reg import` als SYSTEM – im Profil von SYSTEM;
+  `HKCR` wird zu `HKLM\SOFTWARE\Classes`, `HKEY_USERS` wird übersprungen.
 * **Bloatware** – Auswahl vorinstallierter AppX-Pakete inkl. Provisioning-Entfernung.
 * **Windows-Komponenten** – Windows Sandbox, Hyper-V, WSL, .NET 3.5, OpenSSH, RSAT und
   weitere Features gleich mit zuschalten (siehe unten).
@@ -522,6 +526,7 @@ samples/          Beispieldateien zum Testen der Importfunktion
 tools/            check-escapes.js – prüft die Template-Literale auf verschluckte Escapes
                   check-i18n.js    – prüft Wörterbuch gegen Oberfläche
                   test-iso.js      – prüft den ISO-Schreiber
+                  test-reg.js      – prüft den .reg-Import
                   build-release.js – schnürt das Release-Paket
 docs/screenshots/ Bilder für das README (nicht im Release-Paket)
 docs/releases/    Release-Notes je Version
