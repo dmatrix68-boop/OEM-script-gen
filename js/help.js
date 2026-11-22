@@ -464,11 +464,18 @@ Write-Log 'Energiesparplan gesetzt'</pre>`
 verwendet wird – etwa der im BIOS/UEFI hinterlegte Schlüssel eines Markengeräts (Home und Pro). Die
 <code>autounattend.xml</code> ist davon unabhängig: Phase 1 läuft im <code>specialize</code>-Pass, Phase 2 über
 <code>FirstLogonCommands</code>. Deshalb ist <b>beides</b> voreingestellt; doppelte Läufe werden erkannt.</p>
-<p><b><code>UseConfigurationSet=true</code> schreiben</b> – ohne diesen Wert hat Windows Setup (Windows 11, Build 26300)
-<code>$OEM$</code> im Test gar nicht kopiert: kein Installationsordner, keine Phase 2. Der Generator setzt ihn deshalb in der
-erzeugten und in einer importierten Antwortdatei. Setup kopiert dann den Ordner der Antwortdatei nach
-<code>C:\\Windows\\ConfigSetRoot</code> – auf einem normalen Medium unkritisch, auf Multiboot-Sticks wie Ventoy kann das
-sehr groß werden.</p>
+<p><b>Zielsystem</b> – bestimmt <code>UseConfigurationSet</code> in der erzeugten und in einer importierten Antwortdatei:</p>
+<table>
+  <tr><th>Auswahl</th><th>Wert</th><th>Folge</th></tr>
+  <tr><td>Windows 11 24H2 und neuer</td><td><code>true</code></td><td>Setup kopiert <code>$OEM$</code> nur mit diesem Wert
+    (ohne ihn im Test mit Build 26300: kein Installationsordner, keine Phase 2); ein <code>ConfigSetRoot</code> entsteht nicht.</td></tr>
+  <tr><td>Windows 10 / Windows 11 bis 23H2</td><td><code>false</code></td><td>Setup kopiert <code>sources\\$OEM$</code>. Eine
+    importierte Datei mit <code>true</code> wird auf <code>false</code> gesetzt.</td></tr>
+  <tr><td>beide Generationen</td><td><code>true</code></td><td>funktioniert überall, aber bis 23H2 kopiert Setup alles neben der
+    Antwortdatei nach <code>C:\\Windows\\ConfigSetRoot</code> – das ganze Medium, bei Ventoy die ganze Datenpartition.</td></tr>
+</table>
+<p>Beim Wählen einer Quell-ISO liest der Generator den Build aus <code>install.wim</code>/<code>.esd</code> und stellt das
+Zielsystem passend ein (außer bei „beide“).</p>
 <p><b>Vorhandene autounattend.xml importieren</b> – etwa aus dem Generator von schneegans.de. Sie wird
 <b>ergänzt statt ersetzt</b>: die Aufrufe kommen mit fortlaufender <code>&lt;Order&gt;</code> in die vorhandenen
 Blöcke, frühere Einträge des Generators werden ersetzt. Die Übersicht darunter zeigt Passes, Befehle,
@@ -994,10 +1001,18 @@ Write-Log 'Power plan set'</pre>`
 channel – such as the key stored in the BIOS/UEFI of a branded device (Home and Pro). The <code>autounattend.xml</code>
 does not depend on that: phase 1 runs in the <code>specialize</code> pass, phase 2 through
 <code>FirstLogonCommands</code>. That is why <b>both</b> is the default; duplicate runs are detected.</p>
-<p><b>Write <code>UseConfigurationSet=true</code></b> – without this value Windows Setup (Windows 11, build 26300) did not
-copy <code>$OEM$</code> at all in a test: no installation folder, no phase 2. The generator therefore sets it in the generated
-and in an imported answer file. Setup then copies the folder of the answer file to <code>C:\\Windows\\ConfigSetRoot</code> –
-harmless on a normal medium, but on multi-boot sticks such as Ventoy that can get very large.</p>
+<p><b>Target system</b> – determines <code>UseConfigurationSet</code> in the generated and in an imported answer file:</p>
+<table>
+  <tr><th>Choice</th><th>Value</th><th>Effect</th></tr>
+  <tr><td>Windows 11 24H2 and later</td><td><code>true</code></td><td>Setup copies <code>$OEM$</code> only with this value
+    (without it, in a test with build 26300: no installation folder, no phase 2); no <code>ConfigSetRoot</code> is created.</td></tr>
+  <tr><td>Windows 10 / Windows 11 up to 23H2</td><td><code>false</code></td><td>Setup copies <code>sources\\$OEM$</code>. An
+    imported file with <code>true</code> is set to <code>false</code>.</td></tr>
+  <tr><td>both generations</td><td><code>true</code></td><td>works everywhere, but up to 23H2 Setup copies everything next to
+    the answer file to <code>C:\\Windows\\ConfigSetRoot</code> – the whole medium, with Ventoy the whole data partition.</td></tr>
+</table>
+<p>When a source ISO is chosen, the generator reads the build from <code>install.wim</code>/<code>.esd</code> and sets the
+target system accordingly (except for “both”).</p>
 <p><b>Import existing autounattend.xml</b> – for instance from the schneegans.de generator. It is <b>extended rather than
 replaced</b>: the calls go into the existing blocks with a continuing <code>&lt;Order&gt;</code>, earlier entries of the
 generator are replaced. The summary below shows passes, commands, <code>UseConfigurationSet</code> and an entered

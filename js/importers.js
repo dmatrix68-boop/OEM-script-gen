@@ -399,6 +399,17 @@
         applied.push('windowsPE / UseConfigurationSet = true');
       }
     }
+    /*  Zielsystem bis 23H2: true wuerde das ganze Medium nach ConfigSetRoot
+        kopieren - einen vorhandenen Wert deshalb auf false setzen. */
+    if (opts && opts.configSet === false) {
+      const pe = Array.from(doc.getElementsByTagNameNS('*', 'settings')).find((x) => x.getAttribute('pass') === 'windowsPE');
+      const comp = pe && Array.from(pe.getElementsByTagNameNS('*', 'component')).find((x) => x.getAttribute('name') === 'Microsoft-Windows-Setup');
+      const ucs = comp && child(comp, 'UseConfigurationSet');
+      if (ucs && ucs.textContent.trim().toLowerCase() === 'true') {
+        ucs.textContent = 'false';
+        applied.push('windowsPE / UseConfigurationSet = false');
+      }
+    }
 
     if (commands.setup) {
       const comp = getComponent(getSettings('specialize'), 'Microsoft-Windows-Deployment');

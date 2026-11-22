@@ -163,20 +163,29 @@ dafür, dass gar nichts kopiert wird:
 |---|---|
 | `<UseConfigurationSet>true</UseConfigurationSet>` (setzt der Generator) | `<Medium>\$OEM$\…` (Wurzelverzeichnis) |
 | keine Antwortdatei | `<Medium>\sources\$OEM$\…` |
-| Antwortdatei mit `UseConfigurationSet=false` | auf aktuellen Windows-11-Builds unter Umständen **gar nicht** kopiert |
+| Antwortdatei mit `UseConfigurationSet=false` | bis 23H2 `<Medium>\sources\$OEM$\…`; ab 24H2 **gar nicht** kopiert |
 
-Bei `UseConfigurationSet=true` sucht Setup den Konfigurationssatz **neben der
-Antwortdatei**. Ohne diesen Wert hat Windows Setup (Windows 11, Build 26300) im
-Test `$OEM$` überhaupt nicht kopiert – weder aus `sources\` noch aus dem
-Wurzelverzeichnis; es gab weder Installationsordner noch Phase 2. Der Generator
-schreibt `UseConfigurationSet=true` deshalb in die erzeugte und in eine
-importierte Antwortdatei (*Einstellungen → Auslöser*, abschaltbar) und stellt
-die Ablage auf „beide Orte“ – Setup wertet nur den passenden aus, der andere
-Ordner wird ignoriert.
+Welcher Wert richtig ist, hängt vom Windows-Build ab:
 
-Setup kopiert mit `true` den Ordner der Antwortdatei nach
-`C:\Windows\ConfigSetRoot`. Auf einem normalen Installationsmedium ist das
-unkritisch; auf Multiboot-Sticks wie Ventoy kann es sehr groß werden.
+| Zielsystem | `UseConfigurationSet` | Verhalten von Setup |
+|---|---|---|
+| Windows 11 24H2 und neuer | `true` | kopiert `$OEM$`; kein `ConfigSetRoot` |
+| Windows 11 24H2 und neuer | `false` | kopiert `$OEM$` **gar nicht** – kein Installationsordner, keine Phase 2 (eigener Test mit Build 26300) |
+| Windows 10, Windows 11 bis 23H2 | `false` | kopiert `sources\$OEM$` |
+| Windows 10, Windows 11 bis 23H2 | `true` | kopiert `$OEM$`, aber zusätzlich **alles neben der Antwortdatei** nach `C:\Windows\ConfigSetRoot` – das ganze Medium, bei Ventoy die ganze Datenpartition |
+
+Quelle für die älteren Builds ist die Diskussion im Projekt von Christoph Schneegans
+([unattend-generator#474](https://github.com/cschneegans/unattend-generator/issues/474)),
+der `true` aus diesem Grund nicht mehr fest setzt.
+
+Der Generator fragt deshalb unter *Einstellungen → Auslöser* nach dem **Zielsystem**
+und schreibt den passenden Wert in die erzeugte und in eine importierte Antwortdatei.
+Eine importierte Datei mit `true` wird für „bis 23H2“ auf `false` gesetzt. Für ein
+Medium, das beide Generationen installieren soll, gibt es „beide“: `true` mit
+deutlichem Hinweis auf die Kopie. Beim Wählen einer Quell-ISO (*ISO erzeugen*) liest
+der Generator den Build aus `install.wim`/`.esd` und stellt das Zielsystem passend
+ein. Die Ablage „beide Orte“ bedient alle Fälle – Setup wertet nur den passenden Ordner
+aus, der andere wird ignoriert.
 
 ### Office braucht ein Netzwerk
 

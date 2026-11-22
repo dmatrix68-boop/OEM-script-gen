@@ -425,6 +425,36 @@
     return new Blob(parts);
   }
 
+  /*  Beschreibung eines WIM/ESD lesen: Der Kopf (208 Byte) verweist auf die
+      XML-Daten, die auch in ESD-Dateien unkomprimiert als UTF-16 vorliegen.
+      Gelesen werden nur Kopf und XML - wenige Kilobyte, auch bei 6 GB.
+      Verschluesselte ESDs und Fremdformate liefern null. */
+  async function readWimInfo(blob) {
+    try {
+      const h = new Uint8Array(await blob.slice(0, 208).arrayBuffer());
+      if (String.fromCharCode.apply(null, h.subarray(0, 8)) !== 'MSWIM\u0000\u0000\u0000') return null;
+      const xmlOff = u64(h, 80), xmlLen = u64(h, 88);
+      if (!xmlLen || xmlLen > 16 * 1024 * 1024 || xmlOff + xmlLen > blob.size) return null;
+      const xb = new Uint8Array(await blob.slice(xmlOff, xmlOff + xmlLen).arrayBuffer());
+      const xml = new TextDecoder('utf-16le').decode(xb[0] === 0xFF && xb[1] === 0xFE ? xb.subarray(2) : xb);
+      const tag = (src, name) => { const m = src.match(new RegExp('<' + name + '>([^<]*)</' + name + '>', 'i')); return m ? m[1].trim() : ''; };
+      const images = [];
+      const re = /<IMAGE\s+INDEX="(\d+)"[^>]*>([\s\S]*?)<\/IMAGE>/gi;
+      let m;
+      while ((m = re.exec(xml)) !== null) {
+        const b = m[2];
+        const arch = { 0: 'x86', 5: 'ARM', 9: 'x64', 12: 'ARM64' }[tag(b, 'ARCH')] || tag(b, 'ARCH');
+        const langs = (b.match(/<LANGUAGES>([\s\S]*?)<\/LANGUAGES>/i) || [])[1] || '';
+        images.push({
+          index: +m[1], name: tag(b, 'DISPLAYNAME') || tag(b, 'NAME'), edition: tag(b, 'EDITIONID'),
+          build: +tag(b, 'BUILD') || 0, spbuild: +tag(b, 'SPBUILD') || 0, arch, lang: tag(langs, 'DEFAULT')
+        });
+      }
+      if (!images.length) return null;
+      return { images, build: Math.max.apply(null, images.map((i) => i.build)), minBuild: Math.min.apply(null, images.map((i) => i.build)) };
+    } catch (e) { return null; }
+  }
+
   async function readIso(file) {
     if (!file || file.size < 300 * SECTOR) throw isoError('Die Datei ist zu klein für eine ISO.', 'noudf');
     const udf = await readUdf(file);
@@ -432,6 +462,7 @@
     udf.files.forEach((f) => { f.data = sourceBlob(file, f); });
     const find = (p) => udf.files.find((f) => f.path.toLowerCase() === p);
     const image = ['sources/install.wim', 'sources/install.esd', 'sources/install.swm'].map(find).find(Boolean);
+    const wim = image ? await readWimInfo(image.data) : null;
     return {
       name: file.name, size: file.size,
       label: udf.label || udf.volId || boot.isoLabel,
@@ -441,6 +472,7 @@
       windows: {
         image: image ? image.path : null,
         imageSize: image ? image.size : 0,
+        wim,
         bootWim: !!find('sources/boot.wim'),
         efiNoPrompt: find('efi/microsoft/boot/efisys_noprompt.bin') || null,
         bootfix: find('boot/bootfix.bin') || null
@@ -884,5 +916,5 @@
     return blob;
   }
 
-  global.IsoImage = { readIso, buildIso, crc16, SECTOR };
+  global.IsoImage = { readIso, buildIso, readWimInfo, crc16, SECTOR };
 })(typeof window !== 'undefined' ? window : globalThis);

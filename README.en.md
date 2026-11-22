@@ -156,19 +156,29 @@ reason why nothing gets copied at all:
 |---|---|
 | `<UseConfigurationSet>true</UseConfigurationSet>` (set by the generator) | `<medium>\$OEM$\…` (root directory) |
 | no answer file | `<medium>\sources\$OEM$\…` |
-| answer file with `UseConfigurationSet=false` | on current Windows 11 builds possibly **not copied at all** |
+| answer file with `UseConfigurationSet=false` | up to 23H2 `<medium>\sources\$OEM$\…`; from 24H2 on **not copied at all** |
 
-With `UseConfigurationSet=true` Setup looks for the configuration set **next to the
-answer file**. Without this value Windows Setup (Windows 11, build 26300) did not
-copy `$OEM$` at all in a test – neither from `sources\` nor from the root; there was
-no installation folder and no phase 2. The generator therefore writes
-`UseConfigurationSet=true` into the generated and into an imported answer file
-(*Settings → Trigger*, can be turned off) and sets the location to "both places" –
-Setup only evaluates the matching one, the other folder is ignored.
+Which value is right depends on the Windows build:
 
-With `true` Setup copies the folder of the answer file to `C:\Windows\ConfigSetRoot`.
-On a normal installation medium that is harmless; on multi-boot sticks such as
-Ventoy it can get very large.
+| Target system | `UseConfigurationSet` | Setup behaviour |
+|---|---|---|
+| Windows 11 24H2 and later | `true` | copies `$OEM$`; no `ConfigSetRoot` |
+| Windows 11 24H2 and later | `false` | does **not** copy `$OEM$` – no installation folder, no phase 2 (own test with build 26300) |
+| Windows 10, Windows 11 up to 23H2 | `false` | copies `sources\$OEM$` |
+| Windows 10, Windows 11 up to 23H2 | `true` | copies `$OEM$`, but also **everything next to the answer file** to `C:\Windows\ConfigSetRoot` – the whole medium, with Ventoy the whole data partition |
+
+The source for the older builds is the discussion in Christoph Schneegans' project
+([unattend-generator#474](https://github.com/cschneegans/unattend-generator/issues/474)),
+which no longer sets `true` unconditionally for this reason.
+
+The generator therefore asks for the **target system** under *Settings → Trigger* and
+writes the matching value into the generated and into an imported answer file. An
+imported file with `true` is set to `false` for "up to 23H2". For a medium meant to
+install both generations there is "both": `true` with a clear note about the copy.
+When a source ISO is chosen (*Create ISO*), the generator reads the build from
+`install.wim`/`.esd` and sets the target system accordingly. The location "both
+places" serves every case – Setup only evaluates the matching folder, the other one is
+ignored.
 
 ### Office needs a network
 

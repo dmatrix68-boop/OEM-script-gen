@@ -30,7 +30,8 @@
       paths: { installRoot: 'C:\\Install', zipRoot: 'both' },
       options: {
         transcript: true, selfDelete: false, cleanupInstall: false,
-        toastOnFinish: false, phase2Runner: 'task', finish: 'none', trigger: 'both', configSet: true
+        toastOnFinish: false, phase2Runner: 'task', finish: 'none', trigger: 'both', configSet: true,
+        configSetMode: 'new'
       },
       unattend: { xml: null, name: '', info: null },
       apps: {
@@ -136,7 +137,7 @@
     ['setSelfDelete', 'options.selfDelete', 'bool'],
     ['setKeepInstall', 'options.cleanupInstall', 'bool'],
     ['setToastOnFinish', 'options.toastOnFinish', 'bool'],
-    ['setConfigSet', 'options.configSet', 'bool'],
+    ['setConfigSetMode', 'options.configSetMode', 'text'],
     ['isoNoPrompt', 'iso.noPrompt', 'bool']
   ];
 
@@ -146,15 +147,16 @@
       if (!el) continue;
       el.addEventListener(type === 'bool' ? 'change' : 'input', () => {
         set(path, type === 'bool' ? el.checked : type === 'num' ? parseInt(el.value, 10) || 0 : el.value);
+        if (id === 'setConfigSetMode') applyConfigSetMode();
         if (id === 'officeXml') renderOfficeSummary();
         if (id === 'tweaksPhase') renderTweaks();
         if (id === 'featuresPhase') renderFeatureHints();
-        if ((id === 'setConfigSet' || id === 'setTrigger') && configSetActive() && state.paths.zipRoot === 'sources') {
+        if ((id === 'setConfigSetMode' || id === 'setTrigger') && configSetActive() && state.paths.zipRoot === 'sources') {
           state.paths.zipRoot = 'both';
           syncInputs();
           toast(T('UseConfigurationSet=true: Setup sucht $OEM$ im Wurzelverzeichnis – Ablage auf „beide Orte“ gestellt.'), 'warn');
         }
-        if (id === 'setConfigSet' || id === 'setTrigger' || id === 'setZipRoot') renderUnattend();
+        if (id === 'setConfigSetMode' || id === 'setTrigger' || id === 'setZipRoot') { renderUnattend(); renderIsoSource(); }
         refresh();
       });
     }
@@ -804,6 +806,20 @@
     box.appendChild(warn);
   }
 
+  /*  Zielsystem -> UseConfigurationSet (siehe Issue #474 bei Schneegans und
+      eigene Tests): Ab Windows 11 24H2 kopiert Setup $OEM$ nur mit true, ein
+      ConfigSetRoot entsteht dort nicht. Bis 23H2 kopiert Setup mit true alles,
+      was neben der Antwortdatei liegt, nach C:\Windows\ConfigSetRoot - das
+      ganze Medium, bei Ventoy die ganze Datenpartition; mit false wird
+      sources\$OEM$ kopiert. */
+  const NEW_SETUP_BUILD = 26100;
+
+  function applyConfigSetMode() {
+    const m = state.options.configSetMode;
+    state.options.configSetMode = m === 'old' || m === 'mixed' ? m : 'new';
+    state.options.configSet = state.options.configSetMode !== 'old';
+  }
+
   /* UseConfigurationSet wirkt nur, wenn eine autounattend.xml erzeugt wird. */
   function configSetActive() {
     return state.options.configSet !== false && state.options.trigger !== 'setupcomplete';
@@ -815,14 +831,18 @@
     let txt = '', warn = false;
     if (state.options.trigger === 'setupcomplete') {
       txt = T('Ohne autounattend.xml ohne Wirkung – $OEM$ gehört dann nach sources\\.');
-    } else if (state.options.configSet === false) {
-      txt = T('Achtung: Ohne UseConfigurationSet hat Windows Setup (Windows 11, Build 26300) $OEM$ im Test gar nicht kopiert – kein Installationsordner, keine Phase 2.');
-      warn = true;
+    } else if (state.options.configSetMode === 'old') {
+      txt = T('UseConfigurationSet=false: Setup kopiert sources\\$OEM$, eine Kopie des Mediums entsteht nicht. Achtung: Windows 11 ab 24H2 kopiert $OEM$ damit überhaupt nicht – kein Installationsordner, keine Phase 2.');
+      warn = state.paths.zipRoot === 'oem';
+      if (warn) txt += ' ' + T('Die Ablage steht auf „Wurzelverzeichnis“ – ohne UseConfigurationSet braucht Setup aber sources\\$OEM$.');
     } else if (state.paths.zipRoot === 'sources') {
       txt = T('Achtung: Mit UseConfigurationSet=true sucht Setup $OEM$ im Wurzelverzeichnis – die Ablage „sources“ allein wird ignoriert.');
       warn = true;
+    } else if (state.options.configSetMode === 'mixed') {
+      txt = T('UseConfigurationSet=true für beide Generationen. Auf Windows 10 und Windows 11 bis 23H2 kopiert Setup damit alles, was neben der Antwortdatei liegt, nach C:\\Windows\\ConfigSetRoot – das ganze Medium (mehrere GB), bei Ventoy die ganze Datenpartition. Ab 24H2 entsteht kein ConfigSetRoot.');
+      warn = true;
     } else {
-      txt = T('Setup kopiert den Ordner der Antwortdatei nach C:\\Windows\\ConfigSetRoot. Auf einem normalen Installationsmedium unkritisch; auf Multiboot-Sticks (Ventoy) kann das sehr groß werden.');
+      txt = T('UseConfigurationSet=true: Ab Windows 11 24H2 kopiert Setup $OEM$ nur mit diesem Wert; ein ConfigSetRoot entsteht dort nicht. Für ältere Builds „Windows 10 / Windows 11 bis 23H2“ wählen – dort würde das ganze Medium nach C:\\Windows\\ConfigSetRoot kopiert.');
     }
     h.textContent = txt;
     h.style.color = warn ? 'var(--warn)' : '';
@@ -858,7 +878,8 @@
     row(T('Vorhandene Befehle'), String(u.info.commandCount));
     row(T('Passes'), u.info.passes.filter(Boolean).join(', ') || '–');
     row(T('UseConfigurationSet'), (u.info.useConfigurationSet ? 'true' : 'false') +
-      (configSetActive() && !u.info.useConfigurationSet ? ' → true' + T(' (setzt der Generator)') : ''));
+      (configSetActive() && !u.info.useConfigurationSet ? ' → true' + T(' (setzt der Generator)') : '') +
+      (state.options.configSetMode === 'old' && u.info.useConfigurationSet ? ' → false' + T(' (setzt der Generator)') : ''));
     if (u.info.productKey) row(T('Produktschlüssel'), u.info.productKey);
     box.appendChild(dl);
 
@@ -1393,7 +1414,11 @@
       }
       return dst;
     };
+    const hadMode = obj && obj.options && obj.options.configSetMode;
     state = merge(base, obj);
+    /* Projekte vor der Zielsystem-Auswahl: abgeschaltetes UseConfigurationSet hiess "alte Builds" */
+    if (!hadMode) state.options.configSetMode = state.options.configSet === false ? 'old' : 'new';
+    applyConfigSetMode();
     state.apps.items = (state.apps.items || []).map((p) => Importers.mkPkg(p));
     if (!state.unattend) state.unattend = { xml: null, name: '', info: null };
     state.files.items = (state.files.items || []).map((f) => ({
@@ -2098,6 +2123,7 @@
     try {
       const info = await IsoImage.readIso(file);
       isoSource = { file, info, unattendDone: false };
+      isoAdoptBuild(info);
       renderIsoSource();
       const w = info.warnings.length ? ' ' + F('({0} Einträge übersprungen)', info.warnings.length) : '';
       toast(F('Quell-ISO eingelesen: {0} – {1} Dateien.', info.label || file.name, info.files.length) + w, 'ok');
@@ -2110,6 +2136,31 @@
       toast(F('ISO nicht lesbar: {0}', isoErrorText(e)), 'err');
       return false;
     }
+  }
+
+  /*  Zielsystem nach dem Build der Quell-ISO stellen - "beide" bleibt, weil
+      der Benutzer damit ausdruecklich ein Medium fuer alle Builds will. */
+  function isoAdoptBuild(info) {
+    const w = info.windows.wim;
+    if (!w || !w.build || state.options.configSetMode === 'mixed') return;
+    const want = w.minBuild >= NEW_SETUP_BUILD ? 'new' : w.build < NEW_SETUP_BUILD ? 'old' : 'mixed';
+    if (want === state.options.configSetMode) return;
+    state.options.configSetMode = want;
+    applyConfigSetMode();
+    if (configSetActive() && state.paths.zipRoot === 'sources') state.paths.zipRoot = 'both';
+    syncInputs(); renderUnattend(); refresh();
+    toast(F('Quell-ISO mit Build {0}: Zielsystem auf „{1}“ gestellt (UseConfigurationSet={2}).', w.build,
+      T(want === 'new' ? 'Windows 11 24H2 und neuer' : want === 'old' ? 'Windows 10 / Windows 11 bis 23H2' : 'beide Generationen'),
+      state.options.configSet ? 'true' : 'false'), 'info');
+  }
+
+  function wimSummary(w) {
+    const editions = w.images.map((i) => i.name || i.edition).filter(Boolean);
+    const shown = editions.slice(0, 4).join(', ') + (editions.length > 4 ? ' …' : '');
+    const arch = Array.from(new Set(w.images.map((i) => i.arch).filter(Boolean))).join('/');
+    const build = w.build === w.minBuild ? String(w.build) : w.minBuild + '–' + w.build;
+    return F('Build {0}', build) + (arch ? ' · ' + arch : '') + ' · ' +
+      (w.images.length === 1 ? T('1 Edition') : F('{0} Editionen', w.images.length)) + (shown ? ': ' + esc(shown) : '');
   }
 
   function bootLabel(b) {
@@ -2132,6 +2183,7 @@
       [T('Bezeichnung'), esc(i.label || '–')],
       [T('Abbild'), i.windows.image ? '<code>' + esc(i.windows.image.replace(/\//g, '\\')) + '</code> · ' + fmtSize(i.windows.imageSize)
         : '<span style="color:var(--warn)">' + T('fehlt – keine Windows-Installations-ISO?') + '</span>'],
+      [T('Windows'), i.windows.wim ? wimSummary(i.windows.wim) : '<span class="muted">' + T('Build nicht lesbar (verschlüsseltes ESD?)') + '</span>'],
       [T('Booten'), i.boot.length ? i.boot.map(bootLabel).join(', ') : '<span style="color:var(--warn)">' + T('kein Bootkatalog – die neue ISO startet nicht') + '</span>'],
       [T('Inhalt'), F('{0} Dateien, {1} Ordner', i.files.length, i.dirs.length)]
     ];

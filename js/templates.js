@@ -2174,10 +2174,23 @@ if (Test-Path $panth) {
     $ua = Get-Content $panth -Raw
     $ucs = $ua -match '<UseConfigurationSet>\\s*true\\s*</UseConfigurationSet>'
     Show-Item 'Antwortdatei verwendet' $true $panth
-    Show-Item 'UseConfigurationSet = true' $ucs $(if ($ucs) { '$OEM$ gehoert ins WURZELVERZEICHNIS des Mediums' } else { 'Ohne true kopieren aktuelle Windows-11-Setups $OEM$ oft gar nicht - im Generator aktivieren' })
+    $build = [int](Get-ItemProperty 'HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion' -ErrorAction SilentlyContinue).CurrentBuildNumber
+    if ($build -ge 26100) {
+        Show-Item 'UseConfigurationSet = true' $ucs $(if ($ucs) { '$OEM$ gehoert ins WURZELVERZEICHNIS des Mediums' } else { ('Build {0} (ab 24H2): ohne true kopiert Setup $OEM$ gar nicht - im Generator Zielsystem ''24H2 und neuer'' waehlen' -f $build) })
+    } else {
+        Show-Item 'UseConfigurationSet' $true $(if ($ucs) { ('true - Build {0} (bis 23H2): Setup kopiert das Medium nach ConfigSetRoot' -f $build) } else { ('false - Build {0} (bis 23H2): $OEM$ gehoert nach sources\\' -f $build) })
+    }
 } else {
     Write-Host '  C:\\Windows\\Panther\\unattend.xml nicht vorhanden.' -ForegroundColor DarkGray
     Write-Host '  (Manche Antwortdateien loeschen sie am Ende selbst.)' -ForegroundColor DarkGray
+}
+<#  Bis 23H2 kopiert Setup mit UseConfigurationSet=true alles, was neben der
+    Antwortdatei liegt - bei Ventoy die ganze Datenpartition. #>
+$csr = Join-OemPath $env:SystemRoot 'ConfigSetRoot'
+if (Test-Path -LiteralPath $csr) {
+    $csrSize = (Get-ChildItem -LiteralPath $csr -Recurse -File -Force -ErrorAction SilentlyContinue | Measure-Object -Property Length -Sum).Sum
+    $csrGb = [math]::Round(($csrSize / 1GB), 2)
+    Show-Item 'Kein ConfigSetRoot' ($csrSize -lt 100MB) ('{0} belegt {1} GB - Kopie des Mediums (UseConfigurationSet=true bis 23H2). Kann geloescht werden; im Generator Zielsystem ''bis 23H2'' waehlen' -f $csr, $csrGb)
 }
 $oemHits = @()
 foreach ($log in $panther) {
@@ -2353,14 +2366,18 @@ Write-Host ''
       'Das haengt von der Antwortdatei ab:',
       '',
       ' * mit <UseConfigurationSet>true</UseConfigurationSet> in der autounattend.xml',
-      '   (setzt der Generator, empfohlen):',
+      '   (Zielsystem "Windows 11 24H2 und neuer"):',
       '     Setup sucht den Konfigurationssatz NEBEN der Antwortdatei, also',
       '     <Medium>\\$OEM$\\...   (Wurzelverzeichnis, nicht sources\\)',
+      '   Bis 23H2 kopiert Setup damit zusaetzlich alles neben der Antwortdatei',
+      '   nach C:\\Windows\\ConfigSetRoot - das ganze Medium, bei Ventoy die ganze',
+      '   Datenpartition.',
       ' * ohne autounattend.xml:',
       '     <Medium>\\sources\\$OEM$\\...',
-      ' * mit autounattend.xml, aber UseConfigurationSet = false: auf aktuellen',
-      '   Windows-11-Builds kopiert Setup $OEM$ dann unter Umstaenden GAR NICHT -',
-      '   auch nicht aus sources\\. Deshalb setzt der Generator den Wert auf true.',
+      ' * mit autounattend.xml und UseConfigurationSet = false',
+      '   (Zielsystem "Windows 10 / Windows 11 bis 23H2"):',
+      '     <Medium>\\sources\\$OEM$\\...',
+      '   Ab 24H2 kopiert Setup $OEM$ damit GAR NICHT - auch nicht aus sources\\.',
       '',
       'Wer beides bestueckt, ist auf der sicheren Seite - Setup wertet nur den',
       'passenden Ort aus, der andere Ordner wird ignoriert. Genau dafuer gibt es im',
@@ -2487,14 +2504,18 @@ Write-Host ''
       'That depends on the answer file:',
       '',
       ' * with <UseConfigurationSet>true</UseConfigurationSet> in autounattend.xml',
-      '   (set by the generator, recommended):',
+      '   (target system "Windows 11 24H2 and later"):',
       '     Setup looks for the configuration set NEXT TO the answer file, i.e.',
       '     <media>\\$OEM$\\...   (root directory, not sources\\)',
+      '   Up to 23H2 Setup additionally copies everything next to the answer file',
+      '   to C:\\Windows\\ConfigSetRoot - the whole medium, with Ventoy the whole',
+      '   data partition.',
       ' * without autounattend.xml:',
       '     <media>\\sources\\$OEM$\\...',
-      ' * with autounattend.xml but UseConfigurationSet = false: on current',
-      '   Windows 11 builds Setup may then NOT copy $OEM$ AT ALL - not from',
-      '   sources\\ either. That is why the generator sets the value to true.',
+      ' * with autounattend.xml and UseConfigurationSet = false',
+      '   (target system "Windows 10 / Windows 11 up to 23H2"):',
+      '     <media>\\sources\\$OEM$\\...',
+      '   From 24H2 on Setup does NOT copy $OEM$ AT ALL - not from sources\\ either.',
       '',
       'Populating both locations is the safe bet - Setup only evaluates the matching',
       'one and ignores the other folder. That is exactly what the generator offers as',
