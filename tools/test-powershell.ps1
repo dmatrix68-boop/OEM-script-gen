@@ -129,6 +129,15 @@ if ($Functional) {
     if (-not $full) { Fail 'voll: Set-Tweaks.ps1 nicht gefunden' }
     else {
         Remove-Item -LiteralPath $userKey -Recurse -Force -ErrorAction SilentlyContinue
+        <#  Ausgangszustand im Default-Profil festlegen - sonst koennte ein Wert,
+            den das Runner-Image schon mitbringt, den Test zufaellig bestehen. #>
+        $hive = Join-Path $env:SystemDrive 'Users\Default\NTUSER.DAT'
+        & reg.exe load 'HKLM\OEMTESTDEFAULT' $hive > $null 2>&1
+        if ($LASTEXITCODE -eq 0) {
+            & reg.exe delete 'HKLM\OEMTESTDEFAULT\Software\OEM-Script-Gen-Test' /f > $null 2>&1
+            & reg.exe add 'HKLM\OEMTESTDEFAULT\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced' /v HideFileExt /t REG_DWORD /d 1 /f > $null 2>&1
+            & reg.exe unload 'HKLM\OEMTESTDEFAULT' > $null 2>&1
+        } else { Fail 'Default-Profil laesst sich vor dem Test nicht einbinden' }
         $code = Invoke-Isolated $full @()
         if ($code -ne 0) { Fail ('voll: Set-Tweaks.ps1 Exitcode ' + $code) } else { Ok 'voll: Set-Tweaks.ps1' }
         $hive = Join-Path $env:SystemDrive 'Users\Default\NTUSER.DAT'
@@ -136,8 +145,15 @@ if ($Functional) {
         if ($LASTEXITCODE -ne 0) { Fail 'Default-Profil laesst sich nicht pruefen (noch eingebunden?)' }
         else {
             try {
-                $v = (Get-ItemProperty -LiteralPath 'Registry::HKEY_LOCAL_MACHINE\OEMTESTDEFAULT\Software\OEM-Script-Gen-Test' -ErrorAction SilentlyContinue).DwordMax
-                if ($v -ne -1) { Fail 'Default-Profil: Wert aus Beispiel.reg fehlt' } else { Ok 'Default-Profil: Wert aus Beispiel.reg vorhanden' }
+                $testKey = 'Registry::HKEY_LOCAL_MACHINE\OEMTESTDEFAULT\Software\OEM-Script-Gen-Test'
+                $v = (Get-ItemProperty -LiteralPath $testKey -ErrorAction SilentlyContinue).DwordMax
+                if ($v -ne -1) {
+                    Fail ('Default-Profil: Wert aus Beispiel.reg fehlt (gelesen: ' + $v + ')')
+                    Write-Host ('        Schluessel vorhanden: ' + (Test-Path -LiteralPath $testKey))
+                    Get-ChildItem -LiteralPath 'Registry::HKEY_LOCAL_MACHINE\OEMTESTDEFAULT\Software' -ErrorAction SilentlyContinue |
+                        ForEach-Object { Write-Host ('        Software\' + $_.PSChildName) }
+                    Get-ItemProperty -LiteralPath $testKey -ErrorAction SilentlyContinue | Format-List | Out-String | Write-Host
+                } else { Ok 'Default-Profil: Wert aus Beispiel.reg vorhanden' }
                 $h = (Get-ItemProperty -LiteralPath 'Registry::HKEY_LOCAL_MACHINE\OEMTESTDEFAULT\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced' -ErrorAction SilentlyContinue).HideFileExt
                 if ($h -ne 0) { Fail 'Default-Profil: Tweak HideFileExt fehlt' } else { Ok 'Default-Profil: Tweak HideFileExt' }
             } finally {
