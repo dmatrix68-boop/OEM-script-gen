@@ -351,8 +351,15 @@ file by file (`js/ug/core.js`, `js/ug/modifiers.js`, one section per modifier wi
 name); the original's data tables and scripts are taken over unchanged (`js/ug/resources.js`,
 generated). Deviations are marked `PORT:` in the code.
 
-Not ported yet: partitioning and the `pe.cmd` mode, Wi-Fi profile, personalisation,
-AppLocker. Tweaks and bloatware are provided by the generator itself.
+With **Installation & partitioning → pe.cmd** a script handles the windowsPE phase:
+determine the target disk (by criteria, fixed, asked or via VBScript), partition it with
+`diskpart` (GPT/MBR by firmware, recovery partition, or an own script), apply the image via
+`dism`, `bcdboot`, drivers from `$WinPEDriver$`, copy `$OEM$` from the root via `robocopy`,
+restart. **Automatic partitioning wipes the target disk without asking**; if the disk is not
+unique, Setup halts.
+
+Not ported yet: Wi-Fi profile, personalisation, AppLocker, VM guest tools. Tweaks and
+bloatware are provided by the generator itself.
 
 ### Watching the original for changes
 

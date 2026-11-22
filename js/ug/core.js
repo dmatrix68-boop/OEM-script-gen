@@ -113,9 +113,11 @@
     parent.appendChild(e);
     return e;
   }
+  /* Wie XmlElement.InnerText in .NET: legt immer einen Textknoten an, auch
+     einen leeren - das Element gilt dann fuer EmptyElements nicht als leer. */
   function newSimpleElement(doc, name, parent, text) {
     const e = newElement(doc, name, parent);
-    e.textContent = text;
+    e.appendChild(doc.createTextNode(text));
     return e;
   }
   /* Extensions.cs: InsertTextWithIndentation */

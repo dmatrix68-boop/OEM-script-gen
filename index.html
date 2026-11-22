@@ -561,6 +561,103 @@
       </div>
 
       <div class="panel">
+        <h3 data-i18n="installation-und-partitionierung">Installation &amp; Partitionierung</h3>
+        <div class="row wrap">
+          <label class="field grow"><span data-i18n="ablauf-der-installation">Ablauf der Installation</span>
+            <select id="ansPeMode">
+              <option value="default" data-i18n="opt-pe-standard">Windows Setup – Partitionen in Setup wählen (Standard)</option>
+              <option value="generate" data-i18n="opt-pe-generate">pe.cmd – Datenträger automatisch einteilen und Windows aufspielen</option>
+              <option value="script" data-i18n="opt-pe-script">eigenes pe.cmd</option>
+            </select></label>
+        </div>
+        <p class="hint" data-show="answer.pe.mode=generate" data-i18n="pe-hinweis">Statt Windows Setup übernimmt ein Skript die windowsPE-Phase: Zieldatenträger
+        bestimmen, mit <code>diskpart</code> einteilen, Image per <code>dism</code> aufspielen, <code>bcdboot</code>,
+        <code>$OEM$</code> per <code>robocopy</code> kopieren, neu starten. Edition und Hardwareprüfung aus „Setup &amp; Edition“
+        gelten dann nicht – es wird direkt das gewählte Image angewendet.</p>
+        <div data-show="answer.pe.mode=generate">
+          <div class="row wrap">
+            <label class="field grow"><span data-i18n="partitionierung">Partitionierung</span>
+              <select id="ansPartMode">
+                <option value="unattended" data-i18n="opt-part-automatisch">automatisch (Datenträger wird gelöscht)</option>
+                <option value="custom" data-i18n="opt-part-diskpart">eigenes diskpart-Skript</option>
+                <option value="interactive" data-i18n="opt-part-interaktiv">von Hand (Shift+F10, diskpart)</option>
+              </select></label>
+          </div>
+          <div data-show="answer.pe.partition.mode=unattended">
+            <div class="row wrap">
+              <label class="field"><span data-i18n="layout">Layout</span>
+                <select id="ansPartLayout">
+                  <option value="Automatic" data-i18n="opt-layout-auto">nach Firmware (UEFI: GPT, BIOS: MBR)</option>
+                  <option value="GPT">GPT</option>
+                  <option value="MBR">MBR</option>
+                </select></label>
+              <label class="field"><span data-i18n="systempartition-mb">Systempartition (MB)</span><input type="number" id="ansPartSystem" min="100"></label>
+              <label class="field"><span data-i18n="wiederherstellung">Wiederherstellung</span>
+                <select id="ansPartRecovery">
+                  <option value="Partition" data-i18n="opt-recovery-partition">eigene Partition</option>
+                  <option value="None" data-i18n="opt-recovery-keine">keine (winre.wim löschen)</option>
+                </select></label>
+              <label class="field" data-show="answer.pe.partition.recovery=Partition"><span data-i18n="groesse-mb">Größe (MB)</span><input type="number" id="ansPartRecoverySize" min="300"></label>
+            </div>
+            <div class="row wrap">
+              <label class="field grow"><span data-i18n="zieldatentraeger">Zieldatenträger</span>
+                <select id="ansTargetMode">
+                  <option value="generated" data-i18n="opt-ziel-kriterien">nach Kriterien bestimmen (bricht ab, wenn nicht eindeutig)</option>
+                  <option value="fixed" data-i18n="opt-ziel-fest">fester Index</option>
+                  <option value="interactive" data-i18n="opt-ziel-interaktiv">bei der Installation abfragen</option>
+                  <option value="script" data-i18n="opt-ziel-skript">eigenes VBScript</option>
+                </select></label>
+              <label class="field" data-show="answer.pe.partition.target.mode=fixed"><span data-i18n="index">Index</span><input type="number" id="ansTargetIndex" min="0"></label>
+            </div>
+            <div data-show="answer.pe.partition.target.mode=generated">
+              <div class="row wrap">
+                <label class="field"><span data-i18n="index">Index</span><input type="number" id="ansTargetIndexGen" min="0" data-i18n-ph="leer-beliebig" placeholder="leer = beliebig"></label>
+                <label class="field"><span data-i18n="mindestgroesse-gib">Mindestgröße (GiB)</span><input type="number" id="ansTargetMin" min="0" data-i18n-ph="leer-beliebig" placeholder="leer = beliebig"></label>
+                <label class="field"><span data-i18n="hoechstgroesse-gib">Höchstgröße (GiB)</span><input type="number" id="ansTargetMax" min="0" data-i18n-ph="leer-beliebig" placeholder="leer = beliebig"></label>
+              </div>
+              <label class="chk"><input type="checkbox" id="ansTargetEmpty"> <span data-i18n="ziel-ohne-partitionen">nur Datenträger ohne Partitionen</span></label>
+              <label class="chk"><input type="checkbox" id="ansTargetIface"> <span data-i18n="ziel-ide-scsi">nur IDE/SCSI (keine USB-Datenträger)</span></label>
+              <label class="chk"><input type="checkbox" id="ansTargetMedia"> <span data-i18n="ziel-festplatte">nur Festplatten („Fixed hard disk media“)</span></label>
+            </div>
+            <label class="field grow" data-show="answer.pe.partition.target.mode=script"><span data-i18n="vbscript-zieldatentraeger">VBScript – gibt den Index des Zieldatenträgers aus</span>
+              <textarea id="ansTargetScript" rows="5" spellcheck="false"></textarea></label>
+          </div>
+          <label class="field grow" data-show="answer.pe.partition.mode=custom"><span data-i18n="diskpart-skript">diskpart-Skript – muss die Buchstaben W (Windows) und S (System) vergeben</span>
+            <textarea id="ansPartCustom" rows="8" spellcheck="false"></textarea></label>
+          <div class="row wrap">
+            <label class="field grow"><span data-i18n="image-auswahl">Image</span>
+              <select id="ansInstMode">
+                <option value="edition" data-i18n="opt-inst-edition">nach Edition</option>
+                <option value="index" data-i18n="opt-inst-index">nach Index</option>
+                <option value="name" data-i18n="opt-inst-name">nach Name</option>
+                <option value="interactive" data-i18n="opt-inst-interaktiv">bei der Installation abfragen</option>
+              </select></label>
+            <label class="field grow" data-show="answer.pe.installFrom.mode=edition"><span data-i18n="edition">Edition</span><select id="ansInstEdition" data-list="WindowsEdition"></select></label>
+            <label class="field" data-show="answer.pe.installFrom.mode=index"><span data-i18n="index">Index</span><input type="number" id="ansInstIndex" min="1"></label>
+            <label class="field grow" data-show="answer.pe.installFrom.mode=name"><span data-i18n="name">Name</span><input type="text" id="ansInstName" placeholder="Windows 11 Pro"></label>
+          </div>
+          <div class="row wrap">
+            <label class="field grow"><span data-i18n="auslagerungsdatei">Auslagerungsdatei</span>
+              <select id="ansPagingMode">
+                <option value="automatic" data-i18n="opt-paging-auto">von Windows verwaltet</option>
+                <option value="none" data-i18n="opt-paging-keine">keine</option>
+                <option value="custom" data-i18n="opt-eigene-werte">eigene Werte</option>
+              </select></label>
+            <label class="field" data-show="answer.pe.pagingFile.mode=custom"><span data-i18n="anfang-mib">Anfang (MiB)</span><input type="number" id="ansPagingInitial" min="1"></label>
+            <label class="field" data-show="answer.pe.pagingFile.mode=custom"><span data-i18n="maximum-mib">Maximum (MiB)</span><input type="number" id="ansPagingMax" min="1"></label>
+          </div>
+          <label class="chk"><input type="checkbox" id="ansPeCompact"> <span data-i18n="compact-os">Compact OS (komprimiert, spart Platz)</span></label>
+          <label class="chk"><input type="checkbox" id="ansPeSkipCheck"> <span data-i18n="integritaet-ueberspringen">Integritätsprüfung des Images überspringen (schneller)</span></label>
+          <label class="chk"><input type="checkbox" id="ansPe83"> <span data-i18n="namen-83-aus">8.3-Dateinamen abschalten</span></label>
+          <label class="chk"><input type="checkbox" id="ansPeDefender"> <span data-i18n="defender-aus">Windows Defender abschalten</span></label>
+          <label class="chk"><input type="checkbox" id="ansPePauseFormat"> <span data-i18n="pause-vor-formatieren">vor dem Formatieren anhalten</span></label>
+          <label class="chk"><input type="checkbox" id="ansPePauseReboot"> <span data-i18n="pause-vor-neustart">vor dem Neustart anhalten</span></label>
+        </div>
+        <label class="field grow" data-show="answer.pe.mode=script"><span data-i18n="eigenes-pe-skript">Eigenes pe.cmd – ersetzt die windowsPE-Phase von Windows Setup</span>
+          <textarea id="ansPeScript" rows="10" spellcheck="false"></textarea></label>
+      </div>
+
+      <div class="panel">
         <h3 data-i18n="benutzerkonten">Benutzerkonten</h3>
         <div class="row wrap">
           <label class="field grow"><span data-i18n="benutzerkonten">Benutzerkonten</span>

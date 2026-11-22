@@ -364,8 +364,15 @@ JavaScript übertragen (`js/ug/core.js`, `js/ug/modifiers.js`, je Modifier ein A
 gleichen Namens), die Datentabellen und Skripte des Originals werden unverändert übernommen
 (`js/ug/resources.js`, erzeugt). Abweichungen sind im Code mit `PORT:` markiert.
 
-Noch nicht portiert: Partitionierung und `pe.cmd`-Modus, WLAN-Profil, Personalisierung,
-AppLocker. Tweaks und Bloatware liefert der Generator selbst.
+Mit **Installation & Partitionierung → pe.cmd** übernimmt ein Skript die windowsPE-Phase:
+Zieldatenträger bestimmen (nach Kriterien, fest, abgefragt oder per VBScript), mit `diskpart`
+einteilen (GPT/MBR nach Firmware, Wiederherstellungspartition, oder eigenes Skript), Image per
+`dism` aufspielen, `bcdboot`, Treiber aus `$WinPEDriver$`, `$OEM$` aus dem Wurzelverzeichnis per
+`robocopy` kopieren, neu starten. **Die automatische Partitionierung löscht den Zieldatenträger
+ohne Rückfrage**; ist der Datenträger nicht eindeutig, hält Setup an.
+
+Noch nicht portiert: WLAN-Profil, Personalisierung, AppLocker, VM-Gasttools. Tweaks und
+Bloatware liefert der Generator selbst.
 
 ### Änderungen im Original beobachten
 

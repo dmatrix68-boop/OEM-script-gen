@@ -461,7 +461,18 @@ MIT-Lizenz). Die Logik ist Datei für Datei übernommen; welcher Stand portiert 
   <dt>Benutzerkonten</dt><dd>interaktiv (Microsoft- oder lokales Konto) oder vorgegebene lokale Konten mit Gruppe und Kennwort, dazu
     automatische Anmeldung. „Verschleiern“ speichert Kennwörter Base64-kodiert wie Windows SIM – das ist <b>kein</b> Schutz.</dd>
   <dt>OOBE &amp; Sicherheit</dt><dd>Datenschutzseiten, WLAN-Seite, Kontosperrung, Kennwortablauf.</dd>
+  <dt>Installation &amp; Partitionierung</dt><dd><b>Windows Setup</b> (Standard): Partitionen wählt man in Setup.
+    <b>pe.cmd</b>: Ein Skript übernimmt die windowsPE-Phase – Zieldatenträger bestimmen (nach Kriterien wie Größe, Index,
+    „ohne Partitionen“, fest, abgefragt oder per eigenem VBScript), mit <code>diskpart</code> einteilen (GPT/MBR passend zur
+    Firmware, mit oder ohne Wiederherstellungspartition, oder eigenes diskpart-Skript), Image per <code>dism</code> aufspielen
+    (nach Edition, Index oder Name), <code>bcdboot</code>, Treiber aus <code>$WinPEDriver$</code>, <code>$OEM$</code> per
+    <code>robocopy</code> kopieren, neu starten. Dazu Compact OS, Auslagerungsdatei, 8.3-Namen, Defender. <b>Achtung:</b> Die
+    automatische Partitionierung löscht den Zieldatenträger ohne Rückfrage. Bricht die Bestimmung des Datenträgers ab (kein
+    oder mehrere Treffer), hält Setup an, statt etwas zu löschen.</dd>
 </dl>
+<p>Im pe.cmd-Modus kopiert das Skript <code>$OEM$</code> aus dem <b>Wurzelverzeichnis</b> des Mediums selbst –
+<code>UseConfigurationSet</code> spielt dann keine Rolle, die Ablage muss aber „Wurzelverzeichnis“ oder „beide Orte“ sein.
+Edition und Hardwareprüfung aus „Setup &amp; Edition“ gelten in diesem Modus nicht.</p>
 
 <h3>Prüfung</h3>
 <p>Jede Änderung läuft durch dieselben Prüfregeln wie im Original (Kontonamen, Computername, Produktschlüssel, mindestens ein
@@ -474,8 +485,9 @@ Antwortdatei <code>autounattend-FEHLER.txt</code>.</p>
     Kennwörter stehen können. Wer das nicht will: „unattend.xml behalten“. Werden Konten vorgegeben, braucht das Löschen eine
     automatische Anmeldung.</li>
   <li>Ist der Designer aktiv, wird eine importierte <code>autounattend.xml</code> nicht verwendet.</li>
-  <li>Noch nicht portiert: Partitionierung und <code>pe.cmd</code>-Modus, WLAN-Profil, Personalisierung, AppLocker. Tweaks und
-    Bloatware liefert der Generator ohnehin selbst.</li>
+  <li>Noch nicht portiert: WLAN-Profil, Personalisierung, AppLocker, VM-Gasttools. Tweaks und Bloatware liefert der Generator
+    ohnehin selbst.</li>
+  <li>Ein Golden-Test vergleicht den Port bei jedem Push Byte für Byte mit dem C#-Original (<code>tools/test-golden.js</code>).</li>
   <li>Nicht-ASCII-Zeichen (Umlaute in Anzeigenamen) schreibt der Generator als Zeichenreferenz – Windows Setup verarbeitet nur ASCII
     zuverlässig.</li>
 </ul>`
@@ -1039,7 +1051,18 @@ MIT licence). The logic is taken over file by file; the ported state is recorded
   <dt>User accounts</dt><dd>interactive (Microsoft or local account) or predefined local accounts with group and password, plus
     automatic sign-in. “Obscure” stores passwords Base64-encoded like Windows SIM – that is <b>no</b> protection.</dd>
   <dt>OOBE &amp; security</dt><dd>Privacy pages, Wi-Fi page, account lockout, password expiration.</dd>
+  <dt>Installation &amp; partitioning</dt><dd><b>Windows Setup</b> (default): partitions are chosen in Setup.
+    <b>pe.cmd</b>: a script handles the windowsPE phase – determine the target disk (by criteria such as size, index,
+    “without partitions”, fixed, asked or via own VBScript), partition it with <code>diskpart</code> (GPT/MBR matching the
+    firmware, with or without recovery partition, or an own diskpart script), apply the image via <code>dism</code> (by
+    edition, index or name), <code>bcdboot</code>, drivers from <code>$WinPEDriver$</code>, copy <code>$OEM$</code> via
+    <code>robocopy</code>, restart. Plus Compact OS, paging file, 8.3 names, Defender. <b>Careful:</b> automatic
+    partitioning wipes the target disk without asking. If determining the disk fails (no or several matches), Setup halts
+    instead of deleting anything.</dd>
 </dl>
+<p>In pe.cmd mode the script copies <code>$OEM$</code> from the <b>root</b> of the medium itself –
+<code>UseConfigurationSet</code> does not matter then, but the location must be “root” or “both places”. Edition and hardware
+check from “Setup &amp; edition” do not apply in this mode.</p>
 
 <h3>Validation</h3>
 <p>Every change runs through the same validation rules as the original (account names, computer name, product key, at least
@@ -1051,8 +1074,9 @@ contains <code>autounattend-FEHLER.txt</code> instead of the answer file.</p>
   <li>As in the original, a script deletes <code>C:\\Windows\\Panther\\unattend.xml</code> at the first sign-in because it may
     contain passwords. To prevent that: “Keep unattend.xml”. With predefined accounts, deleting requires automatic sign-in.</li>
   <li>While the designer is active, an imported <code>autounattend.xml</code> is not used.</li>
-  <li>Not ported yet: partitioning and the <code>pe.cmd</code> mode, Wi-Fi profile, personalisation, AppLocker. Tweaks and
-    bloatware are provided by the generator itself anyway.</li>
+  <li>Not ported yet: Wi-Fi profile, personalisation, AppLocker, VM guest tools. Tweaks and bloatware are provided by the
+    generator itself anyway.</li>
+  <li>A golden test compares the port byte by byte with the C# original on every push (<code>tools/test-golden.js</code>).</li>
   <li>Non-ASCII characters (umlauts in display names) are written as character references – Windows Setup only processes ASCII
     reliably.</li>
 </ul>`

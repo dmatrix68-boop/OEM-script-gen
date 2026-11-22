@@ -2633,7 +2633,10 @@ Write-Host ''
         try {
           const cfg = Object.assign({}, st.answer, { useConfigurationSet: st.options.configSet !== false });
           const xml = global.UG.serialize(global.UG.generate(cfg));
-          const res = Importers.patchUnattend(xml, unattendCommands(st), { configSet: st.options.configSet !== false });
+          /* Im pe.cmd-Modus kopiert das Skript $OEM$ selbst (robocopy aus dem
+             Wurzelverzeichnis) - UseConfigurationSet bleibt dann unangetastet. */
+          const peActive = st.answer.pe && st.answer.pe.mode && st.answer.pe.mode !== 'default';
+          const res = Importers.patchUnattend(xml, unattendCommands(st), { configSet: peActive ? undefined : st.options.configSet !== false });
           add('autounattend.xml', res.xml);
         } catch (e) {
           add('autounattend-FEHLER.txt', toCRLF(

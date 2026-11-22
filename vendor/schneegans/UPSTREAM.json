@@ -21,7 +21,7 @@
     "Main.cs": {
       "blob": "ab11aca7e0e22250f9c708585b64a72872c38e45",
       "port": "js/ug/core.js",
-      "status": "teilweise – Kern, Sequenzen, Embed; ohne PE-Skript (Schritt 2)"
+      "status": "portiert – ohne Schema-Pruefung"
     },
     "Util.cs": {
       "blob": "b9e54386104e5b5f6eda701b456153679122f6fc",
@@ -81,7 +81,7 @@
     "modifier/Disk.cs": {
       "blob": "a7304929560c54ab20d1decb8749dec3e3685d4f",
       "port": "js/ug/modifiers.js",
-      "status": "teilweise – nur DefaultPESettings (UseConfigurationSet); pe.cmd/Partitionen in Schritt 2"
+      "status": "portiert"
     },
     "modifier/EmptyElements.cs": {
       "blob": "4e33d97fbc6d949589ef95587c8da53bd44e95f4",
@@ -110,8 +110,8 @@
     },
     "modifier/Optimizations.cs": {
       "blob": "8b9af170474e3a9d6c9b53c98ae301e3052741f1",
-      "port": "-",
-      "status": "bewusst nicht portiert – eigener Katalog (Tweaks-Seite); Standardwerte erzeugen keine Ausgabe"
+      "port": "js/ug/modifiers.js",
+      "status": "bewusst nicht portiert – eigener Katalog (Tweaks-Seite); nur der Teil am Defender-Schalter (IsDefenderDisabled) ist uebernommen"
     },
     "modifier/Order.cs": {
       "blob": "c4d598afa2d9afddec01dce1da3e707fb9646a06",

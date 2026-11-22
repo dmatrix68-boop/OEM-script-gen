@@ -169,7 +169,37 @@
     ['ansAccMode', 'answer.account.mode', 'text'],
     ['ansAutoLogon', 'answer.account.autoLogon', 'text'],
     ['ansBuiltinPw', 'answer.account.builtinPassword', 'text'],
-    ['ansObscure', 'answer.account.obscure', 'bool']
+    ['ansObscure', 'answer.account.obscure', 'bool'],
+    ['ansPeMode', 'answer.pe.mode', 'text'],
+    ['ansPeScript', 'answer.pe.script', 'text'],
+    ['ansPartMode', 'answer.pe.partition.mode', 'text'],
+    ['ansPartLayout', 'answer.pe.partition.layout', 'text'],
+    ['ansPartRecovery', 'answer.pe.partition.recovery', 'text'],
+    ['ansPartSystem', 'answer.pe.partition.systemSize', 'num'],
+    ['ansPartRecoverySize', 'answer.pe.partition.recoverySize', 'num'],
+    ['ansPartCustom', 'answer.pe.partition.customScript', 'text'],
+    ['ansTargetMode', 'answer.pe.partition.target.mode', 'text'],
+    ['ansTargetIndex', 'answer.pe.partition.target.index', 'numnull'],
+    ['ansTargetIndexGen', 'answer.pe.partition.target.index', 'numnull'],
+    ['ansTargetMin', 'answer.pe.partition.target.minSizeGiB', 'numnull'],
+    ['ansTargetMax', 'answer.pe.partition.target.maxSizeGiB', 'numnull'],
+    ['ansTargetEmpty', 'answer.pe.partition.target.assertNoPartitions', 'bool'],
+    ['ansTargetIface', 'answer.pe.partition.target.assertInterfaceType', 'bool'],
+    ['ansTargetMedia', 'answer.pe.partition.target.assertMediaType', 'bool'],
+    ['ansTargetScript', 'answer.pe.partition.target.script', 'text'],
+    ['ansInstMode', 'answer.pe.installFrom.mode', 'text'],
+    ['ansInstEdition', 'answer.pe.installFrom.edition', 'text'],
+    ['ansInstIndex', 'answer.pe.installFrom.index', 'num'],
+    ['ansInstName', 'answer.pe.installFrom.name', 'text'],
+    ['ansPagingMode', 'answer.pe.pagingFile.mode', 'text'],
+    ['ansPagingInitial', 'answer.pe.pagingFile.initialSizeMiB', 'num'],
+    ['ansPagingMax', 'answer.pe.pagingFile.maxSizeMiB', 'num'],
+    ['ansPeDefender', 'answer.pe.disableDefender', 'bool'],
+    ['ansPe83', 'answer.pe.disable8Dot3Names', 'bool'],
+    ['ansPeCompact', 'answer.pe.compactOs', 'bool'],
+    ['ansPeSkipCheck', 'answer.pe.skipIntegrityCheck', 'bool'],
+    ['ansPePauseFormat', 'answer.pe.pauseBeforeFormatting', 'bool'],
+    ['ansPePauseReboot', 'answer.pe.pauseBeforeReboot', 'bool']
   ];
 
   function bindAll() {
@@ -177,8 +207,13 @@
       const el = document.getElementById(id);
       if (!el) continue;
       el.addEventListener(type === 'bool' ? 'change' : 'input', () => {
-        set(path, type === 'bool' ? el.checked : type === 'num' ? parseInt(el.value, 10) || 0 : el.value);
+        set(path, type === 'bool' ? el.checked : type === 'num' ? parseInt(el.value, 10) || 0
+          : type === 'numnull' ? (el.value.trim() === '' ? null : (parseInt(el.value, 10) || 0)) : el.value);
         if (id === 'setConfigSetMode') applyConfigSetMode();
+        if (id === 'ansTargetIndex' || id === 'ansTargetIndexGen') {
+          const v = get(path);
+          $(id === 'ansTargetIndex' ? '#ansTargetIndexGen' : '#ansTargetIndex').value = v === null || v === undefined ? '' : v;
+        }
         if (id === 'answerEnabled' || id.startsWith('ans')) renderAnswer();
         if (id === 'officeXml') renderOfficeSummary();
         if (id === 'tweaksPhase') renderTweaks();
@@ -526,6 +561,13 @@
     }
     if (state.options.trigger === 'setupcomplete') notes.push(T('Achtung: Unter Einstellungen → Auslöser ist „nur SetupComplete.cmd“ gewählt – dann entsteht keine autounattend.xml.'));
     if (state.unattend && state.unattend.xml) notes.push(T('Die importierte autounattend.xml wird nicht verwendet, solange der Designer aktiv ist.'));
+    const pe = state.answer.pe || {};
+    if (pe.mode === 'generate' || pe.mode === 'script') {
+      if (state.paths.zipRoot === 'sources') notes.push(T('Achtung: pe.cmd kopiert nur <Medium>\\$OEM$ – die Ablage steht auf „sources“. Unter Einstellungen → Pfade „beide Orte“ wählen.'));
+      if (pe.mode === 'generate' && pe.partition && pe.partition.mode === 'unattended') {
+        notes.push(T('Achtung: pe.cmd löscht den Zieldatenträger ohne Rückfrage.'));
+      }
+    }
     st.textContent = notes.join(' ');
   }
 

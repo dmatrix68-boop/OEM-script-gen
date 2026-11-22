@@ -304,7 +304,7 @@
   function getDiskpartScript(p, layout) {
     const rec = (line) => (p.recovery === 'None' ? '' : line);
     const t = p.target || {};
-    const targetDisk = t.mode === 'fixed' ? String(t.index) : '%TARGET_DISK%';
+    const targetDisk = t.mode === 'fixed' ? String(t.index === null || t.index === undefined || t.index === '' ? 0 : t.index) : '%TARGET_DISK%';
     if (layout === 'MBR') {
       return [
         'SELECT DISK=' + targetDisk,
@@ -1021,12 +1021,12 @@
       for (const component of c.selAll('//*[@processorArchitecture]')) {
         if (!archs) throw new ConfigurationException('At least one processor architecture must be selected.');
         component.setAttribute('processorArchitecture', archs[0]);
-        let after = component;
+        /* Wie im Original: jede Kopie direkt hinter die urspruengliche
+           Komponente - bei drei Architekturen also x86, arm64, amd64. */
         for (const arch of archs.slice(1)) {
           const copy = component.cloneNode(true);
           copy.setAttribute('processorArchitecture', arch);
-          after.parentNode.insertBefore(copy, after.nextSibling);
-          after = copy;
+          component.parentNode.insertBefore(copy, component.nextSibling);
         }
       }
     }
