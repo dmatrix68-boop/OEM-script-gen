@@ -72,6 +72,14 @@ if ($Functional) {
         }
         return $null
     }
+    <#  reg.exe ohne Abbruch: Windows PowerShell 5.1 macht aus jeder stderr-Zeile
+        eines externen Programms einen Fehler, mit 'Stop' also einen Abbruch. #>
+    function Invoke-Reg {
+        $old = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        try { & reg.exe @args 2>&1 | Out-Null; return $LASTEXITCODE }
+        finally { $ErrorActionPreference = $old }
+    }
     function Invoke-Isolated([string]$Path, [string[]]$Arguments) {
         $exe = (Get-Process -Id $PID).Path
         $all = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $Path) + $Arguments
@@ -132,17 +140,15 @@ if ($Functional) {
         <#  Ausgangszustand im Default-Profil festlegen - sonst koennte ein Wert,
             den das Runner-Image schon mitbringt, den Test zufaellig bestehen. #>
         $hive = Join-Path $env:SystemDrive 'Users\Default\NTUSER.DAT'
-        & reg.exe load 'HKLM\OEMTESTDEFAULT' $hive > $null 2>&1
-        if ($LASTEXITCODE -eq 0) {
-            & reg.exe delete 'HKLM\OEMTESTDEFAULT\Software\OEM-Script-Gen-Test' /f > $null 2>&1
-            & reg.exe add 'HKLM\OEMTESTDEFAULT\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced' /v HideFileExt /t REG_DWORD /d 1 /f > $null 2>&1
-            & reg.exe unload 'HKLM\OEMTESTDEFAULT' > $null 2>&1
+        if ((Invoke-Reg load 'HKLM\OEMTESTDEFAULT' $hive) -eq 0) {
+            $null = Invoke-Reg delete 'HKLM\OEMTESTDEFAULT\Software\OEM-Script-Gen-Test' /f
+            $null = Invoke-Reg add 'HKLM\OEMTESTDEFAULT\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced' /v HideFileExt /t REG_DWORD /d 1 /f
+            $null = Invoke-Reg unload 'HKLM\OEMTESTDEFAULT'
         } else { Fail 'Default-Profil laesst sich vor dem Test nicht einbinden' }
         $code = Invoke-Isolated $full @()
         if ($code -ne 0) { Fail ('voll: Set-Tweaks.ps1 Exitcode ' + $code) } else { Ok 'voll: Set-Tweaks.ps1' }
         $hive = Join-Path $env:SystemDrive 'Users\Default\NTUSER.DAT'
-        & reg.exe load 'HKLM\OEMTESTDEFAULT' $hive > $null 2>&1
-        if ($LASTEXITCODE -ne 0) { Fail 'Default-Profil laesst sich nicht pruefen (noch eingebunden?)' }
+        if ((Invoke-Reg load 'HKLM\OEMTESTDEFAULT' $hive) -ne 0) { Fail 'Default-Profil laesst sich nicht pruefen (noch eingebunden?)' }
         else {
             try {
                 $testKey = 'Registry::HKEY_LOCAL_MACHINE\OEMTESTDEFAULT\Software\OEM-Script-Gen-Test'
@@ -158,7 +164,7 @@ if ($Functional) {
                 if ($h -ne 0) { Fail 'Default-Profil: Tweak HideFileExt fehlt' } else { Ok 'Default-Profil: Tweak HideFileExt' }
             } finally {
                 [gc]::Collect(); [gc]::WaitForPendingFinalizers()
-                & reg.exe unload 'HKLM\OEMTESTDEFAULT' > $null 2>&1
+                $null = Invoke-Reg unload 'HKLM\OEMTESTDEFAULT'
             }
         }
     }
