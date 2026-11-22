@@ -29,11 +29,11 @@ Anwendungen.</p>
     (<a data-help="settings">Einstellungen</a>).</li>
   <li><b>Prüfen</b> – in der <a data-help="preview">Vorschau</a> jede erzeugte Datei ansehen.</li>
   <li><b>ZIP erzeugen</b> und den Inhalt in das <b>Wurzelverzeichnis</b> des Mediums kopieren – oder in Chrome und Edge
-    <b>In Ordner exportieren</b> und gleich das Wurzelverzeichnis des USB-Sticks wählen. Die <code>LIESMICH.txt</code>
-    listet auf, was noch von Hand ergänzt werden muss.</li>
+    <b>In Ordner exportieren</b> und gleich das Wurzelverzeichnis des USB-Sticks wählen – oder mit <b>ISO erzeugen</b>
+    eine fertige Windows-ISO schreiben. Die <code>LIESMICH.txt</code> listet auf, was noch von Hand ergänzt werden muss.</li>
 </ol>
 
-<h3>ZIP oder Ordner?</h3>
+<h3>ZIP, Ordner oder ISO?</h3>
 <p><b>ZIP erzeugen</b> funktioniert in jedem Browser. Ab 4 GB oder 65535 Dateien schreibt der Generator automatisch
 ZIP64 – das entpackt der Windows-Explorer ab Windows 10 ebenso wie 7-Zip; sehr alte Werkzeuge kennen es unter Umständen
 nicht. Installer und Treiber über 128 MB kommen unkomprimiert ins ZIP (sie sind meist ohnehin schon gepackt), dafür ohne
@@ -47,7 +47,11 @@ würde ersetzt – auch darauf weist die Rückfrage hin.</p>
 und Verknüpfungen – schreibt Chrome aus Sicherheitsgründen nicht unter ihrem Namen in Ordner. Der Export legt sie mit der
 Zusatzendung <code>.oemrename</code> ab;
 <code>Install.ps1</code> sucht danach und gibt ihnen bei der Installation vor allen Modulen den Namen zurück. Für Treiber unter
-<code>$WinPEDriver$</code> geht das nicht, weil dort kein Skript läuft – solche Pakete per ZIP ausliefern.</p>
+<code>$WinPEDriver$</code> geht das nicht, weil dort kein Skript läuft – solche Pakete per ZIP oder ISO ausliefern.</p>
+<p><b>ISO erzeugen</b> nimmt eine Windows-ISO (die Original-ISO von Microsoft), fügt die erzeugten Dateien ein und
+schreibt eine neue, bootfähige ISO – BIOS und UEFI wie beim Original, ohne oscdimg, AnyBurn oder Adminrechte. Das ist der
+Weg für VMs, Ventoy und Rufus. Die Quell-ISO wird dabei nicht in den Speicher geladen; ihre Dateien werden direkt von der
+Platte übernommen. Einzelheiten unter <a data-help="settings">Einstellungen → ISO-Abbild</a>.</p>
 
 <h3>Das Zwei-Phasen-Modell</h3>
 <table>
@@ -465,6 +469,30 @@ Blöcke, frühere Einträge des Generators werden ersetzt. Die Übersicht darunt
   <dt>Abschlussmeldung anzeigen</dt><dd>Zeigt am Ende ein Meldungsfenster mit dem Pfad der Protokolle. Sichtbar nur, wenn Phase 2 im Benutzerkontext läuft (RunOnce oder FirstLogonCommands) – als SYSTEM kann Windows kein Fenster auf den Desktop bringen.</dd>
 </dl>
 
+<h3>ISO-Abbild</h3>
+<p><b>ISO erzeugen</b> in der Kopfzeile schreibt eine neue Windows-ISO aus der Quell-ISO und den erzeugten Dateien.
+Die Quelle lässt sich vorab hier über <b>Quell-ISO wählen</b> festlegen; sonst fragt der Knopf beim ersten Klick danach.
+Die Übersicht zeigt Bezeichnung, Abbild (<code>install.wim</code>/<code>.esd</code>), Booteinträge und was ersetzt wird.</p>
+<ul>
+  <li><b>Was hinzukommt:</b> alles, was auch im ZIP steht – <code>autounattend.xml</code>, <code>$OEM$</code> (je nach
+    Ablage an einem oder beiden Orten), <code>$WinPEDriver$</code>, <code>LIESMICH.txt</code> und die Projektdatei.
+    Vorhandene Ordner <code>$OEM$</code>, <code>sources\$OEM$</code> und <code>$WinPEDriver$</code> der Quelle werden ersetzt.
+    Anders als beim Ordner-Export kommen auch <code>.dll</code>-Dateien unter ihrem Namen an.</li>
+  <li><b>Vorhandene autounattend.xml:</b> Bringt die Quell-ISO eine eigene mit und ist keine importiert, fragt der Generator
+    einmal, ob sie übernommen und um seine Aufrufe ergänzt oder ersetzt werden soll.</li>
+  <li><b>Unverändert:</b> <code>install.wim</code>/<code>install.esd</code>, <code>boot.wim</code> und alle übrigen Dateien.
+    Bezeichnung und Bootkatalog (BIOS und UEFI) werden übernommen.</li>
+  <li><b>Aufbau</b> wie bei Microsoft (<code>oscdimg -u2</code>): UDF 1.02 mit dem gesamten Inhalt, ISO 9660 nur als Hülle
+    mit einer <code>README.TXT</code>. Dateien über 4 GB sind damit kein Problem.</li>
+  <li><b>Speicherort:</b> Chrome und Edge fragen per „Speichern unter“, Firefox lädt herunter. Eine ISO über 4 GB passt nicht
+    auf ein FAT32-Laufwerk.</li>
+  <li><b>Nicht unterstützt:</b> ISOs von Brennprogrammen mit UDF 2.x (Metadaten-Partition) oder Festplatten-Emulation –
+    dafür die Original-ISO verwenden.</li>
+</ul>
+<p><b>Ohne „Press any key“ starten</b> nimmt für UEFI <code>efisys_noprompt.bin</code> und lässt für BIOS
+<code>boot\bootfix.bin</code> weg – Setup startet dann ohne Tastendruck. Praktisch für VMs, aber gefährlich: Bleibt die ISO
+eingelegt, beginnt die Installation nach jedem Neustart von vorn.</p>
+
 <h3>Fehlersuche auf dem Zielrechner</h3>
 <pre>powershell -ExecutionPolicy Bypass -File C:\\Install\\Diagnose.ps1
 powershell -ExecutionPolicy Bypass -File C:\\Install\\Diagnose.ps1 -Export</pre>
@@ -517,11 +545,11 @@ automatically: drivers, settings, bloatware, Windows components, Office and appl
     (<a data-help="settings">Settings</a>).</li>
   <li><b>Check</b> – look at every generated file in the <a data-help="preview">Preview</a>.</li>
   <li><b>Create ZIP</b> and copy its contents into the <b>root</b> of the medium – or, in Chrome and Edge, use
-    <b>Export to folder</b> and pick the root of the USB stick straight away. The <code>README.txt</code> lists what
-    still has to be added by hand.</li>
+    <b>Export to folder</b> and pick the root of the USB stick straight away – or write a ready-made Windows ISO with
+    <b>Create ISO</b>. The <code>README.txt</code> lists what still has to be added by hand.</li>
 </ol>
 
-<h3>ZIP or folder?</h3>
+<h3>ZIP, folder or ISO?</h3>
 <p><b>Create ZIP</b> works in every browser. From 4 GB or 65535 files on the generator writes ZIP64 automatically –
 Windows Explorer unpacks that from Windows 10 on, as does 7-Zip; very old tools may not know it. Installers and drivers
 over 128 MB go into the ZIP uncompressed (they are usually compressed already), but without weighing on memory.
@@ -533,7 +561,11 @@ drivers) get installed; everything else, such as <code>sources\install.wim</code
 and shortcuts – Chrome does not write to folders under their own name for security reasons. The export stores them with
 the extra extension <code>.oemrename</code>;
 <code>Install.ps1</code> looks for them and gives them their names back during installation, before any module. That is not possible for
-drivers under <code>$WinPEDriver$</code> because no script runs there – deliver such packages as ZIP.</p>
+drivers under <code>$WinPEDriver$</code> because no script runs there – deliver such packages as ZIP or ISO.</p>
+<p><b>Create ISO</b> takes a Windows ISO (the original ISO from Microsoft), adds the generated files and writes a new
+bootable ISO – BIOS and UEFI as in the original, without oscdimg, AnyBurn or admin rights. That is the way for VMs, Ventoy
+and Rufus. The source ISO is not loaded into memory; its files are taken straight from disk. Details under
+<a data-help="settings">Settings → ISO image</a>.</p>
 
 <h3>The two-phase model</h3>
 <table>
@@ -946,6 +978,29 @@ product key.</p>
   <dt>Delete the installation folder when done</dt><dd>Removes scripts, installers and <code>Diagnose.ps1</code>; the <code>Logs</code> folder is kept.</dd>
   <dt>Show a completion message</dt><dd>Shows a message box with the log path at the end. Only visible when phase 2 runs in the user context (RunOnce or FirstLogonCommands) – as SYSTEM Windows cannot put a window on the desktop.</dd>
 </dl>
+
+<h3>ISO image</h3>
+<p><b>Create ISO</b> in the header writes a new Windows ISO from the source ISO and the generated files. The source can be
+set here beforehand via <b>Choose source ISO</b>; otherwise the button asks for it on the first click. The summary shows
+the label, the image (<code>install.wim</code>/<code>.esd</code>), the boot entries and what gets replaced.</p>
+<ul>
+  <li><b>What is added:</b> everything the ZIP holds – <code>autounattend.xml</code>, <code>$OEM$</code> (in one or both
+    places, depending on the location setting), <code>$WinPEDriver$</code>, <code>README.txt</code> and the project file.
+    Existing folders <code>$OEM$</code>, <code>sources\$OEM$</code> and <code>$WinPEDriver$</code> of the source are replaced.
+    Unlike the folder export, <code>.dll</code> files arrive under their own name.</li>
+  <li><b>Existing autounattend.xml:</b> if the source ISO brings its own and none is imported, the generator asks once
+    whether to adopt it and add its calls, or to replace it.</li>
+  <li><b>Unchanged:</b> <code>install.wim</code>/<code>install.esd</code>, <code>boot.wim</code> and all other files.
+    The label and the boot catalogue (BIOS and UEFI) are taken over.</li>
+  <li><b>Layout</b> as with Microsoft (<code>oscdimg -u2</code>): UDF 1.02 with the whole content, ISO 9660 only as a shell
+    with one <code>README.TXT</code>. Files over 4 GB are no problem.</li>
+  <li><b>Destination:</b> Chrome and Edge ask via “Save as”, Firefox downloads. An ISO over 4 GB does not fit on a FAT32 drive.</li>
+  <li><b>Not supported:</b> ISOs from burning software with UDF 2.x (metadata partition) or hard-disk emulation – use the
+    original ISO instead.</li>
+</ul>
+<p><b>Start without “Press any key”</b> uses <code>efisys_noprompt.bin</code> for UEFI and leaves out
+<code>boot\bootfix.bin</code> for BIOS – Setup then starts without a key press. Handy for VMs, but dangerous: if the ISO
+stays inserted, the installation starts over after every restart.</p>
 
 <h3>Troubleshooting on the target machine</h3>
 <pre>powershell -ExecutionPolicy Bypass -File C:\\Install\\Diagnose.ps1

@@ -27,6 +27,7 @@ jobs:
         run: |
           node tools/check-escapes.js
           node tools/check-i18n.js
+          node tools/test-iso.js
 
       - name: Paket schnueren
         run: node tools/build-release.js "$TAG"

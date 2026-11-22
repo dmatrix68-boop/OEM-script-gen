@@ -52,7 +52,8 @@
       features: { enabled: false, phase: 'firstlogon', timeoutMin: 20, selected: [] },
       drivers: { enabled: false, phase: 'setup', timeoutMin: 10, items: [] },
       files: { items: [] },
-      custom: { cmdEnabled: true, cmd: '', psEnabled: true, psPhase: 'setup', ps: '' }
+      custom: { cmdEnabled: true, cmd: '', psEnabled: true, psPhase: 'setup', ps: '' },
+      iso: { noPrompt: false }
     };
   }
 
@@ -134,7 +135,8 @@
     ['setSelfDelete', 'options.selfDelete', 'bool'],
     ['setKeepInstall', 'options.cleanupInstall', 'bool'],
     ['setToastOnFinish', 'options.toastOnFinish', 'bool'],
-    ['setConfigSet', 'options.configSet', 'bool']
+    ['setConfigSet', 'options.configSet', 'bool'],
+    ['isoNoPrompt', 'iso.noPrompt', 'bool']
   ];
 
   function bindAll() {
@@ -483,6 +485,7 @@
   /* ---------------- Treiber ---------------- */
 
   function fmtSize(n) {
+    if (n >= 1073741824) return (n / 1073741824).toFixed(2) + ' GB';
     return n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
   }
 
@@ -1097,6 +1100,7 @@
     syncInputs();
     I18n.apply();
     renderApps(); renderTweaks(); renderBloat(); renderFeatures(); renderDrivers(); renderFiles(); renderOfficeSummary(); renderUnattend();
+    renderIsoSource();
     refresh();
   }
 
@@ -1370,7 +1374,7 @@
     };
   })();
 
-  const PLACE_KEYS = ['oem-project', 'oem-zip', 'oem-folder'];
+  const PLACE_KEYS = ['oem-project', 'oem-zip', 'oem-folder', 'oem-iso', 'oem-iso-src'];
 
   /* ---------------- Quellen merken und wieder einbinden ---------------- */
   /*  Die Projektdatei enthaelt keine Binaerdateien, und der Browser verraet
@@ -1525,11 +1529,16 @@
       handle = await window.showSaveFilePicker(startIn ? Object.assign({ startIn }, base) : base);
     } catch (e) {
       if (e && e.name === 'AbortError') return false;
+      /* Ohne frische Benutzeraktion (SecurityError) darf der Aufrufer entscheiden,
+         statt still auf den Download auszuweichen - bei einer ISO waeren das
+         mehrere Gigabyte im Download-Ordner. */
+      if (opts.strict && e && e.name === 'SecurityError') throw e;
       /* Ein veralteter Ort (Datei geloescht, Laufwerk weg) darf den Dialog nicht verhindern. */
       if (startIn) {
         try { handle = await window.showSaveFilePicker(base); }
         catch (e2) {
           if (e2 && e2.name === 'AbortError') return false;
+          if (opts.strict && e2 && e2.name === 'SecurityError') throw e2;
           console.warn('Speichern-Dialog nicht verfuegbar, falle auf Download zurueck:', e2);
           return null;
         }
@@ -1570,8 +1579,8 @@
       Fehler laesst sich der Datei zuordnen, an der er auftrat. */
   const WRITE_CHUNK = 8 * 1024 * 1024;
 
-  async function writeParts(w, parts, labels) {
-    let buf = [], bufLen = 0;
+  async function writeParts(w, parts, labels, onProgress) {
+    let buf = [], bufLen = 0, written = 0;
     const flush = async () => {
       if (!bufLen) return;
       const all = new Uint8Array(bufLen);
@@ -1579,6 +1588,8 @@
       for (const b of buf) { all.set(b, p); p += b.length; }
       buf = []; bufLen = 0;
       await w.write(all);
+      written += all.length;
+      if (onProgress) onProgress(written);
     };
     for (let i = 0; i < parts.length; i++) {
       const part = parts[i];
@@ -1586,12 +1597,17 @@
         if (part instanceof Blob) {
           await flush();
           const reader = part.stream().getReader();
+          let got = 0;
           for (;;) {
             const { done, value } = await reader.read();
             if (done) break;
+            got += value.length;
             buf.push(value); bufLen += value.length;
             if (bufLen >= WRITE_CHUNK) await flush();
           }
+          /* Jeder Verweis steht im Inhaltsverzeichnis mit seiner Groesse -
+             liefert er mehr oder weniger, waere das Archiv kaputt. */
+          if (got !== part.size) throw new Error(F('{0} statt {1} Bytes gelesen – die Datei wurde verändert', got, part.size));
           await flush();
         } else {
           buf.push(part); bufLen += part.length;
@@ -1608,10 +1624,11 @@
     await flush();
   }
 
-  async function writeToHandle(handle, blob) {
+  async function writeToHandle(handle, blob, onProgress) {
     const w = await handle.createWritable();
     try {
-      if (blob.zipParts) await writeParts(w, blob.zipParts, blob.zipLabels);
+      if (blob.zipParts) await writeParts(w, blob.zipParts, blob.zipLabels, onProgress);
+      else if (blob.isoParts) await writeParts(w, blob.isoParts, blob.isoLabels, onProgress);
       else await w.write(blob);
       await w.close();
     } catch (e) {
@@ -1920,6 +1937,246 @@
     }
   }
 
+  /* ---------------- ISO-Abbild ---------------- */
+  /*  Workflow "ISO neu schreiben": Windows-ISO waehlen, die erzeugten Dateien
+      kommen hinzu, es entsteht eine neue, bootfaehige ISO (js/iso.js). Die
+      Quell-ISO wird nicht eingelesen - ihre Dateien gehen als Ausschnitt der
+      Datei ins Ergebnis. Die Quelle bleibt fuer diese Sitzung gewaehlt; nach
+      einem Neuladen oeffnet der Dialog im Ordner der zuletzt gewaehlten ISO. */
+  let isoSource = null;          // { file, info, unattendDone }
+
+  const ISO_DROP = /^(\$oem\$|sources\/\$oem\$|\$winpedriver\$)(\/|$)/i;
+
+  function isoErrorText(e) {
+    const detail = e && e.message ? e.message : String(e);
+    switch (e && e.isoCode) {
+      case 'noudf': return T('Die Datei enthält kein UDF-Dateisystem – das ist keine Windows-Installations-ISO.');
+      case 'unsupported': return T('Diese ISO nutzt einen Aufbau, den der Generator nicht schreiben kann (UDF 2.x oder Festplatten-Emulation, typisch für Brennprogramme). Bitte die Original-ISO von Microsoft verwenden.') + '\n' + detail;
+      case 'boot': return T('Der Bootkatalog der ISO ist beschädigt.') + '\n' + detail;
+      default: return detail;
+    }
+  }
+
+  async function pickIsoFile() {
+    if (typeof window.showOpenFilePicker !== 'function') {
+      return new Promise((resolve) => {
+        const inp = $('#isoInput');
+        const done = () => { inp.removeEventListener('change', done); const f = inp.files[0] || null; inp.value = ''; resolve(f); };
+        inp.addEventListener('change', done);
+        inp.click();
+      });
+    }
+    const startIn = await startInFor('oem-iso-src');
+    const base = { id: 'oem-iso-src', multiple: false,
+      types: [{ description: T('ISO-Abbild'), accept: { 'application/x-iso9660-image': ['.iso'] } }] };
+    let handles;
+    try {
+      handles = await window.showOpenFilePicker(startIn ? Object.assign({ startIn }, base) : base);
+    } catch (e) {
+      if (e && e.name === 'AbortError') return null;
+      try { handles = await window.showOpenFilePicker(base); }
+      catch (e2) { if (!e2 || e2.name !== 'AbortError') toast(F('Datei nicht verfügbar: {0}', e2.message), 'err'); return null; }
+    }
+    if (!handles || !handles[0]) return null;
+    await lastPlace.set('oem-iso-src', handles[0]);
+    return handles[0].getFile();
+  }
+
+  async function chooseIsoSource() {
+    const file = await pickIsoFile();
+    if (!file) return false;
+    const box = $('#isoSourceBox');
+    if (box) box.innerHTML = '<p class="muted">' + esc(F('Lese {0} …', file.name)) + '</p>';
+    try {
+      const info = await IsoImage.readIso(file);
+      isoSource = { file, info, unattendDone: false };
+      renderIsoSource();
+      const w = info.warnings.length ? ' ' + F('({0} Einträge übersprungen)', info.warnings.length) : '';
+      toast(F('Quell-ISO eingelesen: {0} – {1} Dateien.', info.label || file.name, info.files.length) + w, 'ok');
+      if (!info.windows.image) toast(T('In dieser ISO fehlt sources\\install.wim bzw. install.esd – ist das eine Windows-Installations-ISO?'), 'warn');
+      return true;
+    } catch (e) {
+      console.error(e);
+      isoSource = null;
+      renderIsoSource();
+      toast(F('ISO nicht lesbar: {0}', isoErrorText(e)), 'err');
+      return false;
+    }
+  }
+
+  function bootLabel(b) {
+    const plat = b.platform === 0xEF ? 'UEFI' : b.platform === 0 ? 'BIOS' : '0x' + b.platform.toString(16);
+    return plat + ' (' + fmtSize(b.data.length) + ')';
+  }
+
+  function renderIsoSource() {
+    const box = $('#isoSourceBox');
+    if (!box) return;
+    $('#btnIsoDrop').hidden = !isoSource;
+    if (!isoSource) {
+      box.innerHTML = '<p class="muted">' + T('Noch keine Quell-ISO gewählt.') + '</p>';
+      return;
+    }
+    const i = isoSource.info;
+    const old = i.files.filter((f) => ISO_DROP.test(f.path)).length;
+    const rows = [
+      [T('Datei'), esc(i.name) + ' · ' + fmtSize(i.size)],
+      [T('Bezeichnung'), esc(i.label || '–')],
+      [T('Abbild'), i.windows.image ? '<code>' + esc(i.windows.image.replace(/\//g, '\\')) + '</code> · ' + fmtSize(i.windows.imageSize)
+        : '<span style="color:var(--warn)">' + T('fehlt – keine Windows-Installations-ISO?') + '</span>'],
+      [T('Booten'), i.boot.length ? i.boot.map(bootLabel).join(', ') : '<span style="color:var(--warn)">' + T('kein Bootkatalog – die neue ISO startet nicht') + '</span>'],
+      [T('Inhalt'), F('{0} Dateien, {1} Ordner', i.files.length, i.dirs.length)]
+    ];
+    if (old) {
+      rows.push([T('Wird ersetzt'), old === 1 ? T('1 Datei unter $OEM$, sources\\$OEM$ bzw. $WinPEDriver$ aus der Quelle')
+        : F('{0} Dateien unter $OEM$, sources\\$OEM$ bzw. $WinPEDriver$ aus der Quelle', old)]);
+    }
+    if (i.files.some((f) => f.path.toLowerCase() === 'autounattend.xml')) {
+      rows.push(['autounattend.xml', state.unattend && state.unattend.xml
+        ? T('in der Quelle vorhanden – die importierte Antwortdatei ersetzt sie')
+        : T('in der Quelle vorhanden – beim Erzeugen wird gefragt, ob sie übernommen und ergänzt wird')]);
+    }
+    box.innerHTML = '<dl>' + rows.map((r) => '<dt>' + r[0] + '</dt><dd>' + r[1] + '</dd>').join('') + '</dl>';
+  }
+
+  /*  Liegt in der Quelle eine autounattend.xml und hat der Benutzer keine
+      importiert, wuerde die des Generators sie ersetzen. Einmal je Quelle
+      fragen: uebernehmen und ergaenzen oder ersetzen. */
+  async function isoAdoptUnattend() {
+    if (isoSource.unattendDone) return;
+    isoSource.unattendDone = true;
+    if ((state.options.trigger || 'both') === 'setupcomplete' || (state.unattend && state.unattend.xml)) return;
+    const f = isoSource.info.files.find((x) => x.path.toLowerCase() === 'autounattend.xml');
+    if (!f) return;
+    if (!confirm(T('Die Quell-ISO enthält bereits eine autounattend.xml.\n\nOK: übernehmen und um die Aufrufe des Generators ergänzen (empfohlen)\nAbbrechen: durch die Antwortdatei des Generators ersetzen'))) return;
+    const text = await f.data.text();
+    await importFile(new File([text], 'autounattend.xml', { type: 'text/xml' }), { forceType: 'unattend' });
+  }
+
+  function isoName() {
+    const base = (isoSource.info.name || 'Windows.iso').replace(/\.iso$/i, '');
+    return base + '-' + (state.meta.name || 'OEM').replace(/[^\w.-]+/g, '_') + '.iso';
+  }
+
+  async function isoContents() {
+    const src = isoSource.info;
+    const gen = previewFiles.map((f) => ({ path: f.path, data: f.data }));
+    gen.push({ path: (state.meta.name || 'Projekt').replace(/[^\w.-]+/g, '_') + '.oemproj.json', data: projectJson() });
+    const genKeys = new Set(gen.map((e) => e.path.toLowerCase()));
+    const noPrompt = !!(state.iso && state.iso.noPrompt);
+    let files = src.files.filter((f) => !ISO_DROP.test(f.path) && !genKeys.has(f.path.toLowerCase()));
+    if (noPrompt) files = files.filter((f) => f.path.toLowerCase() !== 'boot/bootfix.bin');
+    const boot = src.boot.map((b) => Object.assign({}, b));
+    if (noPrompt && src.windows.efiNoPrompt) {
+      const data = new Uint8Array(await src.windows.efiNoPrompt.data.arrayBuffer());
+      boot.filter((b) => b.platform === 0xEF).forEach((b) => {
+        if (b.count > 1) b.count = Math.min(0xFFFF, Math.ceil(data.length / 512));
+        b.data = data;
+      });
+    }
+    return {
+      label: src.label, isoLabel: src.isoLabel, volId: src.volId, fileSetId: src.fileSetId,
+      root: src.root, dirs: src.dirs.filter((d) => !ISO_DROP.test(d.path)),
+      files: files.concat(gen), boot,
+      filePerms: mostCommon(src.files.map((f) => f.perms)), dirPerms: mostCommon(src.dirs.map((d) => d.perms))
+    };
+  }
+
+  function mostCommon(arr) {
+    const n = new Map();
+    let best = 0, bestN = 0;
+    arr.forEach((v) => { if (!v) return; const c = (n.get(v) || 0) + 1; n.set(v, c); if (c > bestN) { best = v; bestN = c; } });
+    return best || undefined;
+  }
+
+  async function exportIso() {
+    if (!isoSource) {
+      if (!(await chooseIsoSource())) return;
+    } else {
+      /* Quelle seit dem Einlesen veraendert oder geloescht? */
+      try { await isoSource.file.slice(0, 1).arrayBuffer(); }
+      catch (e) {
+        isoSource = null; renderIsoSource();
+        toast(T('Die Quell-ISO ist nicht mehr lesbar – bitte neu wählen.'), 'err');
+        return;
+      }
+    }
+    await isoAdoptUnattend();
+    previewFiles = Templates.build(state);
+
+    const src = isoSource.info;
+    const notes = [];
+    if (!src.windows.image) notes.push(T('In der Quell-ISO fehlt sources\\install.wim bzw. install.esd – sie ist vermutlich keine Windows-Installations-ISO.'));
+    if (!src.boot.length) notes.push(T('Die Quell-ISO hat keinen Bootkatalog – die neue ISO startet nicht von selbst.'));
+    if (state.iso && state.iso.noPrompt) {
+      notes.push(src.windows.efiNoPrompt
+        ? T('Ohne „Press any key“: Die ISO startet Windows Setup sofort. Bleibt sie in einer VM eingelegt, beginnt die Installation nach dem ersten Neustart von vorn – mit einer autounattend.xml, die Datenträger löscht, ein echtes Risiko.')
+        : T('„Ohne Press any key“ ist gewählt, aber efi\\microsoft\\boot\\efisys_noprompt.bin fehlt in der Quelle – UEFI fragt weiterhin nach.'));
+    }
+    const lost = missingBinaries();
+    if (lost.length) notes.push(F('Diese Dateien fehlen und kommen nur als Platzhalter in die ISO: {0}', lost.join(', ')));
+    if (notes.length && !confirm(F('ISO erzeugen aus „{0}“:\n\n{1}\n\nFortfahren?', src.name, notes.map((x) => '• ' + x).join('\n\n')))) return;
+
+    let handle;
+    try {
+      handle = await pickSaveTarget(isoName(), {
+        id: 'oem-iso', description: T('ISO-Abbild'), accept: { 'application/x-iso9660-image': ['.iso'] }, strict: true
+      });
+    } catch (e) {
+      /* Einlesen und Rueckfragen haben die Benutzeraktion aufgebraucht */
+      toast(T('Quell-ISO ist eingelesen – zum Speichern bitte noch einmal auf „ISO erzeugen“ klicken.'), 'info');
+      return;
+    }
+    if (handle === false) return;
+
+    const btn = $('#btnExportIso');
+    const label = btn.textContent;
+    btn.disabled = true; $('#btnExport').disabled = true; $('#btnExportFolder').disabled = true;
+    btn.textContent = T('Erzeuge …');
+    let blob = null;
+    try {
+      blob = IsoImage.buildIso(await isoContents());
+      const total = blob.size;
+      const over4 = total >= 4 * 1024 * 1024 * 1024;
+      if (handle) {
+        let last = -1;
+        try {
+          await writeToHandle(handle, blob, (n) => {
+            const pct = Math.floor(n * 100 / total);
+            if (pct !== last) { last = pct; btn.textContent = F('ISO {0} %', pct); }
+          });
+        } catch (e) {
+          if (!over4) throw e;
+          const e2 = new Error(((e && e.message) || e) + ' ' + T('– Die ISO ist größer als 4 GB. Liegt das Ziel auf einem FAT32-Laufwerk (viele USB-Sticks)? FAT32 erlaubt höchstens 4 GB je Datei – die ISO auf die Festplatte oder ein NTFS-/exFAT-Laufwerk speichern.'));
+          e2.name = e.name; e2.data = e.data; e2.path = e.path;
+          throw e2;
+        }
+        toast(F('ISO gespeichert: {0} ({1})', handle.name, fmtSize(total)), 'ok');
+      } else {
+        download(blob, isoName());
+        toast(F('ISO erstellt ({0}) – der Browser lädt sie herunter.', fmtSize(total)), 'ok');
+      }
+    } catch (e) {
+      console.error(e);
+      if (e && e.isoCode) toast(F('ISO nicht erzeugt: {0}', isoErrorText(e)), 'err');
+      else if (isoSource && !(await stillReadable(isoSource.file))) {
+        isoSource = null; renderIsoSource();
+        alert(F('Export fehlgeschlagen: {0}', e.message) + '\n\n' +
+          T('Die Quell-ISO ist nicht mehr lesbar – sie wurde seit dem Einlesen geändert, verschoben oder gelöscht. Bitte neu wählen.'));
+      } else if (isReadError(e) || (e && e.data && !(await stillReadable(e.data)))) {
+        const who = (e && e.data && markUnreadable(e.data)) || e.path || '?';
+        alert(F('Export fehlgeschlagen: {0}', e.message) + '\n\n' +
+          F('Die Datei ist nicht mehr lesbar – sie wurde seit dem Hinzufügen geändert, verschoben oder gelöscht. Bitte neu zuordnen: {0}', who));
+        renderFiles(); renderDrivers(); refresh();
+      } else {
+        toast(F('Export fehlgeschlagen: {0}', e.message), 'err');
+      }
+    } finally {
+      btn.disabled = false; $('#btnExport').disabled = false; $('#btnExportFolder').disabled = false;
+      btn.textContent = label;
+    }
+  }
+
   /* ---------------- Ereignisse ---------------- */
 
   function wire() {
@@ -1927,6 +2184,9 @@
 
     $('#btnExport').addEventListener('click', exportZip);
     $('#btnExportFolder').addEventListener('click', exportFolder);
+    $('#btnExportIso').addEventListener('click', exportIso);
+    $('#btnIsoPick').addEventListener('click', chooseIsoSource);
+    $('#btnIsoDrop').addEventListener('click', () => { isoSource = null; renderIsoSource(); });
     if (typeof window.showDirectoryPicker !== 'function') $('#btnExportFolder').hidden = true;
     $('#btnSaveProject').addEventListener('click', saveProject);
     $('#btnLoadProject').addEventListener('click', openProjectFile);

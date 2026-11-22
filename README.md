@@ -74,6 +74,9 @@ ZIP entpacken, `index.html` öffnen. Im Paket sind die Screenshots nur verlinkt.
   Weiterarbeiten, ZIP-Export (ab 4 GB automatisch ZIP64) oder (Chrome, Edge) **Export
   direkt in einen Ordner** bzw. auf den USB-Stick. Chrome und Edge fragen beim Speichern mit einem
   „Speichern unter“-Dialog nach dem Ziel; Firefox und Safari laden die Datei herunter.
+* **ISO erzeugen** – Windows-ISO wählen, die erzeugten Dateien kommen hinzu, es entsteht
+  eine neue, bootfähige ISO (BIOS und UEFI) – ohne oscdimg, ADK oder Adminrechte
+  (siehe unten).
 
 ## Zwei-Phasen-Modell
 
@@ -367,6 +370,39 @@ Dateitypen, die Chrome nicht in Ordner schreibt (vor allem `.dll`, dazu `.ini`, 
 `Install.ps1` benennt sie vor dem ersten Modul zurück. Für Treiber unter
 `$WinPEDriver$` geht das nicht – dafür das ZIP verwenden.
 
+### ISO erzeugen
+
+Wer das Medium ohnehin als ISO braucht – für VMs, Ventoy oder Rufus –, spart sich mit
+**ISO erzeugen** das Entpacken und das Neuschreiben mit oscdimg, AnyBurn & Co.:
+
+1. **ISO erzeugen** klicken (oder vorab *Einstellungen → ISO-Abbild → Quell-ISO wählen*)
+   und die Original-ISO von Microsoft wählen. Die Übersicht zeigt Bezeichnung, Abbild,
+   Booteinträge und was ersetzt wird.
+2. Ziel wählen – fertig. Chrome und Edge fragen per „Speichern unter“ und zeigen den
+   Fortschritt im Knopf; Firefox lädt herunter.
+
+Die neue ISO enthält den gesamten Inhalt der Quelle plus `autounattend.xml`, `$OEM$`,
+`$WinPEDriver$`, `LIESMICH.txt` und die Projektdatei. Vorhandene Ordner `$OEM$`,
+`sources\$OEM$` und `$WinPEDriver$` der Quelle werden ersetzt. Bringt die Quelle eine
+eigene `autounattend.xml` mit und ist keine importiert, fragt der Generator einmal, ob sie
+übernommen und ergänzt oder ersetzt wird. `install.wim`/`install.esd` und `boot.wim`
+bleiben unverändert. Anders als beim Ordner-Export kommen `.dll`-Dateien unter ihrem
+Namen an – auch unter `$WinPEDriver$`.
+
+Aufbau wie bei Microsoft (`oscdimg -u2 -udfver102`): UDF 1.02 mit dem gesamten Inhalt,
+ISO 9660 nur als Hülle mit einer `README.TXT`, El-Torito-Bootkatalog mit den Einträgen der
+Quelle (BIOS `etfsboot.com`, UEFI `efisys.bin`). Dateien über 4 GB liegen in mehreren
+Extents; jede Datei beginnt auf einer 4-KB-Grenze. Die Quell-ISO wird nicht in den
+Speicher geladen – ihre Dateien gehen als Ausschnitt der Datei direkt ins Ergebnis.
+
+*Ohne „Press any key“ starten* (Einstellungen) nimmt `efisys_noprompt.bin` und lässt
+`boot\bootfix.bin` weg. Praktisch für VMs, aber Vorsicht: Bleibt die ISO eingelegt,
+beginnt die Installation nach jedem Neustart von vorn.
+
+Nicht unterstützt sind ISOs von Brennprogrammen mit UDF 2.x (Metadaten-Partition) oder
+Festplatten-Emulation im Bootkatalog – dafür die Original-ISO verwenden. Eine ISO über
+4 GB passt nicht auf ein FAT32-Laufwerk.
+
 Große Pakete passen auch ins ZIP: Ab 4 GB oder 65.535 Dateien schreibt der Generator
 automatisch **ZIP64**, das der Windows-Explorer ab Windows 10 und 7-Zip entpacken.
 Dateien über 128 MB kommen unkomprimiert hinein – Treiber und Installer sind meist
@@ -452,6 +488,15 @@ schreibt seinen Inhalt komplett neu und würde dort gesetzte Zähler oder Pfade
 node tools/check-i18n.js
 ```
 
+Der ISO-Schreiber (`js/iso.js`) lässt sich ohne Browser prüfen: Das Testwerkzeug baut
+eine synthetische Windows-ISO, liest sie zurück, schreibt sie wie die Oberfläche neu
+und vergleicht – mit `udfinfo` und 7-Zip, sofern installiert, auch gegen unabhängige
+UDF-Implementierungen:
+
+```bash
+node tools/test-iso.js
+```
+
 Prozesse werden über `ProcessStartInfo` gestartet, nicht über
 `Start-Process -PassThru`: dessen Prozessobjekt liefert nach `WaitForExit()`
 einen leeren `ExitCode`, weil PowerShell das Handle nicht offen hält. Das
@@ -468,6 +513,7 @@ js/version.js     Versionsnummer (einzige Stelle)
 js/help.js        Hilfetexte je Seite (Deutsch/Englisch)
 js/i18n.js        Wörterbuch Deutsch/Englisch und Sprachumschaltung
 js/zip.js         ZIP-Writer (Deflate über CompressionStream, sonst „stored“)
+js/iso.js         ISO lesen und neu schreiben (UDF 1.02, El Torito)
 js/catalog.js     Katalog für Tweaks, Bloatware und Windows-Komponenten, Paketmanager
 js/importers.js   Parser für Bundles, SetupComplete.cmd und ODT-XML
 js/templates.js   Erzeugung sämtlicher Skripte
@@ -475,6 +521,7 @@ js/app.js         Zustand, Oberfläche, Import/Export
 samples/          Beispieldateien zum Testen der Importfunktion
 tools/            check-escapes.js – prüft die Template-Literale auf verschluckte Escapes
                   check-i18n.js    – prüft Wörterbuch gegen Oberfläche
+                  test-iso.js      – prüft den ISO-Schreiber
                   build-release.js – schnürt das Release-Paket
 docs/screenshots/ Bilder für das README (nicht im Release-Paket)
 docs/releases/    Release-Notes je Version

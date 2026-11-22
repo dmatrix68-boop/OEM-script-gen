@@ -72,6 +72,8 @@ unpack the ZIP and open `index.html`. Inside the package the screenshots are lin
   working, ZIP export (ZIP64 from 4 GB on) or (Chrome, Edge) **export straight into a
   folder** or onto the USB stick. Chrome and Edge ask for the target with a "Save as"
   dialog; Firefox and Safari download the file.
+* **Create ISO** – pick a Windows ISO, the generated files are added and a new bootable
+  ISO (BIOS and UEFI) is written – without oscdimg, ADK or admin rights (see below).
 
 ## Two-phase model
 
@@ -356,6 +358,39 @@ points out. File types Chrome does not write to folders (above all `.dll`, plus 
 `Install.ps1` renames them back before the first module. That does not work for drivers
 under `$WinPEDriver$` – use the ZIP for those.
 
+### Create ISO
+
+If you need the medium as an ISO anyway – for VMs, Ventoy or Rufus – **Create ISO** saves
+unpacking and rewriting with oscdimg, AnyBurn & co.:
+
+1. Click **Create ISO** (or beforehand *Settings → ISO image → Choose source ISO*) and pick
+   the original ISO from Microsoft. The summary shows the label, image, boot entries and
+   what gets replaced.
+2. Pick the destination – done. Chrome and Edge ask via "Save as" and show the progress in
+   the button; Firefox downloads.
+
+The new ISO holds the whole content of the source plus `autounattend.xml`, `$OEM$`,
+`$WinPEDriver$`, `README.txt` and the project file. Existing `$OEM$`, `sources\$OEM$`
+and `$WinPEDriver$` folders of the source are replaced. If the source brings its own
+`autounattend.xml` and none is imported, the generator asks once whether to adopt and
+extend it or to replace it. `install.wim`/`install.esd` and `boot.wim` stay unchanged.
+Unlike the folder export, `.dll` files arrive under their own name – under
+`$WinPEDriver$` too.
+
+Layout as with Microsoft (`oscdimg -u2 -udfver102`): UDF 1.02 with the whole content,
+ISO 9660 only as a shell with one `README.TXT`, El Torito boot catalogue with the source's
+entries (BIOS `etfsboot.com`, UEFI `efisys.bin`). Files over 4 GB span several extents;
+every file starts on a 4 KB boundary. The source ISO is not loaded into memory – its files
+go into the result as slices of the file.
+
+*Start without "Press any key"* (settings) uses `efisys_noprompt.bin` and leaves out
+`boot\bootfix.bin`. Handy for VMs, but careful: if the ISO stays inserted, the
+installation starts over after every restart.
+
+Not supported are ISOs from burning software with UDF 2.x (metadata partition) or
+hard-disk emulation in the boot catalogue – use the original ISO instead. An ISO over
+4 GB does not fit on a FAT32 drive.
+
 Large packages fit into the ZIP as well: from 4 GB or 65,535 files on the generator
 writes **ZIP64** automatically, which Windows Explorer (Windows 10 and later) and 7-Zip
 unpack. Files over 128 MB go in uncompressed – drivers and installers are usually
@@ -440,6 +475,14 @@ for it:
 node tools/check-i18n.js
 ```
 
+The ISO writer (`js/iso.js`) can be checked without a browser: the test tool builds a
+synthetic Windows ISO, reads it back, rewrites it the way the interface does and compares –
+with `udfinfo` and 7-Zip, if installed, against independent UDF implementations too:
+
+```bash
+node tools/test-iso.js
+```
+
 Processes are started through `ProcessStartInfo`, not through
 `Start-Process -PassThru`: that process object returns an empty `ExitCode` after
 `WaitForExit()`, because PowerShell does not keep the handle open. It made the
@@ -456,6 +499,7 @@ js/version.js     version number (the only place)
 js/help.js        help texts per page (German/English)
 js/i18n.js        German/English dictionary and language switching
 js/zip.js         ZIP writer (deflate via CompressionStream, otherwise "stored")
+js/iso.js         reads and rewrites ISO images (UDF 1.02, El Torito)
 js/catalog.js     catalog of tweaks, bloatware and Windows components, package managers
 js/importers.js   parsers for bundles, SetupComplete.cmd and ODT XML
 js/templates.js   generation of every script
@@ -463,6 +507,7 @@ js/app.js         state, interface, import/export
 samples/          sample files for testing the import function
 tools/            check-escapes.js – checks the template literals for swallowed escapes
                   check-i18n.js    – checks the dictionary against the interface
+                  test-iso.js      – checks the ISO writer
                   build-release.js – builds the release package
 docs/screenshots/ images for the README (not in the release package)
 docs/releases/    release notes per version

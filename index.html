@@ -21,6 +21,7 @@
     <button class="btn" id="btnLoadProject" data-i18n-title="projektdatei-oemproj-json-laden" title="Projektdatei (.oemproj.json) laden" data-i18n="projekt-laden">Projekt laden</button>
     <button class="btn" id="btnSaveProject" data-i18n-title="projektdatei-speichern" title="Projektdatei speichern" data-i18n="projekt-speichern">Projekt speichern</button>
     <button class="btn" id="btnExportFolder" data-i18n-title="in-ordner-exportieren-titel" title="Struktur direkt in einen Ordner schreiben – z. B. ins Wurzelverzeichnis des USB-Sticks. Ohne ZIP, nichts zu entpacken (Chrome, Edge)" data-i18n="in-ordner-exportieren">In Ordner exportieren</button>
+    <button class="btn" id="btnExportIso" data-i18n-title="iso-erzeugen-titel" title="Windows-ISO wählen – die erzeugten Dateien kommen hinzu, es entsteht eine neue, bootfähige ISO (BIOS und UEFI). Ohne Zusatzwerkzeuge" data-i18n="iso-erzeugen">ISO erzeugen</button>
     <button class="btn primary" id="btnExport" data-i18n-title="komplette-oem-struktur-als-zip" title="Komplette OEM-Struktur als ZIP herunterladen" data-i18n="zip-erzeugen">ZIP erzeugen</button>
     <div class="langswitch" role="group" aria-label="Sprache / Language"><button class="lang" id="langDe" data-lang="de" title="Deutsch">DE</button><button class="lang" id="langEn" data-lang="en" title="English">EN</button></div>
   </div>
@@ -501,6 +502,25 @@
         </div>
       </div>
       <div class="panel">
+        <h3 data-i18n="iso-abbild">ISO-Abbild</h3>
+        <p class="hint" data-i18n="iso-abbild-hinweis"><b>ISO erzeugen</b> (oben) schreibt eine neue Windows-ISO: Inhalt der
+        Quell-ISO plus die erzeugten Dateien – <code>autounattend.xml</code>, <code>$OEM$</code>, <code>$WinPEDriver$</code>.
+        Vorhandene Ordner <code>$OEM$</code>, <code>sources\$OEM$</code> und <code>$WinPEDriver$</code> der Quelle werden ersetzt.
+        Die ISO bootet wie das Original per BIOS und UEFI; <code>install.wim</code> bzw. <code>install.esd</code> bleibt
+        unverändert. Gedacht für die Original-ISO von Microsoft.</p>
+        <div id="isoSourceBox" class="summary"></div>
+        <div class="row">
+          <button class="btn small" id="btnIsoPick" data-i18n="quell-iso-waehlen">Quell-ISO wählen</button>
+          <button class="btn small" id="btnIsoDrop" hidden data-i18n="quell-iso-verwerfen">Auswahl aufheben</button>
+          <input type="file" id="isoInput" accept=".iso" hidden>
+        </div>
+        <label class="chk"><input type="checkbox" id="isoNoPrompt"> <span data-i18n="iso-ohne-press-any-key">Ohne „Press any key to boot from CD or DVD“ starten
+        (<code>efisys_noprompt.bin</code>, ohne <code>bootfix.bin</code>) – nur für VMs und Automatisierung</span></label>
+        <p class="hint" data-i18n="iso-ohne-press-any-key-hinweis">Vorsicht: Ohne Rückfrage startet Windows Setup bei jedem
+        Neustart erneut, solange die ISO eingelegt ist – mit einer <code>autounattend.xml</code>, die Datenträger einteilt, wird
+        der Rechner dann immer wieder neu installiert.</p>
+      </div>
+      <div class="panel">
         <h3 data-i18n="projekt">Projekt</h3>
         <div class="row">
           <button class="btn small danger" id="btnReset" data-i18n="projekt-zuruecksetzen">Projekt zurücksetzen</button>
@@ -546,6 +566,7 @@
 <script src="js/version.js"></script>
 <script src="js/i18n.js"></script>
 <script src="js/zip.js"></script>
+<script src="js/iso.js"></script>
 <script src="js/catalog.js"></script>
 <script src="js/importers.js"></script>
 <script src="js/templates.js"></script>
