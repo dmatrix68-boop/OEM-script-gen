@@ -68,6 +68,89 @@ static class Program
     return v.ValueKind == JsonValueKind.Number ? v.GetInt32() : null;
   }
 
+  // Wie im Port: fehlt ein Wert, gilt die Voreinstellung; ein ausdrueckliches null bleibt null.
+  static int? IntOr(JsonElement o, string key, int? fallback)
+  {
+    if (!o.TryGetProperty(key, out JsonElement v)) return fallback;
+    return v.ValueKind == JsonValueKind.Number ? v.GetInt32() : null;
+  }
+
+  static bool BoolOr(JsonElement o, string key, bool fallback)
+  {
+    if (!o.TryGetProperty(key, out JsonElement v)) return fallback;
+    return v.ValueKind == JsonValueKind.True;
+  }
+
+  static IPESettings BuildPE(UnattendGenerator gen, JsonElement c, IEditionSettings edition)
+  {
+    JsonElement pe = c.TryGetProperty("pe", out JsonElement x) ? x : default;
+    string mode = pe.ValueKind == JsonValueKind.Object ? Str(pe, "mode", "default") : "default";
+    if (mode == "script") return new ScriptPESetttings(Str(pe, "script"));
+    if (mode != "generate")
+    {
+      return new DefaultPESettings(
+        EditionSettings: edition,
+        BypassRequirementsCheck: Bool(c, "bypassRequirements"),
+        UseConfigurationSet: Bool(c, "useConfigurationSet")
+      );
+    }
+
+    JsonElement p = Obj(pe, "partition");
+    JsonElement t = p.TryGetProperty("target", out JsonElement tt) ? tt : default;
+    ITargetDiskSettings target = (t.ValueKind == JsonValueKind.Object ? Str(t, "mode", "generated") : "generated") switch
+    {
+      "interactive" => new InteractiveTargetDiskSettings(),
+      "fixed" => new FixedTargetDiskSettings(IntOr(t, "index", 0) ?? 0),
+      "script" => new ScriptTargetDiskSettings(Str(t, "script")),
+      _ => new GeneratedTargetDiskSettings(
+        minSizeGiB: IntOr(t, "minSizeGiB", Constants.TargetDiskMinSizeGiB),
+        maxSizeGiB: IntOr(t, "maxSizeGiB", Constants.TargetDiskMaxSizeGiB),
+        index: IntOr(t, "index", 0),
+        assertNoPartitions: BoolOr(t, "assertNoPartitions", true),
+        assertInterfaceType: BoolOr(t, "assertInterfaceType", false),
+        assertMediaType: BoolOr(t, "assertMediaType", false)
+      ),
+    };
+    IPartitionSettings partition = Str(p, "mode") switch
+    {
+      "custom" => new CustomPartitionSettings(Str(p, "customScript")),
+      "unattended" => new UnattendedPartitionSettings(
+        TargetDiskSettings: target,
+        PartitionLayout: Enum.Parse<PartitionLayout>(Str(p, "layout", "Automatic")),
+        RecoveryMode: Enum.Parse<RecoveryMode>(Str(p, "recovery", "Partition")),
+        SystemSize: IntOr(p, "systemSize", Constants.SystemPartitionSize) ?? Constants.SystemPartitionSize,
+        RecoverySize: IntOr(p, "recoverySize", Constants.RecoveryPartitionSize) ?? Constants.RecoveryPartitionSize
+      ),
+      _ => new InteractivePartitionSettings(),
+    };
+    JsonElement i = Obj(pe, "installFrom");
+    IInstallFromSettings installFrom = Str(i, "mode") switch
+    {
+      "index" => new IndexInstallFromSettings(IntOr(i, "index", 1) ?? 1),
+      "name" => new NameInstallFromSettings(Str(i, "name")),
+      "edition" => new EditionInstallFromSettings(gen.Lookup<WindowsEdition>(Str(i, "edition"))),
+      _ => new InteractiveInstallFromSettings(),
+    };
+    JsonElement pf = Obj(pe, "pagingFile");
+    IPagingFileSettings paging = Str(pf, "mode") switch
+    {
+      "none" => new NoPagingFileSettings(),
+      "custom" => new CustomPagingFileSettings(IntOr(pf, "initialSizeMiB", 0) ?? 0, IntOr(pf, "maxSizeMiB", 0) ?? 0),
+      _ => new AutomaticPagingFileSettings(),
+    };
+    return new GeneratePESettings(
+      PartitionSettings: partition,
+      InstallFromSettings: installFrom,
+      PagingFileSettings: paging,
+      DisableDefender: Bool(pe, "disableDefender"),
+      Disable8Dot3Names: Bool(pe, "disable8Dot3Names"),
+      PauseBeforeFormatting: Bool(pe, "pauseBeforeFormatting"),
+      PauseBeforeReboot: Bool(pe, "pauseBeforeReboot"),
+      CompactOs: Bool(pe, "compactOs"),
+      SkipIntegrityCheck: Bool(pe, "skipIntegrityCheck")
+    );
+  }
+
   static JsonElement Obj(JsonElement o, string key)
   {
     return o.GetProperty(key);
@@ -186,11 +269,7 @@ static class Program
       ComputerNameSettings = computerName,
       TimeZoneSettings = timeZone,
       WifiSettings = wifi,
-      PESettings = new DefaultPESettings(
-        EditionSettings: edition,
-        BypassRequirementsCheck: Bool(c, "bypassRequirements"),
-        UseConfigurationSet: Bool(c, "useConfigurationSet")
-      ),
+      PESettings = BuildPE(gen, c, edition),
       ActivationKey = activation.Length > 0 ? new ProductKey(activation) : null,
       BypassNetworkCheck = Bool(c, "bypassNetwork"),
       ExpressSettings = express,

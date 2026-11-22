@@ -149,6 +149,21 @@
     return { append: (v) => (Array.isArray(v) ? v.forEach(one) : one(v)) };
   }
 
+  /* Main.cs: EchoProcessor - Zeilen sicher als echo-Befehle fuer eine .cmd-Datei */
+  const RESERVED = new Set(['^', '&', '<', '>', '|', '%', ')', '"']);
+  function echoProcess(lines, escape) {
+    return lines.map((l) => l.trim()).filter((l) => l.length > 0)
+      .map((l) => (escape === false ? l : Array.from(l).map((ch) => (RESERVED.has(ch) ? '^' : '') + ch).join('')))
+      .map((l) => 'echo:' + l);
+  }
+
+  /* Wie StringReader.ReadLine: \r\n, \n oder \r; ein abschliessender Umbruch ergibt keine leere Zeile. */
+  function csSplitLines(text) {
+    const lines = String(text).split(/\r\n|\n|\r/);
+    if (lines.length && lines[lines.length - 1] === '') lines.pop();
+    return lines;
+  }
+
   function commandBuilder(hidePowerShellWindows) {
     const style = hidePowerShellWindows ? 'Hidden' : 'Normal';
     return {
@@ -161,7 +176,33 @@
         return 'powershell.exe -WindowStyle "' + style + '" -NoProfile -Command "' + value + '"';
       },
       invokePowerShellScript: (f) => 'powershell.exe -WindowStyle "' + style + '" -ExecutionPolicy "Unrestricted" -NoProfile -File "' + f + '"',
-      invokeVBScript: (f) => 'cscript.exe //E:vbscript "' + f + '"'
+      invokeVBScript: (f) => 'cscript.exe //E:vbscript "' + f + '"',
+      /* Main.cs: WriteToFilePE - Befehle zu je hoechstens 255 Zeichen, die die
+         Datei Zeile fuer Zeile anhaengen. */
+      writeToFilePE(path, lines) {
+        if (/\s/.test(path)) throw new Error("Path '" + path + "' must not contain whitespace characters.");
+        const maxLineLength = 255;
+        const segments = echoProcess(lines);
+        const result = [];
+        while (segments.length > 0) {
+          let prev = null, current = null;
+          for (let take = 1; take <= segments.length; take++) {
+            current = 'cmd.exe /c >>' + path + ' (' + segments.slice(0, take).join('&') + ')';
+            if (current.length > maxLineLength) {
+              if (prev === null) {
+                throw new ConfigurationException("Line '" + current + "' is too long. You need to add line breaks to your input to make it shorter.");
+              }
+              result.push(prev);
+              segments.splice(0, take - 1);
+              current = null;
+              break;
+            }
+            prev = current;
+          }
+          if (current !== null) { result.push(current); break; }
+        }
+        return result;
+      }
     };
   }
 
@@ -230,7 +271,8 @@
       newElement: (name, parent) => newElement(doc, name, parent),
       newSimpleElement: (name, parent, text) => newSimpleElement(doc, name, parent, text),
       getOrCreateElement: (pass, component, element) => getOrCreateElement(doc, pass, component, element),
-      appender: (which) => appender(doc, CommandConfig[which])
+      appender: (which) => appender(doc, CommandConfig[which]),
+      insertTextWithIndentation
     };
 
     /* Main.cs: EmbedFile - Dateien in <Extensions> ablegen; ExtractScripts.ps1
@@ -336,7 +378,7 @@
 
   global.UG = {
     NS, ConfigurationException, res, lookup, list, inRange, generate, serialize,
-    selectSingle, selectAll, splitLines, modifiers: [],
+    selectSingle, selectAll, splitLines, csSplitLines, echoProcess, modifiers: [],
     portCommit: global.UGPort ? global.UGPort.commit : null
   };
 })(typeof window !== 'undefined' ? window : globalThis);

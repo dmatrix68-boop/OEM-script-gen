@@ -92,7 +92,8 @@
   const Bypass = {
     name: 'Bypass',
     process(c) {
-      if (c.config.bypassRequirements) {
+      const peDefault = !c.config.pe || c.config.pe.mode === 'default';
+      if (peDefault && c.config.bypassRequirements) {
         const a = c.appender('windowsPE');
         for (const v of ['BypassTPMCheck', 'BypassSecureBootCheck', 'BypassRAMCheck']) {
           a.append(c.cb.registryCommand('add "HKLM\\SYSTEM\\Setup\\LabConfig" /v ' + v + ' /t REG_DWORD /d 1 /f'));
@@ -116,15 +117,15 @@
       const keyElement = c.sel('//u:UserData/u:ProductKey/u:Key');
       const uiElement = c.sel('//u:UserData/u:ProductKey/u:WillShowUI');
       const set = (key, ui) => { keyElement.textContent = key; uiElement.textContent = ui; };
-      /* PORT: Nur DefaultPESettings - der pe.cmd-Modus folgt in Schritt 2. */
-      switch (e.mode) {
+      const peDefault = !c.config.pe || c.config.pe.mode === 'default';
+      if (peDefault) switch (e.mode) {
         case 'edition': set(lookup('WindowsEdition', e.edition).ProductKey, 'OnError'); break;
         case 'key': set(productKey(e.key), 'OnError'); break;
         case 'interactive': set('00000-00000-00000-00000-00000', 'Always'); break;
         case 'firmware': keyElement.parentNode.removeChild(keyElement); uiElement.textContent = 'Never'; break;
         default: throw new Error('Unbekannter Modus fuer die Edition: ' + e.mode);
       }
-      const activation = c.config.activationKey ? productKey(c.config.activationKey) : (e.mode === 'key' ? productKey(e.key) : null);
+      const activation = c.config.activationKey ? productKey(c.config.activationKey) : (peDefault && e.mode === 'key' ? productKey(e.key) : null);
       if (activation) c.getOrCreateElement('specialize', 'Microsoft-Windows-Shell-Setup', 'ProductKey').textContent = activation;
     }
   };
@@ -173,14 +174,555 @@
   };
 
   /* ---------- modifier/Disk.cs ----------
-     PORT: nur DefaultPESettings. pe.cmd, Partitionierung und Zieldatentraeger
-     folgen in Schritt 2; bis dahin waehlt man die Partitionen in Setup selbst. */
+     Standard (DefaultPESettings): Windows Setup partitioniert, nur
+     UseConfigurationSet wird gesetzt. "generate"/"script" (ICmdPESettings):
+     Die windowsPE-Phase uebernimmt ein eigenes pe.cmd - Zieldatentraeger
+     waehlen, mit diskpart partitionieren, Image per dism anwenden, bcdboot,
+     $OEM$ per robocopy kopieren, neu starten.
+
+     csRaw bildet C#-Raw-Strings nach (""" ... """): erste und letzte Zeile
+     entfallen, die Einrueckung der letzten Zeile wird von allen Zeilen
+     abgezogen, reine Leerraum-Zeilen werden leer. So bleiben die Bloecke des
+     Originals fast wortgleich und lassen sich bei Aenderungen vergleichen.
+     Eingesetzte Werte duerfen keine Zeilenumbrueche enthalten. */
+  function csRaw(strings, ...vals) {
+    const text = String.raw({ raw: strings.raw }, ...vals);
+    const lines = text.split('\n');
+    const indent = lines[lines.length - 1];
+    if (lines[0].trim() !== '' || indent.trim() !== '') throw new Error('csRaw: Block muss mit Zeilenumbruch beginnen und enden.');
+    return lines.slice(1, -1).map((l) => (l.trim() === '' ? '' : (l.startsWith(indent) ? l.slice(indent.length) : l))).join('\n');
+  }
+  /* StringWriter mit WriteLine (Zeilenende \n) und Util.SplitLines */
+  function cmdWriter() {
+    const parts = [];
+    return {
+      writeLine: (s) => parts.push((s === undefined ? '' : s) + '\n'),
+      lines: () => UG.csSplitLines(parts.join(''))
+    };
+  }
+  const W = 'W', S = 'S', R = 'R';                  // DriveLetters
+  const PATHS = { PEScript: 'X:\\pe.cmd', DiskpartScript: 'X:\\diskpart.txt', TargetDiskScript: 'X:\\target.vbs', TargetDiskOutput: 'X:\\target.out' };
+  const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+  const SKIPPED = ['A', 'B'];
+  const DEFAULT_TARGET = { minSizeGiB: 100, maxSizeGiB: 4000, index: 0, assertNoPartitions: true, assertInterfaceType: false, assertMediaType: false };
+
+  function getTargetDiskScript(g) {
+    const w = cmdWriter();
+    w.writeLine(csRaw`
+      Function Fail(message)
+        WScript.Echo message
+        WScript.Quit 1
+      End Function
+
+      On Error Resume Next
+      Set wmi = GetObject("winmgmts:\\.\root\cimv2")
+      Set drives = wmi.InstancesOf("Win32_DiskDrive")
+      If Err.Number <> 0 Then
+        Fail "Could not enumerate disks: " & Err.Description
+      End If
+      Set accepted = CreateObject("Scripting.Dictionary")
+
+      For Each drive In drives
+        accept = True
+
+      `);
+    if (g.assertInterfaceType) {
+      w.writeLine(csRaw`
+          actual = drive.InterfaceType
+          If actual <> "IDE" And actual <> "SCSI" Then
+            accept = False
+          End If
+
+        `);
+    }
+    if (g.assertMediaType) {
+      w.writeLine(csRaw`
+          actual = drive.MediaType
+          If actual <> "Fixed hard disk media" Then
+            accept = False
+          End If
+
+        `);
+    }
+    if (g.minSizeGiB !== null && g.minSizeGiB !== undefined) {
+      w.writeLine(csRaw`
+          actual = CInt(drive.Size / 1024 / 1024 / 1024)
+          expected = ${g.minSizeGiB}
+          If actual < expected Then
+            accept = False
+          End If
+
+        `);
+    }
+    if (g.maxSizeGiB !== null && g.maxSizeGiB !== undefined) {
+      w.writeLine(csRaw`
+          actual = CInt(drive.Size / 1024 / 1024 / 1024)
+          expected = ${g.maxSizeGiB}
+          If actual > expected Then
+            accept = False
+          End If
+
+        `);
+    }
+    if (g.index !== null && g.index !== undefined) {
+      w.writeLine(csRaw`
+          actual = drive.Index
+          expected = ${g.index}
+          If actual <> expected Then
+            accept = False
+          End If
+
+        `);
+    }
+    if (g.assertNoPartitions) {
+      w.writeLine(csRaw`
+          actual = drive.Partitions
+          If actual > 0 Then
+            accept = False
+          End If
+
+        `);
+    }
+    w.writeLine(csRaw`
+        If accept Then
+          accepted.Add drive.Index, ""
+        End If
+      Next
+
+      If accepted.Count = 0 Then
+        Fail "No disk satisfied the given criteria."
+      ElseIf accepted.Count > 1 Then
+        Fail "Several disks (" & Join(accepted.Keys, ", ") & ") satisfied the given criteria."
+      Else
+        WScript.Echo Join(accepted.Keys)
+        WScript.Quit 0
+      End If
+      `);
+    return w.lines();
+  }
+
+  function getDiskpartScript(p, layout) {
+    const rec = (line) => (p.recovery === 'None' ? '' : line);
+    const t = p.target || {};
+    const targetDisk = t.mode === 'fixed' ? String(t.index) : '%TARGET_DISK%';
+    if (layout === 'MBR') {
+      return [
+        'SELECT DISK=' + targetDisk,
+        'CLEAN',
+        'CREATE PARTITION PRIMARY SIZE=' + p.systemSize,
+        'FORMAT QUICK FS=NTFS LABEL="System"',
+        'ASSIGN LETTER=' + S,
+        'ACTIVE',
+        'CREATE PARTITION PRIMARY',
+        rec('SHRINK MINIMUM=' + p.recoverySize),
+        'FORMAT QUICK FS=NTFS LABEL="Windows"',
+        'ASSIGN LETTER=' + W,
+        rec('CREATE PARTITION PRIMARY'),
+        rec('FORMAT QUICK FS=NTFS LABEL="Recovery"'),
+        rec('ASSIGN LETTER=' + R),
+        rec('SET ID=27')
+      ];
+    }
+    if (layout === 'GPT') {
+      return [
+        'SELECT DISK=' + targetDisk,
+        'CLEAN',
+        'CONVERT GPT',
+        'CREATE PARTITION EFI SIZE=' + p.systemSize,
+        'FORMAT QUICK FS=FAT32 LABEL="System"',
+        'ASSIGN LETTER=' + S,
+        'CREATE PARTITION MSR SIZE=16',
+        'CREATE PARTITION PRIMARY',
+        rec('SHRINK MINIMUM=' + p.recoverySize),
+        'FORMAT QUICK FS=NTFS LABEL="Windows"',
+        'ASSIGN LETTER=' + W,
+        rec('CREATE PARTITION PRIMARY'),
+        rec('FORMAT QUICK FS=NTFS LABEL="Recovery"'),
+        rec('ASSIGN LETTER=' + R),
+        rec('SET ID="de94bba4-06d1-4d40-a16a-bfd50179d6ac"'),
+        rec('GPT ATTRIBUTES=0x8000000000000001')
+      ];
+    }
+    throw new Error('Unbekanntes Partitionslayout: ' + layout);
+  }
+
+  function getPEScript(config, pe) {
+    const w = cmdWriter();
+    const include = (path, lines, escape) => {
+      if (!lines.length) return false;
+      w.writeLine('>' + path + ' (');
+      for (const line of UG.echoProcess(lines, escape)) w.writeLine('    ' + line);
+      w.writeLine(')');
+      w.writeLine();
+      return true;
+    };
+    const lang = config.language || {};
+    const unattendedLanguage = lang.mode === 'unattended';
+    let firstPair = null, geo = null;
+    if (unattendedLanguage) {
+      const p0 = (lang.locales || []).filter((p) => p && p.locale && p.keyboard)[0];
+      if (p0) firstPair = { locale: lookup('UserLocale', p0.locale), keyboard: lookup('KeyboardIdentifier', p0.keyboard) };
+      geo = lookup('GeoId', lang.geo);
+    }
+
+    w.writeLine(csRaw`
+      @echo off
+
+      `);
+
+    if (firstPair) {
+      w.writeLine(csRaw`
+          call :print "Setting keyboard layout for PE session"
+          wpeutil.exe SetKeyboardLayout ${firstPair.locale.LCID}:${firstPair.keyboard.Id}
+
+          `);
+    }
+
+    const probe = LETTERS.filter((l) => !SKIPPED.concat([S, W, R]).includes(l)).join(' ');
+    w.writeLine(csRaw`
+      for %%d in (${probe}) do (
+          if exist %%d:\sources\install.wim set "IMAGE_FILE=%%d:\sources\install.wim"
+          if exist %%d:\sources\install.esd set "IMAGE_FILE=%%d:\sources\install.esd"
+          if exist %%d:\sources\install.swm set "IMAGE_FILE=%%d:\sources\install.swm" & set "SWM_PARAM=/SWMFile:%%d:\sources\install*.swm"
+          if exist %%d:\autounattend.xml set "XML_FILE=%%d:\autounattend.xml"
+          if exist %%d:\$OEM$ set "OEM_FOLDER=%%d:\$OEM$"
+          if exist %%d:\$WinPEDriver$ set "PEDRIVERS_FOLDER=%%d:\$WinPEDriver$"
+          if exist %%d:\$WinPEPackage$ set "MSU_FOLDER=%%d:\$WinPEPackage$"
+      `);
+    /* PORT: VirtIoGuestTools gibt es in der Oberflaeche nicht (Optimizations) */
+    w.writeLine(csRaw`
+      )
+      for /f "tokens=3" %%t in ('reg.exe query HKLM\System\Setup /v UnattendFile 2^>nul') do ( if exist %%t set "XML_FILE=%%t" )
+      if not defined IMAGE_FILE call :fail "Could not locate install.wim, install.esd or install.swm."
+      if not defined XML_FILE call :fail "Could not locate autounattend.xml."
+
+      `);
+
+    w.writeLine(csRaw`
+      set "OS_VERSION=11"
+      for /f "tokens=3 delims=." %%v in ('ver') do (
+          if %%v LSS 20000 set "OS_VERSION=10"
+      )
+
+      `);
+
+    w.writeLine(csRaw`
+      if defined PEDRIVERS_FOLDER (
+          call :print "Loading drivers from %PEDRIVERS_FOLDER%"
+          for /R %PEDRIVERS_FOLDER% %%f IN (*.inf) do drvload.exe "%%f"
+      )
+
+      `);
+
+    const part = pe.partition || { mode: 'interactive' };
+    {
+      const runTargetDiskScript = (lines) => {
+        include(PATHS.TargetDiskScript, lines, true);
+        w.writeLine(csRaw`
+          call :print "Determining target disk"
+          (cscript.exe //E:vbscript "${PATHS.TargetDiskScript}" //Nologo >${PATHS.TargetDiskOutput}) || (type ${PATHS.TargetDiskOutput} & call :fail "Could not determine target disk. Windows Setup will halt to avoid potential data loss.")
+          for /f %%t in (${PATHS.TargetDiskOutput}) do set "TARGET_DISK=%%t"
+
+          `);
+      };
+      if (part.mode === 'unattended') {
+        const t = part.target || { mode: 'generated' };
+        switch (t.mode) {
+          case 'interactive':
+            w.writeLine(csRaw`
+              echo list disk | diskpart.exe
+              echo:
+              :choice
+              set /p "CHOICE=Enter index of the disk you want to install Windows to: " || goto :choice
+              set "TARGET_DISK=%CHOICE%"
+
+              `);
+            break;
+          case 'script': runTargetDiskScript(UG.csSplitLines(t.script || '')); break;
+          case 'generated': runTargetDiskScript(getTargetDiskScript(generatedTarget(t))); break;
+          case 'fixed': break;
+          default: throw new Error('Unbekannte Zieldatentraeger-Einstellung: ' + t.mode);
+        }
+      }
+    }
+
+    {
+      const checkDriveLetterAssignments = (lines) => {
+        const check = (letter, purpose) => {
+          const re = new RegExp('^\\s*ASSIGN\\s+LETTER((\\s+)|(\\s*=\\s*))((' + letter + ')|("' + letter + '"))\\s*$', 'i');
+          if (!lines.some((l) => re.test(l))) {
+            throw new ConfigurationException('Your diskpart script must contain a line such as \u2018ASSIGN LETTER=' + letter +
+              '\u2019 to assign the drive letter \u2018' + letter + ':\u2019 to the ' + purpose + ' partition.');
+          }
+        };
+        check(W, 'Windows');
+        check(S, 'system');
+      };
+      const includeDiskpartScript = (path, lines, escape) => { checkDriveLetterAssignments(lines); include(path, lines, escape); };
+      const execute = (path, message) => {
+        w.writeLine(csRaw`
+          call :print "${message}"
+          `);
+        if (pe.pauseBeforeFormatting) w.writeLine('pause');
+        w.writeLine(csRaw`
+          diskpart.exe /s ${path} || call :fail "diskpart.exe encountered an error."
+
+          `);
+      };
+
+      w.writeLine(csRaw`
+        wpeutil.exe UpdateBootInfo
+        for /f "tokens=3" %%t in ('reg.exe query HKLM\System\CurrentControlSet\Control /v PEFirmwareType') do (
+            if %%t == 0x1 (
+                set "LAYOUT=MBR"
+                set "FIRMWARE=BIOS"
+            ) else if %%t == 0x2 (
+                set "LAYOUT=GPT"
+                set "FIRMWARE=UEFI"
+            ) else (
+                call :fail "Unexpected PEFirmwareType value %%t."
+            )
+        )
+        call :print "The computer is booted in %FIRMWARE% mode, hence the target disk must be configured with the %LAYOUT% partition layout"
+        `);
+
+      switch (part.mode) {
+        case 'custom':
+          includeDiskpartScript(PATHS.DiskpartScript, UG.csSplitLines(part.customScript || ''), true);
+          execute(PATHS.DiskpartScript, 'diskpart will now execute your script');
+          break;
+        case 'unattended': {
+          const message = 'diskpart will now wipe, partition and format disk %TARGET_DISK%';
+          if (part.layout === 'Automatic') {
+            for (const layout of ['GPT', 'MBR']) includeDiskpartScript('X:\\' + layout + '.txt', getDiskpartScript(part, layout), false);
+            execute('X:\\%LAYOUT%.txt', message);
+          } else {
+            includeDiskpartScript(PATHS.DiskpartScript, getDiskpartScript(part, part.layout), false);
+            execute(PATHS.DiskpartScript, message);
+          }
+          break;
+        }
+        case 'interactive':
+          w.writeLine(csRaw`
+              call :print ^"Press Shift+F10 to open a new console window, then use diskpart to partition and format the disk manually. Make sure to assign the drive letters ${W} and ${S} ^
+              to the Windows and system partitions, respectively. When finished, continue with Windows Setup in this window.^"
+              pause
+              `);
+          break;
+        default: throw new Error('Unbekannte Partitionseinstellung: ' + part.mode);
+      }
+    }
+
+    const inst = pe.installFrom || { mode: 'interactive' };
+    switch (inst.mode) {
+      case 'index':
+        w.writeLine(csRaw`
+          set "IMG_PARAM=/Index:${inst.index}"
+          `);
+        break;
+      case 'name':
+        w.writeLine(csRaw`
+          set "IMG_PARAM=/Name:"${inst.name}""
+          `);
+        break;
+      case 'interactive':
+        w.writeLine(csRaw`
+          dism.exe /Get-WimInfo /WimFile:"%IMAGE_FILE%"
+          echo:
+          :choice
+          set /p "CHOICE=Enter index of the image you want to install: " || goto :choice
+          set "IMG_PARAM=/Index:%CHOICE%"
+          `);
+        break;
+      case 'edition':
+        w.writeLine(csRaw`
+          set "IMG_PARAM=/Name:"Windows %OS_VERSION% ${lookup('WindowsEdition', inst.edition).DisplayName}""
+          `);
+        break;
+      default: throw new Error('Unbekannte Image-Auswahl: ' + inst.mode);
+    }
+
+    const compact = pe.compactOs ? ' /Compact' : '';
+    const integrity = pe.skipIntegrityCheck ? '' : ' /CheckIntegrity /Verify';
+    w.writeLine(csRaw`
+      call :print "Applying Windows image to target disk"
+      dism.exe /Apply-Image /ImageFile:%IMAGE_FILE% %SWM_PARAM% %IMG_PARAM% /ApplyDir:${W}:${'\\'}${compact}${integrity} || call :fail "dism.exe encountered an error."
+
+      call :print "Making system partition bootable"
+      bcdboot.exe ${W}:\Windows /s ${S}: || call :fail "bcdboot.exe encountered an error."
+      if %LAYOUT% == GPT (
+          bcdedit.exe /set {fwbootmgr} bootsequence {bootmgr} || call :fail "bcdedit.exe encountered an error."
+      )
+
+      `);
+
+    w.writeLine(csRaw`
+      if defined MSU_FOLDER (
+          call :print "Adding packages from %MSU_FOLDER% to new installation"
+          dism.exe /Add-Package /Image:${W}:\ /PackagePath:%MSU_FOLDER% /ScratchDir:${W}:\Windows\Temp || call :fail "dism.exe encountered an error."
+      )
+
+      `);
+
+    {
+      const deleteWinRE = () => {
+        w.writeLine(csRaw`
+        call :print "Deleting winre.wim file to avoid creation of recovery partition"
+        del ${W}:\Windows\System32\Recovery\winre.wim
+
+        `);
+      };
+      if (part.mode === 'unattended') {
+        if (part.recovery === 'None') deleteWinRE();
+        else if (part.recovery !== 'Partition') throw new Error('Unbekannter Wiederherstellungsmodus: ' + part.recovery);
+      } else if (part.mode === 'custom') {
+        const script = (part.customScript || '').toLowerCase();
+        const keywords = ['SET ID=27', 'LABEL="Recovery"', 'SET ID="de94bba4-06d1-4d40-a16a-bfd50179d6ac"'];
+        if (!keywords.some((k) => script.includes(k.toLowerCase()))) deleteWinRE();
+      }
+    }
+
+    w.writeLine(csRaw`
+      call :print "Copying answer file to target disk"
+      mkdir ${W}:\Windows\Panther
+      copy %XML_FILE% ${W}:\Windows\Panther\unattend.xml
+
+      `);
+
+    w.writeLine(csRaw`
+      if defined PEDRIVERS_FOLDER (
+          call :print "Adding drivers from %PEDRIVERS_FOLDER% to new installation"
+          dism.exe /Add-Driver /Image:${W}:\ /Driver:"%PEDRIVERS_FOLDER%" /Recurse
+      )
+
+      `);
+
+    const tz = config.timeZone || {};
+    if (tz.mode === 'explicit') {
+      w.writeLine(csRaw`
+          call :print "Setting time zone"
+          dism.exe /Image:${W}:\ /Set-TimeZone:"${lookup('TimeOffset', tz.id).Id}"
+
+          `);
+    }
+
+    if (pe.disable8Dot3Names) {
+      w.writeLine(csRaw`
+        call :print "Disabling 8.3 file names"
+        fsutil.exe 8dot3name set ${W}: 1
+        fsutil.exe 8dot3name strip /s /f ${W}:\
+        reg.exe LOAD HKLM\mount ${W}:\Windows\System32\config\SYSTEM
+        reg.exe ADD HKLM\mount\ControlSet001\Control\FileSystem /v NtfsDisable8dot3NameCreation /t REG_DWORD /d 1 /f
+        reg.exe UNLOAD HKLM\mount
+
+        `);
+    }
+
+    if (pe.disableDefender) {
+      w.writeLine(csRaw`
+        call :print "Disabling Windows Defender"
+        reg.exe LOAD HKLM\mount ${W}:\Windows\System32\config\SYSTEM
+        for %%s in (Sense WdBoot WdFilter WdNisDrv WdNisSvc WinDefend) do reg.exe ADD HKLM\mount\ControlSet001\Services\%%s /v Start /t REG_DWORD /d 4 /f
+        reg.exe UNLOAD HKLM\mount
+
+        `);
+    }
+    /* PORT: DisableWpbt (Optimizations) gibt es in der Oberflaeche nicht */
+
+    {
+      const configurePagingFile = (data) => {
+        w.writeLine(csRaw`
+          call :print "Configuring paging file"
+          reg.exe LOAD HKLM\mount ${W}:\Windows\System32\config\SYSTEM
+          reg.exe add "HKLM\mount\ControlSet001\Control\Session Manager\Memory Management" /v PagingFiles /t REG_MULTI_SZ /f ${data}
+          reg.exe UNLOAD HKLM\mount
+
+          `);
+      };
+      const pf = pe.pagingFile || { mode: 'automatic' };
+      if (pf.mode === 'none') configurePagingFile('');
+      else if (pf.mode === 'custom') configurePagingFile('/d "C:\\pagefile.sys ' + pf.initialSizeMiB + ' ' + pf.maxSizeMiB + '"');
+    }
+
+    if (geo) {
+      w.writeLine(csRaw`
+          call :print "Setting device setup region to ${geo.DisplayName} (GeoID ${geo.Id})"
+          reg.exe LOAD HKLM\mount ${W}:\Windows\System32\config\SOFTWARE
+          reg.exe ADD "HKLM\mount\Microsoft\Windows\CurrentVersion\Control Panel\DeviceRegion" /v DeviceRegion /t REG_DWORD /d ${geo.Id} /f
+          reg.exe UNLOAD HKLM\mount
+
+          `);
+    }
+
+    w.writeLine(csRaw`
+        set "ROBOCOPY_ARGS=/E /XX /COPY:DAT /DCOPY:DAT /R:0"
+        if defined OEM_FOLDER (
+            call :print "Copying contents of %OEM_FOLDER%"
+            if exist "%OEM_FOLDER%\$$" robocopy.exe "%OEM_FOLDER%\$$" ${W}:\Windows %ROBOCOPY_ARGS%
+            if exist "%OEM_FOLDER%\$1" robocopy.exe "%OEM_FOLDER%\$1" ${W}:\ %ROBOCOPY_ARGS%
+            for %%d in (${LETTERS.filter((l) => !SKIPPED.includes(l)).join(' ')}) do (
+                if exist "%OEM_FOLDER%\%%d" robocopy.exe "%OEM_FOLDER%\%%d" %%d:\ %ROBOCOPY_ARGS%
+            )
+        )
+
+        `);
+
+    w.writeLine(csRaw`
+      call :print "Computer will now reboot"
+      `);
+    if (pe.pauseBeforeReboot) w.writeLine('pause');
+    w.writeLine(csRaw`
+      wpeutil.exe reboot
+      goto :eof
+
+      :fail
+      echo:
+      echo:Fatal error: %~1
+      echo:
+      pause
+      exit 1
+
+      :print
+      echo:
+      echo:*** %~1 ***
+      echo:
+      goto :eof
+      `);
+
+    return w.lines();
+  }
+
+  /* GeneratedTargetDiskSettings: Pruefung wie im Konstruktor des Originals */
+  function generatedTarget(t) {
+    const g = Object.assign({}, DEFAULT_TARGET, t);
+    const num = (v) => (v === '' || v === undefined ? null : v);
+    g.minSizeGiB = num(g.minSizeGiB); g.maxSizeGiB = num(g.maxSizeGiB); g.index = num(g.index);
+    if (g.minSizeGiB !== null && g.maxSizeGiB !== null && g.minSizeGiB > g.maxSizeGiB) {
+      throw new ConfigurationException("Value of 'minSizeGiB' (" + g.minSizeGiB + ") must be less than or equal to value of 'maxSizeGiB' (" + g.maxSizeGiB + ').');
+    }
+    return g;
+  }
+
   const Disk = {
     name: 'Disk',
     process(c) {
-      if (c.config.useConfigurationSet) c.sel('//u:UseConfigurationSet').textContent = 'true';
+      const pe = c.config.pe || { mode: 'default' };
+      if (pe.mode === 'default' && c.config.useConfigurationSet) c.sel('//u:UseConfigurationSet').textContent = 'true';
+      if (pe.mode === 'generate' || pe.mode === 'script') {
+        /* PORT: Pruefung auf eigene windowsPE-Komponenten entfaellt (Components nicht portiert) */
+        for (const node of c.selAll("/u:unattend/u:settings[@pass='windowsPE']/*")) node.parentNode.removeChild(node);
+        if (c.config.useNarrator) c.appender('windowsPE').append(c.cb.shellCommand('start X:\\Windows\\System32\\Narrator.exe'));
+      } else if (pe.mode !== 'default') {
+        throw new Error('Unbekannter PE-Modus: ' + pe.mode);
+      }
+      const lines = pe.mode === 'script' ? UG.csSplitLines(pe.script || '') : pe.mode === 'generate' ? getPEScript(c.config, pe) : [];
       const copy = c.sel('//s:PEScriptCopy');
-      copy.parentNode.removeChild(copy);
+      if (lines.length > 0) {
+        c.appender('windowsPE').append(c.cb.writeToFilePE(PATHS.PEScript, lines).concat([c.cb.shellCommand(PATHS.PEScript)]));
+        c.insertTextWithIndentation(copy, lines.join('\r\n'));
+      } else {
+        copy.parentNode.removeChild(copy);
+      }
     }
   };
 
@@ -355,8 +897,17 @@
 
   /* ---------- modifier/Optimizations.cs, Personalization.cs ----------
      Nicht portiert: Tweaks liefert der Generator selbst. Mit den Standardwerten
-     des Originals erzeugen beide keine Ausgabe. */
-  const Optimizations = { name: 'Optimizations', process() {} };
+     des Originals erzeugen beide keine Ausgabe - bis auf den Teil, der am
+     PE-Modus haengt (IsDefenderDisabled), der ist hier uebernommen. */
+  const Optimizations = {
+    name: 'Optimizations',
+    process(c) {
+      const pe = c.config.pe;
+      if (pe && pe.mode === 'generate' && pe.disableDefender) {
+        c.specializeScript.append('reg.exe add "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender Security Center\\Notifications" /v DisableNotifications /t REG_DWORD /d 1 /f;');
+      }
+    }
+  };
   const Personalization = { name: 'Personalization', process() {} };
 
   /* ---------- modifier/TimeZone.cs ---------- */
@@ -508,6 +1059,17 @@
       bypassNetwork: false,
       expressSettings: 'disableAll',
       architectures: ['amd64'],
+      pe: {
+        mode: 'default', script: '',
+        partition: {
+          mode: 'unattended', layout: 'Automatic', recovery: 'Partition', systemSize: 300, recoverySize: 1000, customScript: '',
+          target: { mode: 'generated', index: 0, minSizeGiB: 100, maxSizeGiB: 4000, assertNoPartitions: true, assertInterfaceType: false, assertMediaType: false, script: '' }
+        },
+        installFrom: { mode: 'edition', edition: 'pro', index: 1, name: '' },
+        pagingFile: { mode: 'automatic', initialSizeMiB: 1024, maxSizeMiB: 4096 },
+        disableDefender: false, disable8Dot3Names: false, pauseBeforeFormatting: false, pauseBeforeReboot: false,
+        compactOs: false, skipIntegrityCheck: false
+      },
       hidePowerShellWindows: false,
       keepSensitiveFiles: false,
       useNarrator: false

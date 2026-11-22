@@ -1,45 +1,757 @@
 [
-  { "name": "standard", "config": {} },
-  { "name": "sprache-de-en", "config": {
-      "language": { "mode": "unattended", "image": "de-DE", "locales": [{ "locale": "de-DE", "keyboard": "00000407" }, { "locale": "en-US", "keyboard": "00000409" }], "geo": "94" } } },
-  { "name": "sprache-standort-abweichend", "config": {
-      "language": { "mode": "unattended", "image": "en-US", "locales": [{ "locale": "de-CH", "keyboard": "00000807" }], "geo": "244" } } },
-  { "name": "sprache-ime-und-lcid1000", "config": {
-      "language": { "mode": "unattended", "image": "ja-JP", "locales": [{ "locale": "ja-JP", "keyboard": "0411:{03B5835F-F03C-411B-9CE2-AA23E1171E36}{A76C93D9-5523-4E90-AAFA-4DB112F9AC76}" }, { "locale": "aa-DJ", "keyboard": "00000409" }], "geo": "122" } } },
-  { "name": "konten-autologon-verschleiert", "config": {
-      "account": { "mode": "unattended", "accounts": [
-        { "name": "Jörg", "displayName": "Jörg Müller", "password": "geheim", "group": "Administrators" },
-        { "name": "Kind", "displayName": "", "password": "", "group": "Users" }], "autoLogon": "own", "obscure": true } } },
-  { "name": "konten-builtin-klartext", "config": {
-      "account": { "mode": "unattended", "accounts": [{ "name": "Anna", "displayName": "Anna", "password": "pw", "group": "Users" }], "autoLogon": "builtin", "builtinPassword": "Adm1n!", "obscure": false } } },
-  { "name": "konto-lokal-interaktiv", "config": { "account": { "mode": "interactive-local" } } },
-  { "name": "computername-fest-zeitzone", "config": {
-      "computerName": { "mode": "custom", "name": "BUERO-PC" }, "timeZone": { "mode": "explicit", "id": "W. Europe Standard Time" } } },
-  { "name": "computername-abfrage", "config": { "computerName": { "mode": "prompt" } } },
-  { "name": "edition-generisch-aktivierung", "config": {
-      "edition": { "mode": "edition", "edition": "pro" }, "activationKey": "VK7JG-NPHTM-C97JM-9MPGT-3V66T" } },
-  { "name": "edition-firmware", "config": { "edition": { "mode": "firmware" } } },
-  { "name": "edition-eigener-schluessel", "config": { "edition": { "mode": "key", "key": "nppr9-fwdcx-d2c8j-h872k-2yt43" } } },
-  { "name": "setup-schalter", "config": {
-      "bypassRequirements": false, "bypassNetwork": true, "useConfigurationSet": true, "useNarrator": true,
-      "hidePowerShellWindows": true, "expressSettings": "enableAll", "wifi": { "mode": "skip" } } },
-  { "name": "sicherheit", "config": {
-      "lockout": { "mode": "custom", "threshold": 5, "duration": 30, "window": 15 }, "passwordExpiration": { "mode": "custom", "maxAge": 90 } } },
-  { "name": "sicherheit-aus", "config": {
-      "lockout": { "mode": "disabled" }, "passwordExpiration": { "mode": "unlimited" }, "expressSettings": "interactive", "keepSensitiveFiles": true } },
-  { "name": "architekturen", "config": { "architectures": ["arm64", "amd64", "x86"] } },
-  { "name": "fehler-kein-admin", "config": {
-      "account": { "mode": "unattended", "accounts": [{ "name": "a", "displayName": "", "password": "", "group": "Users" }], "autoLogon": "none" } } },
-  { "name": "fehler-loeschen-ohne-autologon", "config": {
-      "account": { "mode": "unattended", "accounts": [{ "name": "a", "displayName": "", "password": "", "group": "Administrators" }], "autoLogon": "none" } } },
-  { "name": "fehler-computername", "config": { "computerName": { "mode": "custom", "name": "12345" } } },
-  { "name": "fehler-kontoname", "config": {
-      "account": { "mode": "unattended", "accounts": [{ "name": "Administrator", "displayName": "", "password": "", "group": "Administrators" }], "autoLogon": "own" } } },
-  { "name": "fehler-doppelter-kontoname", "config": {
-      "account": { "mode": "unattended", "accounts": [
-        { "name": "Max", "displayName": "", "password": "", "group": "Administrators" },
-        { "name": "max", "displayName": "", "password": "", "group": "Users" }], "autoLogon": "own" } } },
-  { "name": "fehler-produktschluessel", "config": { "edition": { "mode": "key", "key": "ABC" } } },
-  { "name": "fehler-sperrfenster", "config": { "lockout": { "mode": "custom", "threshold": 5, "duration": 10, "window": 20 } } },
-  { "name": "fehler-kennwortalter", "config": { "passwordExpiration": { "mode": "custom", "maxAge": 1000 } } }
+ {
+  "name": "standard",
+  "config": {}
+ },
+ {
+  "name": "sprache-de-en",
+  "config": {
+   "language": {
+    "mode": "unattended",
+    "image": "de-DE",
+    "locales": [
+     {
+      "locale": "de-DE",
+      "keyboard": "00000407"
+     },
+     {
+      "locale": "en-US",
+      "keyboard": "00000409"
+     }
+    ],
+    "geo": "94"
+   }
+  }
+ },
+ {
+  "name": "sprache-standort-abweichend",
+  "config": {
+   "language": {
+    "mode": "unattended",
+    "image": "en-US",
+    "locales": [
+     {
+      "locale": "de-CH",
+      "keyboard": "00000807"
+     }
+    ],
+    "geo": "244"
+   }
+  }
+ },
+ {
+  "name": "sprache-ime-und-lcid1000",
+  "config": {
+   "language": {
+    "mode": "unattended",
+    "image": "ja-JP",
+    "locales": [
+     {
+      "locale": "ja-JP",
+      "keyboard": "0411:{03B5835F-F03C-411B-9CE2-AA23E1171E36}{A76C93D9-5523-4E90-AAFA-4DB112F9AC76}"
+     },
+     {
+      "locale": "aa-DJ",
+      "keyboard": "00000409"
+     }
+    ],
+    "geo": "122"
+   }
+  }
+ },
+ {
+  "name": "konten-autologon-verschleiert",
+  "config": {
+   "account": {
+    "mode": "unattended",
+    "accounts": [
+     {
+      "name": "Jörg",
+      "displayName": "Jörg Müller",
+      "password": "geheim",
+      "group": "Administrators"
+     },
+     {
+      "name": "Kind",
+      "displayName": "",
+      "password": "",
+      "group": "Users"
+     }
+    ],
+    "autoLogon": "own",
+    "obscure": true
+   }
+  }
+ },
+ {
+  "name": "konten-builtin-klartext",
+  "config": {
+   "account": {
+    "mode": "unattended",
+    "accounts": [
+     {
+      "name": "Anna",
+      "displayName": "Anna",
+      "password": "pw",
+      "group": "Users"
+     }
+    ],
+    "autoLogon": "builtin",
+    "builtinPassword": "Adm1n!",
+    "obscure": false
+   }
+  }
+ },
+ {
+  "name": "konto-lokal-interaktiv",
+  "config": {
+   "account": {
+    "mode": "interactive-local"
+   }
+  }
+ },
+ {
+  "name": "computername-fest-zeitzone",
+  "config": {
+   "computerName": {
+    "mode": "custom",
+    "name": "BUERO-PC"
+   },
+   "timeZone": {
+    "mode": "explicit",
+    "id": "W. Europe Standard Time"
+   }
+  }
+ },
+ {
+  "name": "computername-abfrage",
+  "config": {
+   "computerName": {
+    "mode": "prompt"
+   }
+  }
+ },
+ {
+  "name": "edition-generisch-aktivierung",
+  "config": {
+   "edition": {
+    "mode": "edition",
+    "edition": "pro"
+   },
+   "activationKey": "VK7JG-NPHTM-C97JM-9MPGT-3V66T"
+  }
+ },
+ {
+  "name": "edition-firmware",
+  "config": {
+   "edition": {
+    "mode": "firmware"
+   }
+  }
+ },
+ {
+  "name": "edition-eigener-schluessel",
+  "config": {
+   "edition": {
+    "mode": "key",
+    "key": "nppr9-fwdcx-d2c8j-h872k-2yt43"
+   }
+  }
+ },
+ {
+  "name": "setup-schalter",
+  "config": {
+   "bypassRequirements": false,
+   "bypassNetwork": true,
+   "useConfigurationSet": true,
+   "useNarrator": true,
+   "hidePowerShellWindows": true,
+   "expressSettings": "enableAll",
+   "wifi": {
+    "mode": "skip"
+   }
+  }
+ },
+ {
+  "name": "sicherheit",
+  "config": {
+   "lockout": {
+    "mode": "custom",
+    "threshold": 5,
+    "duration": 30,
+    "window": 15
+   },
+   "passwordExpiration": {
+    "mode": "custom",
+    "maxAge": 90
+   }
+  }
+ },
+ {
+  "name": "sicherheit-aus",
+  "config": {
+   "lockout": {
+    "mode": "disabled"
+   },
+   "passwordExpiration": {
+    "mode": "unlimited"
+   },
+   "expressSettings": "interactive",
+   "keepSensitiveFiles": true
+  }
+ },
+ {
+  "name": "architekturen",
+  "config": {
+   "architectures": [
+    "arm64",
+    "amd64",
+    "x86"
+   ]
+  }
+ },
+ {
+  "name": "fehler-kein-admin",
+  "config": {
+   "account": {
+    "mode": "unattended",
+    "accounts": [
+     {
+      "name": "a",
+      "displayName": "",
+      "password": "",
+      "group": "Users"
+     }
+    ],
+    "autoLogon": "none"
+   }
+  }
+ },
+ {
+  "name": "fehler-loeschen-ohne-autologon",
+  "config": {
+   "account": {
+    "mode": "unattended",
+    "accounts": [
+     {
+      "name": "a",
+      "displayName": "",
+      "password": "",
+      "group": "Administrators"
+     }
+    ],
+    "autoLogon": "none"
+   }
+  }
+ },
+ {
+  "name": "fehler-computername",
+  "config": {
+   "computerName": {
+    "mode": "custom",
+    "name": "12345"
+   }
+  }
+ },
+ {
+  "name": "fehler-kontoname",
+  "config": {
+   "account": {
+    "mode": "unattended",
+    "accounts": [
+     {
+      "name": "Administrator",
+      "displayName": "",
+      "password": "",
+      "group": "Administrators"
+     }
+    ],
+    "autoLogon": "own"
+   }
+  }
+ },
+ {
+  "name": "fehler-doppelter-kontoname",
+  "config": {
+   "account": {
+    "mode": "unattended",
+    "accounts": [
+     {
+      "name": "Max",
+      "displayName": "",
+      "password": "",
+      "group": "Administrators"
+     },
+     {
+      "name": "max",
+      "displayName": "",
+      "password": "",
+      "group": "Users"
+     }
+    ],
+    "autoLogon": "own"
+   }
+  }
+ },
+ {
+  "name": "fehler-produktschluessel",
+  "config": {
+   "edition": {
+    "mode": "key",
+    "key": "ABC"
+   }
+  }
+ },
+ {
+  "name": "fehler-sperrfenster",
+  "config": {
+   "lockout": {
+    "mode": "custom",
+    "threshold": 5,
+    "duration": 10,
+    "window": 20
+   }
+  }
+ },
+ {
+  "name": "fehler-kennwortalter",
+  "config": {
+   "passwordExpiration": {
+    "mode": "custom",
+    "maxAge": 1000
+   }
+  }
+ },
+ {
+  "name": "pe-automatisch-defender",
+  "config": {
+   "language": {
+    "mode": "unattended",
+    "image": "de-DE",
+    "locales": [
+     {
+      "locale": "de-DE",
+      "keyboard": "00000407"
+     }
+    ],
+    "geo": "94"
+   },
+   "timeZone": {
+    "mode": "explicit",
+    "id": "W. Europe Standard Time"
+   },
+   "pe": {
+    "mode": "generate",
+    "script": "",
+    "partition": {
+     "mode": "unattended",
+     "layout": "Automatic",
+     "recovery": "Partition",
+     "systemSize": 300,
+     "recoverySize": 1000,
+     "customScript": "",
+     "target": {
+      "mode": "generated",
+      "index": 0,
+      "minSizeGiB": 100,
+      "maxSizeGiB": 4000,
+      "assertNoPartitions": true,
+      "assertInterfaceType": false,
+      "assertMediaType": false,
+      "script": ""
+     }
+    },
+    "installFrom": {
+     "mode": "edition",
+     "edition": "pro",
+     "index": 1,
+     "name": ""
+    },
+    "pagingFile": {
+     "mode": "automatic",
+     "initialSizeMiB": 1024,
+     "maxSizeMiB": 4096
+    },
+    "disableDefender": true,
+    "disable8Dot3Names": false,
+    "pauseBeforeFormatting": false,
+    "pauseBeforeReboot": false,
+    "compactOs": false,
+    "skipIntegrityCheck": false
+   }
+  }
+ },
+ {
+  "name": "pe-gpt-fest-ohne-recovery",
+  "config": {
+   "pe": {
+    "mode": "generate",
+    "script": "",
+    "partition": {
+     "mode": "unattended",
+     "layout": "GPT",
+     "recovery": "None",
+     "systemSize": 512,
+     "recoverySize": 1000,
+     "customScript": "",
+     "target": {
+      "mode": "fixed",
+      "index": 1,
+      "minSizeGiB": 100,
+      "maxSizeGiB": 4000,
+      "assertNoPartitions": true,
+      "assertInterfaceType": false,
+      "assertMediaType": false,
+      "script": ""
+     }
+    },
+    "installFrom": {
+     "mode": "index",
+     "edition": "pro",
+     "index": 6,
+     "name": ""
+    },
+    "pagingFile": {
+     "mode": "custom",
+     "initialSizeMiB": 2048,
+     "maxSizeMiB": 8192
+    },
+    "disableDefender": false,
+    "disable8Dot3Names": true,
+    "pauseBeforeFormatting": true,
+    "pauseBeforeReboot": true,
+    "compactOs": true,
+    "skipIntegrityCheck": true
+   }
+  }
+ },
+ {
+  "name": "pe-mbr-zielplatte-interaktiv",
+  "config": {
+   "pe": {
+    "mode": "generate",
+    "script": "",
+    "partition": {
+     "mode": "unattended",
+     "layout": "MBR",
+     "recovery": "Partition",
+     "systemSize": 300,
+     "recoverySize": 1000,
+     "customScript": "",
+     "target": {
+      "mode": "interactive",
+      "index": 0,
+      "minSizeGiB": 100,
+      "maxSizeGiB": 4000,
+      "assertNoPartitions": true,
+      "assertInterfaceType": false,
+      "assertMediaType": false,
+      "script": ""
+     }
+    },
+    "installFrom": {
+     "mode": "name",
+     "edition": "pro",
+     "index": 1,
+     "name": "Windows 11 Pro"
+    },
+    "pagingFile": {
+     "mode": "none",
+     "initialSizeMiB": 1024,
+     "maxSizeMiB": 4096
+    },
+    "disableDefender": false,
+    "disable8Dot3Names": false,
+    "pauseBeforeFormatting": false,
+    "pauseBeforeReboot": false,
+    "compactOs": false,
+    "skipIntegrityCheck": false
+   }
+  }
+ },
+ {
+  "name": "pe-zielplatte-eigenes-skript",
+  "config": {
+   "pe": {
+    "mode": "generate",
+    "script": "",
+    "partition": {
+     "mode": "unattended",
+     "layout": "GPT",
+     "recovery": "Partition",
+     "systemSize": 300,
+     "recoverySize": 1000,
+     "customScript": "",
+     "target": {
+      "mode": "script",
+      "index": 0,
+      "minSizeGiB": 100,
+      "maxSizeGiB": 4000,
+      "assertNoPartitions": true,
+      "assertInterfaceType": false,
+      "assertMediaType": false,
+      "script": "WScript.Echo \"0\"\nWScript.Quit 0"
+     }
+    },
+    "installFrom": {
+     "mode": "edition",
+     "edition": "pro",
+     "index": 1,
+     "name": ""
+    },
+    "pagingFile": {
+     "mode": "automatic",
+     "initialSizeMiB": 1024,
+     "maxSizeMiB": 4096
+    },
+    "disableDefender": false,
+    "disable8Dot3Names": false,
+    "pauseBeforeFormatting": false,
+    "pauseBeforeReboot": false,
+    "compactOs": false,
+    "skipIntegrityCheck": false
+   }
+  }
+ },
+ {
+  "name": "pe-zielplatte-kriterien",
+  "config": {
+   "useNarrator": true,
+   "pe": {
+    "mode": "generate",
+    "script": "",
+    "partition": {
+     "mode": "unattended",
+     "layout": "Automatic",
+     "recovery": "Partition",
+     "systemSize": 300,
+     "recoverySize": 1000,
+     "customScript": "",
+     "target": {
+      "mode": "generated",
+      "index": null,
+      "minSizeGiB": null,
+      "maxSizeGiB": 4000,
+      "assertNoPartitions": false,
+      "assertInterfaceType": true,
+      "assertMediaType": true,
+      "script": ""
+     }
+    },
+    "installFrom": {
+     "mode": "interactive",
+     "edition": "pro",
+     "index": 1,
+     "name": ""
+    },
+    "pagingFile": {
+     "mode": "automatic",
+     "initialSizeMiB": 1024,
+     "maxSizeMiB": 4096
+    },
+    "disableDefender": false,
+    "disable8Dot3Names": false,
+    "pauseBeforeFormatting": false,
+    "pauseBeforeReboot": false,
+    "compactOs": false,
+    "skipIntegrityCheck": false
+   }
+  }
+ },
+ {
+  "name": "pe-eigenes-diskpart",
+  "config": {
+   "pe": {
+    "mode": "generate",
+    "script": "",
+    "partition": {
+     "mode": "custom",
+     "layout": "Automatic",
+     "recovery": "Partition",
+     "systemSize": 300,
+     "recoverySize": 1000,
+     "customScript": "SELECT DISK=0\nCLEAN\nCONVERT GPT\nCREATE PARTITION EFI SIZE=300\nFORMAT QUICK FS=FAT32 LABEL=\"System\"\nASSIGN LETTER=S\nCREATE PARTITION MSR SIZE=16\nCREATE PARTITION PRIMARY\nFORMAT QUICK FS=NTFS LABEL=\"Windows\"\nassign letter = \"W\"\nCREATE PARTITION PRIMARY SIZE=1000\nFORMAT QUICK FS=NTFS LABEL=\"Recovery\"",
+     "target": {
+      "mode": "generated",
+      "index": 0,
+      "minSizeGiB": 100,
+      "maxSizeGiB": 4000,
+      "assertNoPartitions": true,
+      "assertInterfaceType": false,
+      "assertMediaType": false,
+      "script": ""
+     }
+    },
+    "installFrom": {
+     "mode": "edition",
+     "edition": "pro",
+     "index": 1,
+     "name": ""
+    },
+    "pagingFile": {
+     "mode": "automatic",
+     "initialSizeMiB": 1024,
+     "maxSizeMiB": 4096
+    },
+    "disableDefender": false,
+    "disable8Dot3Names": false,
+    "pauseBeforeFormatting": false,
+    "pauseBeforeReboot": false,
+    "compactOs": false,
+    "skipIntegrityCheck": false
+   }
+  }
+ },
+ {
+  "name": "pe-partition-interaktiv",
+  "config": {
+   "language": {
+    "mode": "unattended",
+    "image": "de-DE",
+    "locales": [
+     {
+      "locale": "de-DE",
+      "keyboard": "00000407"
+     }
+    ],
+    "geo": "94"
+   },
+   "pe": {
+    "mode": "generate",
+    "script": "",
+    "partition": {
+     "mode": "interactive",
+     "layout": "Automatic",
+     "recovery": "Partition",
+     "systemSize": 300,
+     "recoverySize": 1000,
+     "customScript": "",
+     "target": {
+      "mode": "generated",
+      "index": 0,
+      "minSizeGiB": 100,
+      "maxSizeGiB": 4000,
+      "assertNoPartitions": true,
+      "assertInterfaceType": false,
+      "assertMediaType": false,
+      "script": ""
+     }
+    },
+    "installFrom": {
+     "mode": "edition",
+     "edition": "pro",
+     "index": 1,
+     "name": ""
+    },
+    "pagingFile": {
+     "mode": "automatic",
+     "initialSizeMiB": 1024,
+     "maxSizeMiB": 4096
+    },
+    "disableDefender": false,
+    "disable8Dot3Names": false,
+    "pauseBeforeFormatting": false,
+    "pauseBeforeReboot": false,
+    "compactOs": false,
+    "skipIntegrityCheck": false
+   }
+  }
+ },
+ {
+  "name": "pe-eigenes-pe-skript",
+  "config": {
+   "pe": {
+    "mode": "script",
+    "script": "@echo off\necho Eigener Ablauf\nwpeutil.exe reboot"
+   }
+  }
+ },
+ {
+  "name": "fehler-diskpart-ohne-systembuchstabe",
+  "config": {
+   "pe": {
+    "mode": "generate",
+    "script": "",
+    "partition": {
+     "mode": "custom",
+     "layout": "Automatic",
+     "recovery": "Partition",
+     "systemSize": 300,
+     "recoverySize": 1000,
+     "customScript": "SELECT DISK=0\nCLEAN\nASSIGN LETTER=W",
+     "target": {
+      "mode": "generated",
+      "index": 0,
+      "minSizeGiB": 100,
+      "maxSizeGiB": 4000,
+      "assertNoPartitions": true,
+      "assertInterfaceType": false,
+      "assertMediaType": false,
+      "script": ""
+     }
+    },
+    "installFrom": {
+     "mode": "edition",
+     "edition": "pro",
+     "index": 1,
+     "name": ""
+    },
+    "pagingFile": {
+     "mode": "automatic",
+     "initialSizeMiB": 1024,
+     "maxSizeMiB": 4096
+    },
+    "disableDefender": false,
+    "disable8Dot3Names": false,
+    "pauseBeforeFormatting": false,
+    "pauseBeforeReboot": false,
+    "compactOs": false,
+    "skipIntegrityCheck": false
+   }
+  }
+ },
+ {
+  "name": "fehler-zielplatte-min-max",
+  "config": {
+   "pe": {
+    "mode": "generate",
+    "script": "",
+    "partition": {
+     "mode": "unattended",
+     "layout": "Automatic",
+     "recovery": "Partition",
+     "systemSize": 300,
+     "recoverySize": 1000,
+     "customScript": "",
+     "target": {
+      "mode": "generated",
+      "index": 0,
+      "minSizeGiB": 500,
+      "maxSizeGiB": 100,
+      "assertNoPartitions": true,
+      "assertInterfaceType": false,
+      "assertMediaType": false,
+      "script": ""
+     }
+    },
+    "installFrom": {
+     "mode": "edition",
+     "edition": "pro",
+     "index": 1,
+     "name": ""
+    },
+    "pagingFile": {
+     "mode": "automatic",
+     "initialSizeMiB": 1024,
+     "maxSizeMiB": 4096
+    },
+    "disableDefender": false,
+    "disable8Dot3Names": false,
+    "pauseBeforeFormatting": false,
+    "pauseBeforeReboot": false,
+    "compactOs": false,
+    "skipIntegrityCheck": false
+   }
+  }
+ }
 ]
