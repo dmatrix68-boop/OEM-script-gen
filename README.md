@@ -69,6 +69,9 @@ ZIP entpacken, `index.html` öffnen. Im Paket sind die Screenshots nur verlinkt.
 * **autounattend.xml** – wird als Auslöser erzeugt oder, wenn Sie bereits eine
   Antwortdatei verwenden, importiert und **ergänzt statt ersetzt**: die Aufrufe
   werden mit fortlaufender `<Order>` in die vorhandenen Blöcke eingefügt.
+* **Antwortdatei-Designer** – erzeugt eine vollständige `autounattend.xml` (Sprache,
+  Konten, Computername, Edition, OOBE) als Portierung des Generators von Christoph
+  Schneegans; der Generator fügt seine Aufrufe ein (siehe unten).
 * **Diagnose.ps1** – liegt im erzeugten Paket und beantwortet nach der
   Installation, warum nichts gelaufen ist.
 * **Hilfe auf jeder Seite** – der Knopf *Hilfe* im Seitenkopf (oder <kbd>F1</kbd>)
@@ -344,6 +347,43 @@ unter `Program Files\WindowsApps` selbst auf), und Pakete, die ausschließlich
 benutzerbezogen installieren, schlagen ohne Benutzerprofil fehl. Deshalb ist für
 Anwendungen standardmäßig Phase 2 vorgewählt.
 
+## Antwortdatei-Designer
+
+Die Seite **Antwortdatei** erzeugt eine vollständige `autounattend.xml`: Sprache des
+Images, bis zu drei Gebietsschemas mit Tastatur, Standort, Zeitzone, Edition bzw.
+Produktschlüssel, Hardwareprüfung umgehen, Einrichtung ohne Internet, Computername (fest
+oder bei der Installation abgefragt), lokale Konten mit automatischer Anmeldung,
+Datenschutz- und WLAN-Seite, Kontosperrung und Kennwortablauf. Der Generator fügt danach –
+wie bei einer importierten Datei – seine Aufrufe ein und setzt `UseConfigurationSet` nach
+dem Zielsystem.
+
+Der Designer ist eine **Portierung** des Generators von Christoph Schneegans
+([unattend-generator](https://github.com/cschneegans/unattend-generator), MIT-Lizenz,
+Lizenztext unter `vendor/schneegans/LICENSE.txt`). Die Logik ist Datei für Datei nach
+JavaScript übertragen (`js/ug/core.js`, `js/ug/modifiers.js`, je Modifier ein Abschnitt
+gleichen Namens), die Datentabellen und Skripte des Originals werden unverändert übernommen
+(`js/ug/resources.js`, erzeugt). Abweichungen sind im Code mit `PORT:` markiert.
+
+Noch nicht portiert: Partitionierung und `pe.cmd`-Modus, WLAN-Profil, Personalisierung,
+AppLocker. Tweaks und Bloatware liefert der Generator selbst.
+
+### Änderungen im Original beobachten
+
+`vendor/schneegans/UPSTREAM.json` hält fest, auf welchem Commit der Port beruht, je Datei
+die Git-Blob-Kennung, das Ziel im Port und den Stand der Portierung. Der Workflow
+*Schneegans beobachten* klont das Original wöchentlich, vergleicht und legt bei Änderungen
+ein Issue an – mit den neuen Commits, den betroffenen Dateien samt Ziel-Modul, einem
+Diff-Link und geänderten Skripten im Wortlaut (sie laufen auf den Zielrechnern als
+SYSTEM). Übernommen wird nichts automatisch. Nach Durchsicht und Portierung:
+
+```bash
+git clone https://github.com/cschneegans/unattend-generator.git ../unattend-generator
+node tools/sync-schneegans.js ../unattend-generator --resources --write
+```
+
+`--resources` erzeugt `js/ug/resources.js` neu, `--write` setzt den Port-Stand. Ohne diese
+Schalter zeigt das Werkzeug nur den Bericht.
+
 ## Erzeugte Struktur
 
 ```
@@ -501,6 +541,13 @@ schreibt seinen Inhalt komplett neu und würde dort gesetzte Zähler oder Pfade
 node tools/check-i18n.js
 ```
 
+Der Antwortdatei-Designer (`js/ug`) braucht DOM und XPath; sein Test läuft deshalb in
+Chromium und setzt Playwright voraus (ohne Playwright meldet er „übersprungen“):
+
+```bash
+node tools/test-unattend.js
+```
+
 Der ISO-Schreiber (`js/iso.js`) lässt sich ohne Browser prüfen: Das Testwerkzeug baut
 eine synthetische Windows-ISO, liest sie zurück, schreibt sie wie die Oberfläche neu
 und vergleicht – mit `udfinfo` und 7-Zip, sofern installiert, auch gegen unabhängige
@@ -527,6 +574,9 @@ js/help.js        Hilfetexte je Seite (Deutsch/Englisch)
 js/i18n.js        Wörterbuch Deutsch/Englisch und Sprachumschaltung
 js/zip.js         ZIP-Writer (Deflate über CompressionStream, sonst „stored“)
 js/iso.js         ISO lesen und neu schreiben (UDF 1.02, El Torito)
+js/ug/            Antwortdatei-Designer (Port des Schneegans-Generators):
+                  core.js, modifiers.js, resources.js (erzeugt)
+vendor/schneegans/ Lizenz und Port-Stand (UPSTREAM.json) des Originals
 js/catalog.js     Katalog für Tweaks, Bloatware und Windows-Komponenten, Paketmanager
 js/importers.js   Parser für Bundles, SetupComplete.cmd und ODT-XML
 js/templates.js   Erzeugung sämtlicher Skripte
@@ -536,6 +586,8 @@ tools/            check-escapes.js – prüft die Template-Literale auf verschlu
                   check-i18n.js    – prüft Wörterbuch gegen Oberfläche
                   test-iso.js      – prüft den ISO-Schreiber
                   test-reg.js      – prüft den .reg-Import
+                  test-unattend.js – prüft den Antwortdatei-Designer (Playwright)
+                  sync-schneegans.js – Abgleich mit dem Original, erzeugt resources.js
                   build-release.js – schnürt das Release-Paket
 docs/screenshots/ Bilder für das README (nicht im Release-Paket)
 docs/releases/    Release-Notes je Version

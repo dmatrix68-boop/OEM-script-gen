@@ -1,0 +1,54 @@
+name: Schneegans beobachten
+
+# Prueft woechentlich, ob sich der Antwortdatei-Generator von Christoph
+# Schneegans seit dem Port-Stand (vendor/schneegans/UPSTREAM.json) geaendert
+# hat. Bei Aenderungen wird ein Issue angelegt bzw. ergaenzt - mit Commits,
+# betroffenen Dateien, Ziel-Modul im Port und geaenderten Skripten im Wortlaut.
+# Uebernommen wird nichts automatisch: erst Durchsicht, dann von Hand portieren
+# und mit "node tools/sync-schneegans.js <Klon> --resources --write" den
+# Port-Stand nachziehen.
+on:
+  schedule:
+    - cron: '17 4 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Upstream klonen
+        run: git clone --quiet https://github.com/cschneegans/unattend-generator.git upstream
+
+      - name: Abgleich
+        id: sync
+        run: |
+          set +e
+          node tools/sync-schneegans.js upstream --report report.md
+          code=$?
+          set -e
+          if [ "$code" -eq 3 ]; then echo "changed=true" >> "$GITHUB_OUTPUT"; elif [ "$code" -ne 0 ]; then exit "$code"; fi
+          cat report.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Issue anlegen oder ergaenzen
+        if: steps.sync.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh label create schneegans-upstream --color C5DEF5 --description 'Aenderungen im Schneegans-Generator' 2>/dev/null || true
+          head=$(git -C upstream rev-parse --short=12 HEAD)
+          num=$(gh issue list --label schneegans-upstream --state open --json number --jq '.[0].number')
+          if [ -n "$num" ]; then
+            if gh issue view "$num" --json body,comments --jq '.body, .comments[].body' | grep -q "$head"; then
+              echo "Stand $head ist im Issue #$num bereits gemeldet."
+            else
+              gh issue comment "$num" --body-file report.md
+            fi
+          else
+            gh issue create --title "Schneegans-Generator: Aenderungen bis $head" --label schneegans-upstream --body-file report.md
+          fi

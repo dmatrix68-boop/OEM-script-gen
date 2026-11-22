@@ -55,7 +55,9 @@
       drivers: { enabled: false, phase: 'setup', timeoutMin: 10, items: [] },
       files: { items: [] },
       custom: { cmdEnabled: true, cmd: '', psEnabled: true, psPhase: 'setup', ps: '' },
-      iso: { noPrompt: false }
+      iso: { noPrompt: false },
+      /* Antwortdatei-Designer (js/ug, Port des Schneegans-Generators) */
+      answer: Object.assign({ enabled: false }, window.UG ? UG.defaultConfig() : {})
     };
   }
 
@@ -138,7 +140,36 @@
     ['setKeepInstall', 'options.cleanupInstall', 'bool'],
     ['setToastOnFinish', 'options.toastOnFinish', 'bool'],
     ['setConfigSetMode', 'options.configSetMode', 'text'],
-    ['isoNoPrompt', 'iso.noPrompt', 'bool']
+    ['isoNoPrompt', 'iso.noPrompt', 'bool'],
+    ['answerEnabled', 'answer.enabled', 'bool'],
+    ['ansLangMode', 'answer.language.mode', 'text'],
+    ['ansImageLang', 'answer.language.image', 'text'],
+    ['ansGeo', 'answer.language.geo', 'text'],
+    ['ansTzMode', 'answer.timeZone.mode', 'text'],
+    ['ansTz', 'answer.timeZone.id', 'text'],
+    ['ansEditionMode', 'answer.edition.mode', 'text'],
+    ['ansEdition', 'answer.edition.edition', 'text'],
+    ['ansKey', 'answer.edition.key', 'text'],
+    ['ansActivationKey', 'answer.activationKey', 'text'],
+    ['ansBypassReq', 'answer.bypassRequirements', 'bool'],
+    ['ansBypassNet', 'answer.bypassNetwork', 'bool'],
+    ['ansNarrator', 'answer.useNarrator', 'bool'],
+    ['ansCnMode', 'answer.computerName.mode', 'text'],
+    ['ansCnName', 'answer.computerName.name', 'text'],
+    ['ansExpress', 'answer.expressSettings', 'text'],
+    ['ansWifi', 'answer.wifi.mode', 'text'],
+    ['ansLockMode', 'answer.lockout.mode', 'text'],
+    ['ansLockThreshold', 'answer.lockout.threshold', 'num'],
+    ['ansLockDuration', 'answer.lockout.duration', 'num'],
+    ['ansLockWindow', 'answer.lockout.window', 'num'],
+    ['ansPwMode', 'answer.passwordExpiration.mode', 'text'],
+    ['ansPwAge', 'answer.passwordExpiration.maxAge', 'num'],
+    ['ansHidePs', 'answer.hidePowerShellWindows', 'bool'],
+    ['ansKeepFiles', 'answer.keepSensitiveFiles', 'bool'],
+    ['ansAccMode', 'answer.account.mode', 'text'],
+    ['ansAutoLogon', 'answer.account.autoLogon', 'text'],
+    ['ansBuiltinPw', 'answer.account.builtinPassword', 'text'],
+    ['ansObscure', 'answer.account.obscure', 'bool']
   ];
 
   function bindAll() {
@@ -148,6 +179,7 @@
       el.addEventListener(type === 'bool' ? 'change' : 'input', () => {
         set(path, type === 'bool' ? el.checked : type === 'num' ? parseInt(el.value, 10) || 0 : el.value);
         if (id === 'setConfigSetMode') applyConfigSetMode();
+        if (id === 'answerEnabled' || id.startsWith('ans')) renderAnswer();
         if (id === 'officeXml') renderOfficeSummary();
         if (id === 'tweaksPhase') renderTweaks();
         if (id === 'featuresPhase') renderFeatureHints();
@@ -365,6 +397,136 @@
     el.innerHTML = teile.join('. ') +
       T('. Diese Einstellungen werden automatisch in Phase 2 nachgeholt, jeweils mit Zeitgrenze. Die Registry-Anteile bleiben in Phase 1.');
     el.style.color = 'var(--acc2)';
+  }
+
+  /* ---------------- Antwortdatei-Designer ---------------- */
+  /*  Oberflaeche fuer js/ug (Port des Generators von Christoph Schneegans).
+      Die Auswahllisten kommen aus dessen Datentabellen (resources.js); die
+      Pruefung laeuft bei jeder Aenderung ueber denselben Code, der die Datei
+      erzeugt - eine ConfigurationException erscheint als Hinweis oben. */
+  function fillSelect(sel, items, value, empty) {
+    sel.innerHTML = '';
+    if (empty) { const o = document.createElement('option'); o.value = ''; o.textContent = empty; sel.appendChild(o); }
+    for (const it of items) {
+      const o = document.createElement('option');
+      o.value = it.Id; o.textContent = it.DisplayName;
+      sel.appendChild(o);
+    }
+    sel.value = value || '';
+  }
+  const byName = (a, b) => a.DisplayName.localeCompare(b.DisplayName);
+  function ugList(name) {
+    if (!window.UG) return [];
+    const l = UG.list(name);
+    if (name === 'WindowsEdition') return l.filter((e) => e.Visible);
+    return name === 'TimeOffset' ? l : l.slice().sort(byName);
+  }
+
+  function renderAnswerLists() {
+    if (!window.UG || !$('#ansImageLang')) return;
+    $$('#view-answer select[data-list]').forEach((sel) => {
+      const binding = BINDINGS.find((b) => b[0] === sel.id);
+      fillSelect(sel, ugList(sel.dataset.list), binding ? get(binding[1]) : '');
+    });
+    renderAnsLocales();
+    renderAnsAccounts();
+    $$('.ans-arch').forEach((cb) => { cb.checked = (state.answer.architectures || []).includes(cb.value); });
+    renderAnswer();
+  }
+
+  function renderAnsLocales() {
+    const box = $('#ansLocales');
+    if (!box) return;
+    const a = state.answer.language;
+    if (!Array.isArray(a.locales)) a.locales = [];
+    const locales = ugList('UserLocale'), keyboards = ugList('KeyboardIdentifier');
+    box.innerHTML = '';
+    for (let i = 0; i < 3; i++) {
+      const pair = a.locales[i] || { locale: '', keyboard: '' };
+      const row = document.createElement('div');
+      row.className = 'row wrap';
+      row.innerHTML = '<label class="field grow"><span></span><select class="loc"></select></label>' +
+        '<label class="field grow"><span></span><select class="kbd"></select></label>';
+      row.querySelectorAll('span')[0].textContent = i === 0 ? T('Gebietsschema') : F('Gebietsschema {0} (optional)', i + 1);
+      row.querySelectorAll('span')[1].textContent = i === 0 ? T('Tastatur') : F('Tastatur {0}', i + 1);
+      const loc = row.querySelector('.loc'), kbd = row.querySelector('.kbd');
+      fillSelect(loc, locales, pair.locale, i === 0 ? null : '—');
+      fillSelect(kbd, keyboards, pair.keyboard, i === 0 ? null : '—');
+      const store = () => {
+        while (a.locales.length < i) a.locales.push({ locale: '', keyboard: '' });
+        a.locales[i] = { locale: loc.value, keyboard: kbd.value };
+        renderAnswer(); refresh();
+      };
+      loc.addEventListener('change', () => {
+        /* Wie auf der Seite des Originals: Tastatur und Standort folgen dem Gebietsschema */
+        const l = locales.find((x) => x.Id === loc.value);
+        if (l && l.KeyboardLayout) kbd.value = l.KeyboardLayout;
+        if (!loc.value) kbd.value = '';
+        if (i === 0 && l && l.GeoLocation) { a.geo = l.GeoLocation; $('#ansGeo').value = l.GeoLocation; }
+        store();
+      });
+      kbd.addEventListener('change', store);
+      box.appendChild(row);
+    }
+  }
+
+  function renderAnsAccounts() {
+    const tbl = $('#ansAccounts');
+    if (!tbl) return;
+    const acc = state.answer.account;
+    if (!Array.isArray(acc.accounts)) acc.accounts = [];
+    tbl.innerHTML = '<thead><tr><th>' + T('Name') + '</th><th>' + T('Anzeigename') + '</th><th>' + T('Kennwort') +
+      '</th><th>' + T('Gruppe') + '</th><th></th></tr></thead><tbody></tbody>';
+    const body = tbl.querySelector('tbody');
+    acc.accounts.forEach((u, i) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = '<td><input type="text" class="n" maxlength="20" spellcheck="false"></td>' +
+        '<td><input type="text" class="d" spellcheck="false"></td>' +
+        '<td><input type="text" class="p" spellcheck="false" autocomplete="off"></td>' +
+        '<td><select class="g"><option value="Administrators"></option><option value="Users"></option></select></td>' +
+        '<td><button class="btn small danger" type="button">✕</button></td>';
+      tr.querySelector('.n').value = u.name || '';
+      tr.querySelector('.d').value = u.displayName || '';
+      tr.querySelector('.p').value = u.password || '';
+      const g = tr.querySelector('.g');
+      g.options[0].textContent = T('Administratoren'); g.options[1].textContent = T('Benutzer');
+      g.value = u.group || 'Administrators';
+      tr.querySelector('.n').addEventListener('input', (e) => { u.name = e.target.value; renderAnswer(); });
+      tr.querySelector('.d').addEventListener('input', (e) => { u.displayName = e.target.value; renderAnswer(); });
+      tr.querySelector('.p').addEventListener('input', (e) => { u.password = e.target.value; renderAnswer(); });
+      g.addEventListener('change', () => { u.group = g.value; renderAnswer(); });
+      tr.querySelector('button').addEventListener('click', () => { acc.accounts.splice(i, 1); renderAnsAccounts(); renderAnswer(); refresh(); });
+      body.appendChild(tr);
+    });
+  }
+
+  /* Sichtbarkeit (data-show="pfad=wert") und Pruefung */
+  function renderAnswer() {
+    const view = $('#view-answer');
+    if (!view) return;
+    $$('[data-show]', view).forEach((el) => {
+      const [path, value] = el.dataset.show.split('=');
+      el.hidden = String(get(path)) !== value;
+    });
+    const st = $('#answerStatus');
+    if (!window.UG) { st.textContent = T('Der Designer ist nicht geladen (js/ug fehlt).'); st.style.color = 'var(--warn)'; return; }
+    if (!state.answer.enabled) {
+      st.textContent = T('Aus – es wird die eigenständige bzw. importierte Antwortdatei verwendet.');
+      st.style.color = '';
+      return;
+    }
+    const notes = [];
+    try {
+      UG.generate(Object.assign({}, state.answer, { useConfigurationSet: state.options.configSet !== false }));
+      notes.push(T('Konfiguration gültig – die Antwortdatei steht in der Vorschau.'));
+      st.style.color = 'var(--ok)';
+    } catch (e) {
+      notes.push(F('Nicht erzeugbar: {0}', e.message));
+      st.style.color = 'var(--warn)';
+    }
+    if (state.options.trigger === 'setupcomplete') notes.push(T('Achtung: Unter Einstellungen → Auslöser ist „nur SetupComplete.cmd“ gewählt – dann entsteht keine autounattend.xml.'));
+    if (state.unattend && state.unattend.xml) notes.push(T('Die importierte autounattend.xml wird nicht verwendet, solange der Designer aktiv ist.'));
+    st.textContent = notes.join(' ');
   }
 
   /* ---------------- Registry-Dateien ---------------- */
@@ -1220,6 +1382,7 @@
     I18n.apply();
     renderApps(); renderTweaks(); renderBloat(); renderFeatures(); renderDrivers(); renderFiles(); renderOfficeSummary(); renderUnattend();
     renderIsoSource();
+    renderAnswerLists();
     refresh();
   }
 
@@ -2348,6 +2511,19 @@
     $('#btnIsoPick').addEventListener('click', chooseIsoSource);
     $('#btnIsoDrop').addEventListener('click', () => { isoSource = null; renderIsoSource(); });
     $('#btnRegImport').addEventListener('click', () => $('#regInput').click());
+    if ($('#btnAnsAddAccount')) {
+      $('#btnAnsAddAccount').addEventListener('click', () => {
+        const acc = state.answer.account;
+        acc.accounts.push({ name: '', displayName: '', password: '', group: acc.accounts.some((u) => u.group === 'Administrators') ? 'Users' : 'Administrators' });
+        renderAnsAccounts(); renderAnswer(); refresh();
+      });
+      $$('.ans-arch').forEach((cb) => cb.addEventListener('change', () => {
+        state.answer.architectures = $$('.ans-arch').filter((x) => x.checked).map((x) => x.value);
+        renderAnswer(); refresh();
+      }));
+      $('#view-answer').addEventListener('change', () => refresh());
+      $('#view-answer').addEventListener('input', () => refresh());
+    }
     $('#regInput').addEventListener('change', async (e) => { await importFiles(e.target.files); e.target.value = ''; });
     if (typeof window.showDirectoryPicker !== 'function') $('#btnExportFolder').hidden = true;
     $('#btnSaveProject').addEventListener('click', saveProject);

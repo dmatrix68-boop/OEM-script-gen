@@ -41,6 +41,7 @@
     <button class="nav-item" data-view="drivers"><span class="ico">⌗</span><span data-i18n="nav-treiber">Treiber</span><span class="badge" id="badgeDrivers">0</span></button>
     <button class="nav-item" data-view="files"><span class="ico">🗀</span><span data-i18n="nav-eigene-dateien">Eigene Dateien</span><span class="badge" id="badgeFiles">0</span></button>
     <button class="nav-item" data-view="custom"><span class="ico">›_</span><span data-i18n="nav-eigene-befehle">Eigene Befehle</span></button>
+    <button class="nav-item" data-view="answer"><span class="ico">✎</span><span data-i18n="nav-antwortdatei">Antwortdatei</span></button>
     <button class="nav-item" data-view="settings"><span class="ico">⚒</span><span data-i18n="nav-einstellungen">Einstellungen</span></button>
     <button class="nav-item" data-view="preview"><span class="ico">◲</span><span data-i18n="nav-vorschau">Vorschau</span></button>
     <div class="sidebar-foot">
@@ -441,6 +442,151 @@
       </div>
     </section>
 
+    <!-- ANTWORTDATEI -->
+    <section class="view" id="view-answer">
+      <h2 data-i18n="antwortdatei-2">Antwortdatei</h2>
+      <label class="switch"><input type="checkbox" id="answerEnabled"><span></span><span data-i18n="antwortdatei-designer-aktiv">Antwortdatei mit dem Designer erzeugen</span></label>
+      <p class="lead" data-i18n="antwortdatei-lead">Erzeugt eine vollständige <code>autounattend.xml</code> – Sprache, Konten, Computername,
+      Edition, OOBE –, in die der Generator anschließend seine Aufrufe einfügt. Der Designer ist eine Portierung des
+      Generators von Christoph Schneegans (<a href="https://github.com/cschneegans/unattend-generator" target="_blank" rel="noopener noreferrer">unattend-generator</a>,
+      MIT-Lizenz); Partitionierung und weitere Bereiche folgen.</p>
+      <p class="hint" id="answerStatus"></p>
+
+      <div class="grid2">
+      <div class="panel">
+        <h3 data-i18n="sprache-und-region">Sprache &amp; Region</h3>
+        <div class="row wrap">
+          <label class="field grow"><span data-i18n="sprache-einstellung">Sprache und Tastatur</span>
+            <select id="ansLangMode">
+              <option value="interactive" data-i18n="opt-interaktiv-setup-fragt">interaktiv – Setup fragt nach</option>
+              <option value="unattended" data-i18n="opt-vorgeben">vorgeben</option>
+            </select></label>
+        </div>
+        <div data-show="answer.language.mode=unattended">
+          <div class="row wrap">
+            <label class="field grow"><span data-i18n="sprache-des-images">Sprache des Windows-Images</span><select id="ansImageLang" data-list="ImageLanguage"></select></label>
+            <label class="field grow"><span data-i18n="standort">Standort (Home Location)</span><select id="ansGeo" data-list="GeoId"></select></label>
+          </div>
+          <div id="ansLocales"></div>
+        </div>
+        <div class="row wrap">
+          <label class="field grow"><span data-i18n="zeitzone">Zeitzone</span>
+            <select id="ansTzMode">
+              <option value="implicit" data-i18n="opt-zeitzone-implizit">aus Sprache/Region ableiten</option>
+              <option value="explicit" data-i18n="opt-vorgeben">vorgeben</option>
+            </select></label>
+          <label class="field grow" data-show="answer.timeZone.mode=explicit"><span>&nbsp;</span><select id="ansTz" data-list="TimeOffset"></select></label>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3 data-i18n="setup-und-edition">Setup &amp; Edition</h3>
+        <div class="row wrap">
+          <label class="field grow"><span data-i18n="edition-produktschluessel">Edition / Produktschlüssel</span>
+            <select id="ansEditionMode">
+              <option value="interactive" data-i18n="opt-edition-interaktiv">interaktiv – Setup fragt nach der Edition</option>
+              <option value="firmware" data-i18n="opt-edition-firmware">Schlüssel aus der Firmware (BIOS/UEFI)</option>
+              <option value="edition" data-i18n="opt-edition-generisch">Edition mit generischem Schlüssel</option>
+              <option value="key" data-i18n="opt-edition-schluessel">eigener Produktschlüssel</option>
+            </select></label>
+          <label class="field grow" data-show="answer.edition.mode=edition"><span data-i18n="edition">Edition</span><select id="ansEdition" data-list="WindowsEdition"></select></label>
+          <label class="field grow" data-show="answer.edition.mode=key"><span data-i18n="produktschluessel">Produktschlüssel</span><input type="text" id="ansKey" placeholder="XXXXX-XXXXX-XXXXX-XXXXX-XXXXX" spellcheck="false"></label>
+        </div>
+        <div class="row wrap">
+          <label class="field grow"><span data-i18n="aktivierungsschluessel">Schlüssel zur Aktivierung (optional)</span><input type="text" id="ansActivationKey" placeholder="XXXXX-XXXXX-XXXXX-XXXXX-XXXXX" spellcheck="false"></label>
+        </div>
+        <label class="chk"><input type="checkbox" id="ansBypassReq"> <span data-i18n="hardwarepruefung-umgehen">Hardwareprüfung umgehen (TPM, Secure Boot, RAM)</span></label>
+        <label class="chk"><input type="checkbox" id="ansBypassNet"> <span data-i18n="netzwerkzwang-umgehen">Einrichtung ohne Internetverbindung erlauben (BypassNRO)</span></label>
+        <label class="chk"><input type="checkbox" id="ansNarrator"> <span data-i18n="sprachausgabe">Sprachausgabe während der Installation</span></label>
+        <div class="row wrap" style="margin-top:8px">
+          <span class="muted" data-i18n="prozessorarchitekturen">Prozessorarchitekturen:</span>
+          <label class="chk"><input type="checkbox" class="ans-arch" value="amd64"> x64</label>
+          <label class="chk"><input type="checkbox" class="ans-arch" value="arm64"> ARM64</label>
+          <label class="chk"><input type="checkbox" class="ans-arch" value="x86"> x86</label>
+        </div>
+        <p class="hint" data-i18n="useconfigurationset-zielsystem-hinweis"><code>UseConfigurationSet</code> folgt dem Zielsystem unter Einstellungen → Auslöser.</p>
+      </div>
+
+      <div class="panel">
+        <h3 data-i18n="computername">Computername</h3>
+        <div class="row wrap">
+          <label class="field grow"><span data-i18n="computername">Computername</span>
+            <select id="ansCnMode">
+              <option value="random" data-i18n="opt-cn-zufaellig">zufällig (Windows vergibt ihn)</option>
+              <option value="custom" data-i18n="opt-cn-fest">fest vorgeben</option>
+              <option value="prompt" data-i18n="opt-cn-abfrage">bei der Installation abfragen</option>
+            </select></label>
+          <label class="field grow" data-show="answer.computerName.mode=custom"><span data-i18n="name">Name</span><input type="text" id="ansCnName" maxlength="15" spellcheck="false"></label>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3 data-i18n="oobe-und-sicherheit">OOBE &amp; Sicherheit</h3>
+        <div class="row wrap">
+          <label class="field grow"><span data-i18n="datenschutz-einstellungen">Datenschutz-Einstellungen</span>
+            <select id="ansExpress">
+              <option value="interactive" data-i18n="opt-interaktiv-setup-fragt">interaktiv – Setup fragt nach</option>
+              <option value="disableAll" data-i18n="opt-alle-aus">alle aus</option>
+              <option value="enableAll" data-i18n="opt-alle-an">alle an</option>
+            </select></label>
+          <label class="field grow"><span data-i18n="wlan">WLAN</span>
+            <select id="ansWifi">
+              <option value="interactive" data-i18n="opt-interaktiv-setup-fragt">interaktiv – Setup fragt nach</option>
+              <option value="skip" data-i18n="opt-wlan-ueberspringen">überspringen</option>
+            </select></label>
+        </div>
+        <div class="row wrap">
+          <label class="field grow"><span data-i18n="kontosperrung">Kontosperrung</span>
+            <select id="ansLockMode">
+              <option value="default" data-i18n="opt-windows-standard">Windows-Standard</option>
+              <option value="disabled" data-i18n="opt-aus">aus</option>
+              <option value="custom" data-i18n="opt-eigene-werte">eigene Werte</option>
+            </select></label>
+          <label class="field" data-show="answer.lockout.mode=custom"><span data-i18n="fehlversuche">Fehlversuche</span><input type="number" id="ansLockThreshold" min="0" max="999"></label>
+          <label class="field" data-show="answer.lockout.mode=custom"><span data-i18n="sperrdauer-min">Sperrdauer (min)</span><input type="number" id="ansLockDuration" min="1" max="99999"></label>
+          <label class="field" data-show="answer.lockout.mode=custom"><span data-i18n="zaehler-zuruecksetzen-min">Zähler zurücksetzen (min)</span><input type="number" id="ansLockWindow" min="1" max="99999"></label>
+        </div>
+        <div class="row wrap">
+          <label class="field grow"><span data-i18n="kennwortablauf">Kennwortablauf</span>
+            <select id="ansPwMode">
+              <option value="default" data-i18n="opt-pw-standard">Windows-Standard (42 Tage)</option>
+              <option value="unlimited" data-i18n="opt-pw-unbegrenzt">unbegrenzt</option>
+              <option value="custom" data-i18n="opt-eigene-werte">eigene Werte</option>
+            </select></label>
+          <label class="field" data-show="answer.passwordExpiration.mode=custom"><span data-i18n="tage">Tage</span><input type="number" id="ansPwAge" min="1" max="999"></label>
+        </div>
+        <label class="chk"><input type="checkbox" id="ansHidePs"> <span data-i18n="powershell-fenster-verbergen">PowerShell-Fenster der Antwortdatei verbergen</span></label>
+        <label class="chk"><input type="checkbox" id="ansKeepFiles"> <span data-i18n="sensible-dateien-behalten">unattend.xml nach der ersten Anmeldung behalten (enthält ggf. Kennwörter)</span></label>
+      </div>
+      </div>
+
+      <div class="panel">
+        <h3 data-i18n="benutzerkonten">Benutzerkonten</h3>
+        <div class="row wrap">
+          <label class="field grow"><span data-i18n="benutzerkonten">Benutzerkonten</span>
+            <select id="ansAccMode">
+              <option value="interactive-ms" data-i18n="opt-konto-ms">interaktiv – Microsoft-Konto</option>
+              <option value="interactive-local" data-i18n="opt-konto-lokal">interaktiv – lokales Konto</option>
+              <option value="unattended" data-i18n="opt-konto-vorgeben">Konten vorgeben</option>
+            </select></label>
+        </div>
+        <div data-show="answer.account.mode=unattended">
+          <div class="table-wrap"><table class="tbl" id="ansAccounts"></table></div>
+          <div class="row wrap">
+            <button class="btn small" id="btnAnsAddAccount" data-i18n="konto-hinzufuegen">Konto hinzufügen</button>
+            <label class="field grow"><span data-i18n="automatische-anmeldung">Automatische Anmeldung</span>
+              <select id="ansAutoLogon">
+                <option value="none" data-i18n="opt-autologon-keine">keine</option>
+                <option value="own" data-i18n="opt-autologon-erstes-admin">erstes Administratorkonto (einmal)</option>
+                <option value="builtin" data-i18n="opt-autologon-builtin">integriertes Administratorkonto</option>
+              </select></label>
+            <label class="field grow" data-show="answer.account.autoLogon=builtin"><span data-i18n="kennwort-administrator">Kennwort für „Administrator“</span><input type="text" id="ansBuiltinPw" spellcheck="false"></label>
+          </div>
+          <label class="chk"><input type="checkbox" id="ansObscure"> <span data-i18n="kennwoerter-verschleiern">Kennwörter verschleiern (Base64 wie Windows SIM – kein Schutz, nur nicht im Klartext lesbar)</span></label>
+        </div>
+      </div>
+    </section>
+
     <!-- EINSTELLUNGEN -->
     <section class="view" id="view-settings">
       <h2 data-i18n="einstellungen-2">Einstellungen</h2>
@@ -589,6 +735,9 @@
 <script src="js/i18n.js"></script>
 <script src="js/zip.js"></script>
 <script src="js/iso.js"></script>
+<script src="js/ug/resources.js"></script>
+<script src="js/ug/core.js"></script>
+<script src="js/ug/modifiers.js"></script>
 <script src="js/catalog.js"></script>
 <script src="js/importers.js"></script>
 <script src="js/templates.js"></script>

@@ -431,6 +431,13 @@
 
     let out = new XMLSerializer().serializeToString(doc);
     if (!/^\s*<\?xml/.test(out)) out = '<?xml version="1.0" encoding="utf-8"?>\n' + out;
+    /*  Windows Setup erwartet utf-8 im Kopf, verarbeitet aber nur ASCII
+        zuverlaessig (so auch der Generator von Christoph Schneegans): alles
+        andere als Zeichenreferenz. In CDATA-Abschnitten wirken Referenzen
+        nicht - dort bleibt der Text unveraendert. */
+    if (out.indexOf('<![CDATA[') < 0) {
+      out = out.replace(/[^\x00-\x7F]/gu, (c) => '&#x' + c.codePointAt(0).toString(16).toUpperCase() + ';');
+    }
     return { xml: out.replace(/\r?\n/g, '\r\n'), applied: applied };
   }
 

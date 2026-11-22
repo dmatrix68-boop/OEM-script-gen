@@ -284,3 +284,8 @@ body.dragging .dropzone{border-color:var(--acc)}
 .regfile .log{margin:8px 0 0;max-height:140px}
 .regfile .table-wrap{margin-top:8px;max-height:40vh}
 .regfile td.mono{word-break:break-all}
+
+/* Antwortdatei-Designer */
+#view-answer [hidden]{display:none !important}
+#ansAccounts input,#ansAccounts select{width:100%}
+#ansAccounts td:last-child{width:1%;white-space:nowrap}

@@ -2627,7 +2627,20 @@ Write-Host ''
     if (trigger !== 'unattend') add(base + '/$$/Setup/Scripts/SetupComplete.cmd', setupComplete(st));
     if (trigger !== 'setupcomplete') {
       const imported = st.unattend && st.unattend.xml;
-      if (imported) {
+      const designer = st.answer && st.answer.enabled && global.UG;
+      if (designer) {
+        /* Antwortdatei-Designer (js/ug): erzeugen, dann wie eine importierte Datei ergaenzen */
+        try {
+          const cfg = Object.assign({}, st.answer, { useConfigurationSet: st.options.configSet !== false });
+          const xml = global.UG.serialize(global.UG.generate(cfg));
+          const res = Importers.patchUnattend(xml, unattendCommands(st), { configSet: st.options.configSet !== false });
+          add('autounattend.xml', res.xml);
+        } catch (e) {
+          add('autounattend-FEHLER.txt', toCRLF(
+            'Der Antwortdatei-Designer konnte keine autounattend.xml erzeugen:\n' + e.message +
+            '\n\nBitte die Eingaben auf der Seite "Antwortdatei" pruefen.\n'));
+        }
+      } else if (imported) {
         try {
           const res = Importers.patchUnattend(imported, unattendCommands(st), { configSet: st.options.configSet !== false });
           add('autounattend.xml', res.xml);

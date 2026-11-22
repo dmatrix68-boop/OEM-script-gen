@@ -440,6 +440,47 @@ powercfg /setactive SCHEME_MIN
 Write-Log 'Energiesparplan gesetzt'</pre>`
     },
 
+    answer: {
+      title: 'Antwortdatei-Designer',
+      html: `
+<p>Der Designer erzeugt eine vollständige <code>autounattend.xml</code>. Der Generator fügt danach wie bei einer importierten
+Datei seine Aufrufe ein (Phase 1 im <code>specialize</code>-Pass, Phase 2 über <code>FirstLogonCommands</code>) und setzt
+<code>UseConfigurationSet</code> nach dem Zielsystem unter <a data-help="settings">Einstellungen</a>.</p>
+<p>Der Designer ist eine Portierung des Generators von Christoph Schneegans
+(<a href="https://github.com/cschneegans/unattend-generator" target="_blank" rel="noopener noreferrer">unattend-generator</a>,
+MIT-Lizenz). Die Logik ist Datei für Datei übernommen; welcher Stand portiert ist, steht in
+<code>vendor/schneegans/UPSTREAM.json</code>. Ein GitHub-Workflow meldet wöchentlich Änderungen im Original.</p>
+
+<h3>Was der Designer kann</h3>
+<dl>
+  <dt>Sprache &amp; Region</dt><dd>Sprache des Images, bis zu drei Gebietsschemas mit Tastatur, Standort, Zeitzone. „interaktiv“
+    lässt Setup danach fragen.</dd>
+  <dt>Setup &amp; Edition</dt><dd>Edition per generischem Schlüssel, eigener Schlüssel oder Schlüssel aus der Firmware; optional ein
+    Aktivierungsschlüssel. Hardwareprüfung umgehen (TPM, Secure Boot, RAM) und Einrichtung ohne Internet (<code>BypassNRO</code>).</dd>
+  <dt>Computername</dt><dd>zufällig, fest oder bei der Installation abfragen (Eingabefenster im <code>specialize</code>-Pass).</dd>
+  <dt>Benutzerkonten</dt><dd>interaktiv (Microsoft- oder lokales Konto) oder vorgegebene lokale Konten mit Gruppe und Kennwort, dazu
+    automatische Anmeldung. „Verschleiern“ speichert Kennwörter Base64-kodiert wie Windows SIM – das ist <b>kein</b> Schutz.</dd>
+  <dt>OOBE &amp; Sicherheit</dt><dd>Datenschutzseiten, WLAN-Seite, Kontosperrung, Kennwortablauf.</dd>
+</dl>
+
+<h3>Prüfung</h3>
+<p>Jede Änderung läuft durch dieselben Prüfregeln wie im Original (Kontonamen, Computername, Produktschlüssel, mindestens ein
+Administrator …). Ist die Konfiguration nicht erzeugbar, steht der Grund oben auf der Seite; im Paket liegt dann statt der
+Antwortdatei <code>autounattend-FEHLER.txt</code>.</p>
+
+<h3>Wichtig</h3>
+<ul>
+  <li>Wie im Original löscht ein Skript bei der ersten Anmeldung <code>C:\\Windows\\Panther\\unattend.xml</code>, weil darin
+    Kennwörter stehen können. Wer das nicht will: „unattend.xml behalten“. Werden Konten vorgegeben, braucht das Löschen eine
+    automatische Anmeldung.</li>
+  <li>Ist der Designer aktiv, wird eine importierte <code>autounattend.xml</code> nicht verwendet.</li>
+  <li>Noch nicht portiert: Partitionierung und <code>pe.cmd</code>-Modus, WLAN-Profil, Personalisierung, AppLocker. Tweaks und
+    Bloatware liefert der Generator ohnehin selbst.</li>
+  <li>Nicht-ASCII-Zeichen (Umlaute in Anzeigenamen) schreibt der Generator als Zeichenreferenz – Windows Setup verarbeitet nur ASCII
+    zuverlässig.</li>
+</ul>`
+    },
+
     settings: {
       title: 'Einstellungen',
       html: `
@@ -975,6 +1016,46 @@ copy /y "%~dp0wallpaper.jpg" "%WINDIR%\\Web\\Wallpaper\\Company.jpg"
 # PowerShell: high performance power plan
 powercfg /setactive SCHEME_MIN
 Write-Log 'Power plan set'</pre>`
+    },
+
+    answer: {
+      title: 'Answer file designer',
+      html: `
+<p>The designer creates a complete <code>autounattend.xml</code>. The generator then adds its calls just as with an imported
+file (phase 1 in the <code>specialize</code> pass, phase 2 via <code>FirstLogonCommands</code>) and sets
+<code>UseConfigurationSet</code> according to the target system under <a data-help="settings">Settings</a>.</p>
+<p>The designer is a port of the generator by Christoph Schneegans
+(<a href="https://github.com/cschneegans/unattend-generator" target="_blank" rel="noopener noreferrer">unattend-generator</a>,
+MIT licence). The logic is taken over file by file; the ported state is recorded in
+<code>vendor/schneegans/UPSTREAM.json</code>. A GitHub workflow reports changes in the original every week.</p>
+
+<h3>What the designer does</h3>
+<dl>
+  <dt>Language &amp; region</dt><dd>Image language, up to three locales with keyboard, location, time zone. “interactive” lets
+    Setup ask.</dd>
+  <dt>Setup &amp; edition</dt><dd>Edition via generic key, own key or key from the firmware; optionally an activation key.
+    Bypass the hardware check (TPM, Secure Boot, RAM) and set up without internet (<code>BypassNRO</code>).</dd>
+  <dt>Computer name</dt><dd>random, fixed or asked during installation (input window in the <code>specialize</code> pass).</dd>
+  <dt>User accounts</dt><dd>interactive (Microsoft or local account) or predefined local accounts with group and password, plus
+    automatic sign-in. “Obscure” stores passwords Base64-encoded like Windows SIM – that is <b>no</b> protection.</dd>
+  <dt>OOBE &amp; security</dt><dd>Privacy pages, Wi-Fi page, account lockout, password expiration.</dd>
+</dl>
+
+<h3>Validation</h3>
+<p>Every change runs through the same validation rules as the original (account names, computer name, product key, at least
+one administrator …). If the configuration cannot be created, the reason appears at the top of the page; the package then
+contains <code>autounattend-FEHLER.txt</code> instead of the answer file.</p>
+
+<h3>Important</h3>
+<ul>
+  <li>As in the original, a script deletes <code>C:\\Windows\\Panther\\unattend.xml</code> at the first sign-in because it may
+    contain passwords. To prevent that: “Keep unattend.xml”. With predefined accounts, deleting requires automatic sign-in.</li>
+  <li>While the designer is active, an imported <code>autounattend.xml</code> is not used.</li>
+  <li>Not ported yet: partitioning and the <code>pe.cmd</code> mode, Wi-Fi profile, personalisation, AppLocker. Tweaks and
+    bloatware are provided by the generator itself anyway.</li>
+  <li>Non-ASCII characters (umlauts in display names) are written as character references – Windows Setup only processes ASCII
+    reliably.</li>
+</ul>`
     },
 
     settings: {

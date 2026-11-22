@@ -67,6 +67,9 @@ unpack the ZIP and open `index.html`. Inside the package the screenshots are lin
 * **autounattend.xml** – generated as a trigger or, if you already use an answer
   file, imported and **extended rather than replaced**: the calls are inserted into
   the existing blocks with a continuing `<Order>`.
+* **Answer file designer** – creates a complete `autounattend.xml` (language, accounts,
+  computer name, edition, OOBE) as a port of Christoph Schneegans' generator; the generator
+  inserts its calls (see below).
 * **Diagnose.ps1** – ships inside the generated package and answers, after the
   installation, why nothing ran.
 * **Help on every page** – the *Help* button in the page header (or <kbd>F1</kbd>)
@@ -332,6 +335,42 @@ the App Installer is an MSIX package that is not in the search path under SYSTEM
 packages that install per user only fail without a user profile. That is why phase 2
 is preselected for applications.
 
+## Answer file designer
+
+The **Answer file** page creates a complete `autounattend.xml`: image language, up to three
+locales with keyboard, location, time zone, edition or product key, hardware-check bypass,
+setup without internet, computer name (fixed or asked during installation), local accounts
+with automatic sign-in, privacy and Wi-Fi pages, account lockout and password expiration.
+The generator then inserts its calls – as with an imported file – and sets
+`UseConfigurationSet` according to the target system.
+
+The designer is a **port** of the generator by Christoph Schneegans
+([unattend-generator](https://github.com/cschneegans/unattend-generator), MIT licence,
+licence text in `vendor/schneegans/LICENSE.txt`). The logic is carried over to JavaScript
+file by file (`js/ug/core.js`, `js/ug/modifiers.js`, one section per modifier with the same
+name); the original's data tables and scripts are taken over unchanged (`js/ug/resources.js`,
+generated). Deviations are marked `PORT:` in the code.
+
+Not ported yet: partitioning and the `pe.cmd` mode, Wi-Fi profile, personalisation,
+AppLocker. Tweaks and bloatware are provided by the generator itself.
+
+### Watching the original for changes
+
+`vendor/schneegans/UPSTREAM.json` records the commit the port is based on and, per file,
+the Git blob id, the target in the port and the porting status. The *Schneegans beobachten*
+workflow clones the original every week, compares and opens an issue on changes – with the
+new commits, the affected files and their target module, a diff link and changed scripts
+verbatim (they run as SYSTEM on the target machines). Nothing is taken over automatically.
+After review and porting:
+
+```bash
+git clone https://github.com/cschneegans/unattend-generator.git ../unattend-generator
+node tools/sync-schneegans.js ../unattend-generator --resources --write
+```
+
+`--resources` regenerates `js/ug/resources.js`, `--write` sets the port state. Without
+these switches the tool only prints the report.
+
 ## Generated structure
 
 ```
@@ -489,6 +528,13 @@ for it:
 node tools/check-i18n.js
 ```
 
+The answer file designer (`js/ug`) needs DOM and XPath; its test therefore runs in
+Chromium and requires Playwright (without Playwright it reports "skipped"):
+
+```bash
+node tools/test-unattend.js
+```
+
 The ISO writer (`js/iso.js`) can be checked without a browser: the test tool builds a
 synthetic Windows ISO, reads it back, rewrites it the way the interface does and compares –
 with `udfinfo` and 7-Zip, if installed, against independent UDF implementations too:
@@ -514,6 +560,9 @@ js/help.js        help texts per page (German/English)
 js/i18n.js        German/English dictionary and language switching
 js/zip.js         ZIP writer (deflate via CompressionStream, otherwise "stored")
 js/iso.js         reads and rewrites ISO images (UDF 1.02, El Torito)
+js/ug/            answer file designer (port of the Schneegans generator):
+                  core.js, modifiers.js, resources.js (generated)
+vendor/schneegans/ licence and port state (UPSTREAM.json) of the original
 js/catalog.js     catalog of tweaks, bloatware and Windows components, package managers
 js/importers.js   parsers for bundles, SetupComplete.cmd and ODT XML
 js/templates.js   generation of every script
@@ -523,6 +572,8 @@ tools/            check-escapes.js – checks the template literals for swallowe
                   check-i18n.js    – checks the dictionary against the interface
                   test-iso.js      – checks the ISO writer
                   test-reg.js      – checks the .reg import
+                  test-unattend.js – checks the answer file designer (Playwright)
+                  sync-schneegans.js – compares with the original, generates resources.js
                   build-release.js – builds the release package
 docs/screenshots/ images for the README (not in the release package)
 docs/releases/    release notes per version

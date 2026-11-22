@@ -1,0 +1,357 @@
+{
+  "repo": "https://github.com/cschneegans/unattend-generator",
+  "commit": "c112aa81e5d35fe06b5c57f7fa09aeb112a9d456",
+  "date": "2026-11-20T04:54:23+01:00",
+  "files": {
+    "Example.cs": {
+      "blob": "f69c02d96d98899cfd1d340840969c09a88c9116",
+      "port": "-",
+      "status": "nicht portiert"
+    },
+    "Extensions.cs": {
+      "blob": "17113669b41c111d640145bdc74e32e905268808",
+      "port": "js/ug/core.js",
+      "status": "portiert"
+    },
+    "GlobalSuppressions.cs": {
+      "blob": "8b0235743b66bcf5336076fb0cc4e895e6145900",
+      "port": "-",
+      "status": "nicht portiert"
+    },
+    "Main.cs": {
+      "blob": "ab11aca7e0e22250f9c708585b64a72872c38e45",
+      "port": "js/ug/core.js",
+      "status": "teilweise – Kern, Sequenzen, Embed; ohne PE-Skript (Schritt 2)"
+    },
+    "Util.cs": {
+      "blob": "b9e54386104e5b5f6eda701b456153679122f6fc",
+      "port": "js/ug/core.js",
+      "status": "portiert – ohne Schema-Pruefung"
+    },
+    "Validation.cs": {
+      "blob": "5a6f79bcb0234c1e61151fcee472c23bcee34fa9",
+      "port": "js/ug/core.js",
+      "status": "portiert"
+    },
+    "modifier/Accessibility.cs": {
+      "blob": "8f65b69244dff694c8ac72bd8e853a1d297877a5",
+      "port": "js/ug/modifiers.js",
+      "status": "portiert"
+    },
+    "modifier/AppLocker.cs": {
+      "blob": "6d73e62bb0cbd9e58b84df70d286b65f66cdb377",
+      "port": "-",
+      "status": "nicht portiert"
+    },
+    "modifier/Bloatware.cs": {
+      "blob": "069770b8e1fbd8bf5a85453be565b3e2354a21ce",
+      "port": "-",
+      "status": "bewusst nicht portiert – eigener Katalog (Bloatware-Seite)"
+    },
+    "modifier/Build.cs": {
+      "blob": "83803fefa6d30aa3df327cd5d0d4d284f268a4d7",
+      "port": "js/ug/modifiers.js",
+      "status": "portiert – Hash = Port-Stand"
+    },
+    "modifier/Bypass.cs": {
+      "blob": "b9d0f39a06350642d90656e8b91a7c119dab6f29",
+      "port": "js/ug/modifiers.js",
+      "status": "portiert"
+    },
+    "modifier/Components.cs": {
+      "blob": "165bf02b541530f47ec764cfd49b7cb5e168e820",
+      "port": "js/ug/modifiers.js",
+      "status": "nicht portiert – keine eigenen Komponenten in der Oberflaeche"
+    },
+    "modifier/ComputerName.cs": {
+      "blob": "62fdf641c3a66d9df87bfff559b77e37b6918319",
+      "port": "js/ug/modifiers.js",
+      "status": "portiert"
+    },
+    "modifier/DefaultUser.cs": {
+      "blob": "1d9d1c106ccc6981aeb137b17b7a9f1da03e70ef",
+      "port": "js/ug/modifiers.js",
+      "status": "portiert"
+    },
+    "modifier/Delete.cs": {
+      "blob": "2a3057b2f530a343b024eac9f9003d74519e72d2",
+      "port": "js/ug/modifiers.js",
+      "status": "portiert"
+    },
+    "modifier/Disk.cs": {
+      "blob": "a7304929560c54ab20d1decb8749dec3e3685d4f",
+      "port": "js/ug/modifiers.js",
+      "status": "teilweise – nur DefaultPESettings (UseConfigurationSet); pe.cmd/Partitionen in Schritt 2"
+    },
+    "modifier/EmptyElements.cs": {
+      "blob": "4e33d97fbc6d949589ef95587c8da53bd44e95f4",
+      "port": "js/ug/modifiers.js",
+      "status": "portiert"
+    },
+    "modifier/ExpressSettings.cs": {
+      "blob": "238ffa6a53cf6a48b56de5cda3a649ad878572a0",
+      "port": "js/ug/modifiers.js",
+      "status": "portiert"
+    },
+    "modifier/FirstLogon.cs": {
+      "blob": "d567e41446e904c4f8d8632fada552c2f26e874b",
+      "port": "js/ug/modifiers.js",
+      "status": "portiert"
+    },
+    "modifier/Locales.cs": {
+      "blob": "6a5c73641a9bde448293eb31656a19e1959b962c",
+      "port": "js/ug/modifiers.js",
+      "status": "portiert"
+    },
+    "modifier/Lockout.cs": {
+      "blob": "e57e5c4f450871a9edeecaefd527333e23431061",
+      "port": "js/ug/modifiers.js",
+      "status": "portiert"
+    },
+    "modifier/Optimizations.cs": {
+      "blob": "8b9af170474e3a9d6c9b53c98ae301e3052741f1",
+      "port": "-",
+      "status": "bewusst nicht portiert – eigener Katalog (Tweaks-Seite); Standardwerte erzeugen keine Ausgabe"
+    },
+    "modifier/Order.cs": {
+      "blob": "c4d598afa2d9afddec01dce1da3e707fb9646a06",
+      "port": "js/ug/modifiers.js",
+      "status": "portiert"
+    },
+    "modifier/PasswordExpiration.cs": {
+      "blob": "ddc5956f61035a851530d8a56bf32725fa4af0d9",
+      "port": "js/ug/modifiers.js",
+      "status": "portiert"
+    },
+    "modifier/Personalization.cs": {
+      "blob": "161d3a39043ae66d3d471452d0ec4ebc0f098741",
+      "port": "-",
+      "status": "nicht portiert – Schritt 3; Standardwerte erzeugen keine Ausgabe"
+    },
+    "modifier/Pretty.cs": {
+      "blob": "45704db8a76a5bd1c4742a8ffb45816591b445cf",
+      "port": "js/ug/core.js",
+      "status": "portiert – im Serialisierer"
+    },
+    "modifier/ProcessorArchitecture.cs": {
+      "blob": "de9d2f42685ac866c092d9f69d8c4fbf6a09ca81",
+      "port": "js/ug/modifiers.js",
+      "status": "portiert"
+    },
+    "modifier/ProductKey.cs": {
+      "blob": "685be5e7d5d9e46d4e16583c69d13a3cec2017ad",
+      "port": "js/ug/modifiers.js",
+      "status": "portiert"
+    },
+    "modifier/Script.cs": {
+      "blob": "470c86f2bbe0d8a78622f563cee29140284b3c82",
+      "port": "-",
+      "status": "nicht portiert – eigene Befehle laufen ueber den Generator"
+    },
+    "modifier/Specialize.cs": {
+      "blob": "e0dfe5d311f5dd0982eff9ee364f69b9991f970d",
+      "port": "js/ug/modifiers.js",
+      "status": "portiert"
+    },
+    "modifier/TimeZone.cs": {
+      "blob": "57a965a47f494387170a79b4ece0ed3ab488a9b1",
+      "port": "js/ug/modifiers.js",
+      "status": "portiert"
+    },
+    "modifier/UserOnce.cs": {
+      "blob": "8b8b5acc9fcc453b749788b03595a2efa7333be7",
+      "port": "js/ug/modifiers.js",
+      "status": "portiert"
+    },
+    "modifier/Users.cs": {
+      "blob": "41a463d7a216ad6b6438120d4cd1e23db5b9cd12",
+      "port": "js/ug/modifiers.js",
+      "status": "portiert"
+    },
+    "modifier/Wifi.cs": {
+      "blob": "05ab59b6b9b87fa9fa9f59a4860807f8fbe8e59b",
+      "port": "js/ug/modifiers.js",
+      "status": "teilweise – interaktiv/ueberspringen; WLAN-Profil in Schritt 3"
+    },
+    "resource/AppLocker.xsd": {
+      "blob": "5aa1670cd16c72543639d76c6505c230460f1e2f",
+      "port": "js/ug/resources.js",
+      "status": "nicht uebernommen (Schema)"
+    },
+    "resource/Bloatware.json": {
+      "blob": "4e25dffe331dc7073183afc04eb272ef9d9c9c24",
+      "port": "js/ug/resources.js",
+      "status": "automatisch"
+    },
+    "resource/Component.json": {
+      "blob": "5638be32f7bb41cac763560adff72b44f8fcb03c",
+      "port": "js/ug/resources.js",
+      "status": "automatisch"
+    },
+    "resource/ComputerNamePrompt.ps1": {
+      "blob": "73b411835ed1a8e34e4469aa3bddf90a10050869",
+      "port": "js/ug/resources.js",
+      "status": "automatisch"
+    },
+    "resource/DesktopIcon.json": {
+      "blob": "ffd7c766d651a57cee5c7481926059e7aa5bad12",
+      "port": "js/ug/resources.js",
+      "status": "automatisch"
+    },
+    "resource/ExtractScripts.ps1": {
+      "blob": "e1b5b015a9bd6910f5e9dc362dd1cc2425e80cf3",
+      "port": "js/ug/resources.js",
+      "status": "automatisch"
+    },
+    "resource/GeoId.json": {
+      "blob": "463407c2726a30ab547b42650338619f23be85a9",
+      "port": "js/ug/resources.js",
+      "status": "automatisch"
+    },
+    "resource/ImageLanguage.json": {
+      "blob": "404ea7ceaf0cc8d199a73298d8da28d59039753f",
+      "port": "js/ug/resources.js",
+      "status": "automatisch"
+    },
+    "resource/KeyboardIdentifier.json": {
+      "blob": "8ce7c4e3d0e08869e0602494c5ebbd4bfd4b7400",
+      "port": "js/ug/resources.js",
+      "status": "automatisch"
+    },
+    "resource/MakeEdgeUninstallable.ps1": {
+      "blob": "0e519695512cd2e72b06dfcce77705a3c4ff92bc",
+      "port": "js/ug/resources.js",
+      "status": "automatisch"
+    },
+    "resource/MoveActiveHours.xml": {
+      "blob": "c8b7cef6be647a3b7dc1290c00dc80932eb19ae0",
+      "port": "js/ug/resources.js",
+      "status": "automatisch"
+    },
+    "resource/ParallelsTools.ps1": {
+      "blob": "36b369c50bd4ba842bf996cfeedb4ff24db23517",
+      "port": "js/ug/resources.js",
+      "status": "automatisch"
+    },
+    "resource/PauseWindowsUpdate.xml": {
+      "blob": "19c0d5ea8a091447b9066bc3f83ec98fd9b8e99d",
+      "port": "js/ug/resources.js",
+      "status": "automatisch"
+    },
+    "resource/RemoveBloatware.ps1": {
+      "blob": "3990df5ac7199fdc612e24a43377a9da3ea3d46e",
+      "port": "js/ug/resources.js",
+      "status": "automatisch"
+    },
+    "resource/RestartExplorer.ps1": {
+      "blob": "a6a4c04bd256cfa7cd134d523906ffe6481e7648",
+      "port": "js/ug/resources.js",
+      "status": "automatisch"
+    },
+    "resource/SetColorTheme.ps1": {
+      "blob": "38913236caae4ffb6193a3756cc3496e864a2b90",
+      "port": "js/ug/resources.js",
+      "status": "automatisch"
+    },
+    "resource/SetComputerName.ps1": {
+      "blob": "043bef6e44947c7c7ade2e547b2f957f523a427d",
+      "port": "js/ug/resources.js",
+      "status": "automatisch"
+    },
+    "resource/SetStartPins.ps1": {
+      "blob": "836cefa0fbd61a0610765a62cb877e381ac0aeb6",
+      "port": "js/ug/resources.js",
+      "status": "automatisch"
+    },
+    "resource/SetWallpaper.ps1": {
+      "blob": "a52701e90131191afc5cd83a1c2002b02743f9d1",
+      "port": "js/ug/resources.js",
+      "status": "automatisch"
+    },
+    "resource/ShowAllTrayIcons.ps1": {
+      "blob": "d0fdbb1b76e2ad73e90518538d4f91c4aa012803",
+      "port": "js/ug/resources.js",
+      "status": "automatisch"
+    },
+    "resource/ShowAllTrayIcons.xml": {
+      "blob": "54631c8b2bba3cbc3e496eb8a2bd1d7d06bde58b",
+      "port": "js/ug/resources.js",
+      "status": "automatisch"
+    },
+    "resource/StartFolder.json": {
+      "blob": "760dd4bb96d4782ae294b7d20fda4773ca02e0c1",
+      "port": "js/ug/resources.js",
+      "status": "automatisch"
+    },
+    "resource/TaskbarLayout.xsd": {
+      "blob": "61bd169235e8fdd1790690e26587835270818105",
+      "port": "js/ug/resources.js",
+      "status": "nicht uebernommen (Schema)"
+    },
+    "resource/TimeOffset.json": {
+      "blob": "d85fe25491c02142d20b18df1d2b70aa785ac2ca",
+      "port": "js/ug/resources.js",
+      "status": "automatisch"
+    },
+    "resource/TurnOffSystemSounds.ps1": {
+      "blob": "a74e3b3b63b12cea3f30c3b50bf09f35acc21668",
+      "port": "js/ug/resources.js",
+      "status": "automatisch"
+    },
+    "resource/UnlockStartLayout.vbs": {
+      "blob": "9e72005cfa1f7d1a88eec9aae57454f27e997b6f",
+      "port": "js/ug/resources.js",
+      "status": "automatisch"
+    },
+    "resource/UnlockStartLayout.xml": {
+      "blob": "1cbf6a72e95e3018b571cd755694934cc765e169",
+      "port": "js/ug/resources.js",
+      "status": "automatisch"
+    },
+    "resource/UserLocale.json": {
+      "blob": "f973b44f3d41496206c8a3a8a25f7da91c97ef34",
+      "port": "js/ug/resources.js",
+      "status": "automatisch"
+    },
+    "resource/VBoxGuestAdditions.ps1": {
+      "blob": "d381317a352f30d41dee2b27d1a340d141124969",
+      "port": "js/ug/resources.js",
+      "status": "automatisch"
+    },
+    "resource/VMwareTools.ps1": {
+      "blob": "95468d3259ce343f301ed3dcc116c8dc3e1ec573",
+      "port": "js/ug/resources.js",
+      "status": "automatisch"
+    },
+    "resource/VirtIoGuestTools.ps1": {
+      "blob": "483538d770bc01a408ebeb33315fdd06f98ce182",
+      "port": "js/ug/resources.js",
+      "status": "automatisch"
+    },
+    "resource/WLANProfile.xml": {
+      "blob": "977c1d88e7c595db6f34b61f28fd1815da867945",
+      "port": "js/ug/resources.js",
+      "status": "automatisch"
+    },
+    "resource/WLAN_profile_v1.xsd": {
+      "blob": "7712ab01560b3624d0a5d42f6a4835241f662c24",
+      "port": "js/ug/resources.js",
+      "status": "nicht uebernommen (Schema)"
+    },
+    "resource/WindowsEdition.json": {
+      "blob": "86ad0dfcd829c215538c09d42ded5db35e27c366",
+      "port": "js/ug/resources.js",
+      "status": "automatisch"
+    },
+    "resource/autounattend.xml": {
+      "blob": "885543b911f228dc756e8c6076de6a454a6a6f03",
+      "port": "js/ug/resources.js",
+      "status": "automatisch"
+    },
+    "resource/autounattend.xsd": {
+      "blob": "c62715c48f319dc7313820dc5c55bb8432ae150b",
+      "port": "js/ug/resources.js",
+      "status": "nicht uebernommen (Schema)"
+    }
+  }
+}
