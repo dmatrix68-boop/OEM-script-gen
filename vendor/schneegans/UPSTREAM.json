@@ -40,8 +40,8 @@
     },
     "modifier/AppLocker.cs": {
       "blob": "6d73e62bb0cbd9e58b84df70d286b65f66cdb377",
-      "port": "-",
-      "status": "nicht portiert"
+      "port": "js/ug/modifiers.js",
+      "status": "portiert; XSD-Pruefung (resource/AppLocker.xsd) im Port nachgebaut, Meldungstexte weichen ab"
     },
     "modifier/Bloatware.cs": {
       "blob": "069770b8e1fbd8bf5a85453be565b3e2354a21ce",
@@ -175,8 +175,8 @@
     },
     "resource/AppLocker.xsd": {
       "blob": "5aa1670cd16c72543639d76c6505c230460f1e2f",
-      "port": "js/ug/resources.js",
-      "status": "nicht uebernommen (Schema)"
+      "port": "js/ug/modifiers.js (alValidate)",
+      "status": "von Hand nachgebildet – bei Aenderung alValidate anpassen"
     },
     "resource/Bloatware.json": {
       "blob": "4e25dffe331dc7073183afc04eb272ef9d9c9c24",

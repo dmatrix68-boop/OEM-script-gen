@@ -449,7 +449,7 @@
       <p class="lead" data-i18n="antwortdatei-lead">Erzeugt eine vollständige <code>autounattend.xml</code> – Sprache, Konten, Computername,
       Edition, OOBE –, in die der Generator anschließend seine Aufrufe einfügt. Der Designer ist eine Portierung des
       Generators von Christoph Schneegans (<a href="https://github.com/cschneegans/unattend-generator" target="_blank" rel="noopener noreferrer">unattend-generator</a>,
-      MIT-Lizenz). Noch nicht übernommen: WLAN-Profil, Hintergrundbild, AppLocker, VM-Gasttools.</p>
+      MIT-Lizenz). Noch nicht übernommen: WLAN-Profil, Hintergrundbild, VM-Gasttools.</p>
       <p class="hint" id="answerStatus"></p>
 
       <div class="grid2">
@@ -735,6 +735,31 @@
             </select></label>
         </div>
         <div class="checkgrid" id="ansFolderList" data-show="answer.startFolders.mode=custom"></div>
+      </div>
+
+      <div class="panel">
+        <h3>AppLocker</h3>
+        <p class="hint" data-i18n="applocker-hinweis">Wendet eine AppLocker-Richtlinie im <code>specialize</code>-Pass mit
+        <code>Set-AppLockerPolicy</code> an und stellt den Dienst Anwendungsidentität (<code>AppIDSvc</code>) auf automatisch.
+        Die Richtlinie stammt z.&nbsp;B. von einem Referenzrechner: <code>Get-AppLockerPolicy -Local -Xml &gt; AppLocker.xml</code>
+        oder <code>secpol.msc</code> → Anwendungssteuerungsrichtlinien → AppLocker → Richtlinie exportieren. <b>Vorsicht:</b> Erzwungene
+        Regeln ohne die Standardregeln können Programme, Skripte und sogar die Anmeldung sperren – neue Regeln zuerst mit
+        „Nur überwachen“ (<code>AuditOnly</code>) testen. Ob die Edition (z.&nbsp;B. Pro) die Regeln durchsetzt, vorher in einer VM prüfen.</p>
+        <div class="row wrap">
+          <label class="field grow"><span data-i18n="applocker">AppLocker-Richtlinie</span>
+            <select id="ansAlMode">
+              <option value="skip" data-i18n="opt-al-skip">nicht ändern</option>
+              <option value="configure" data-i18n="opt-al-configure">diese Richtlinie anwenden</option>
+            </select></label>
+        </div>
+        <div data-show="answer.appLocker.mode=configure">
+          <textarea id="ansAlXml" class="code" rows="14" spellcheck="false" wrap="off"></textarea>
+          <div class="row wrap">
+            <button class="btn small" type="button" id="btnAlSample" data-i18n="al-beispiel">Beispiel einfügen (Standardregeln, nur überwachen)</button>
+            <button class="btn small" type="button" id="btnAlLoad" data-i18n="al-laden">XML-Datei laden …</button>
+            <input type="file" id="alInput" accept=".xml,text/xml" hidden>
+          </div>
+        </div>
       </div>
 
       <div class="panel">

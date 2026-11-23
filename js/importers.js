@@ -456,6 +456,7 @@
       if (/<Configuration[\s>]/i.test(t)) return 'officexml';
       if (/<Package[\s>]/i.test(t)) return 'bundle';
       if (/<unattend[\s>]/i.test(t)) return 'unattend';
+      if (/<AppLockerPolicy[\s>/]/.test(t)) return 'applocker';
       return 'xml';
     }
     if (t.startsWith('{') || t.startsWith('[')) {

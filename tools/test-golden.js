@@ -81,6 +81,13 @@ fs.mkdirSync(path.join(out, 'js'), { recursive: true });
     if (cs.error !== undefined || js.error !== undefined) {
       if (cs.error === undefined) problems.push(c.name + ': Port scheitert ("' + js.error + '"), Original nicht');
       else if (js.error === undefined) problems.push(c.name + ': Original scheitert ("' + cs.error + '"), Port nicht');
+      else if (c.errorPrefix) {
+        /* Schema-Fehler: Der Port prueft ohne .NET-Validator, die Meldungen
+           nach dem Praefix lauten anders - verglichen wird nur das Praefix. */
+        if (!cs.error.startsWith(c.errorPrefix) || !js.error.startsWith(c.errorPrefix)) {
+          problems.push(c.name + ': Praefix weicht ab\n    Original: ' + cs.error + '\n    Port:     ' + js.error);
+        } else console.log('ok    ' + c.name + ' (Fehler, Praefix: ' + cs.error + ' | Port: ' + js.error.slice(c.errorPrefix.length) + ')');
+      }
       else if (cs.error !== js.error) problems.push(c.name + ': Meldung weicht ab\n    Original: ' + cs.error + '\n    Port:     ' + js.error);
       else console.log('ok    ' + c.name + ' (Fehler: ' + cs.error + ')');
       continue;

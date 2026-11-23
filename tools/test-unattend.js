@@ -93,6 +93,18 @@ const CASES = [
     config: { startFolders: { mode: 'custom', show: ['Settings', 'FileExplorer'] } },
     expect: [/FromBase64String\('vCSKFAzWiUKggG7Zu6JIgoYIc1KqUUNCn3sndlhGWdQ='\)/]
   },
+  {
+    name: 'AppLocker',
+    config: { appLocker: { mode: 'configure', policyXml: '<?xml version="1.0"?><AppLockerPolicy Version="1"><RuleCollection Type="Exe" EnforcementMode="AuditOnly"><FilePathRule Id="921cc481-6e17-4653-8f75-050b80acca20" Name="a &amp; b" Description="" UserOrGroupSid="S-1-1-0" Action="Allow"><Conditions><FilePathCondition Path="*"/></Conditions></FilePathRule></RuleCollection></AppLockerPolicy>' } },
+    expect: [
+      /<File path="C:\\Windows\\Setup\\Scripts\\AppLockerPolicy\.xml">\r\n&lt;AppLockerPolicy Version="1"&gt;\r\n\t&lt;RuleCollection/,
+      /&lt;FilePathCondition Path="\*" \/&gt;/,
+      /Name="a &amp;amp; b"/,
+      /Set-AppLockerPolicy -XmlPolicy 'C:\\Windows\\Setup\\Scripts\\AppLockerPolicy\.xml';/
+    ],
+    reject: [/&lt;\?xml/]
+  },
+  { name: 'Fehler: AppLocker-Schema', config: { appLocker: { mode: 'configure', policyXml: '<AppLockerPolicy Version="1"><RuleCollection Type="Exe" EnforcementMode="On"/></AppLockerPolicy>' } }, error: /^AppLocker policy XML is invalid: / },
   { name: 'Fehler: reservierter Kontoname', config: { account: { mode: 'unattended', accounts: [{ name: 'Administrator', password: '', group: 'Administrators' }], autoLogon: 'own' } }, error: /Username 'Administrator' is invalid/ },
   { name: 'Fehler: Konto = Computername', config: { computerName: { mode: 'custom', name: 'PC1' }, account: { mode: 'unattended', accounts: [{ name: 'pc1', password: '', group: 'Administrators' }], autoLogon: 'own' } }, error: /must not be the same as the computer name/ },
   { name: 'Fehler: Produktschluessel', config: { edition: { mode: 'key', key: 'ABC' } }, error: /ill-formed/ },

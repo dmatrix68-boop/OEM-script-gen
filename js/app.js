@@ -217,7 +217,9 @@
     ['ansFxMode', 'answer.effects.mode', 'text'],
     ['ansIconsMode', 'answer.desktopIcons.mode', 'text'],
     ['ansDeleteEdge', 'answer.deleteEdgeDesktopIcon', 'bool'],
-    ['ansFoldersMode', 'answer.startFolders.mode', 'text']
+    ['ansFoldersMode', 'answer.startFolders.mode', 'text'],
+    ['ansAlMode', 'answer.appLocker.mode', 'text'],
+    ['ansAlXml', 'answer.appLocker.policyXml', 'text']
   ];
 
   function bindAll() {
@@ -615,6 +617,37 @@
     if (!Array.isArray(a.startFolders.show)) a.startFolders.show = [];
     ansCheckGrid($('#ansFolderList'), UG.startFolders().map((f) => ({ id: f.Id, label: lbl(PLACE_LABELS, f.Id, f.DisplayName) })).sort(byLabel),
       (id) => a.startFolders.show.includes(id), toggle(a.startFolders.show));
+  }
+
+  /* AppLocker: Richtlinie (Export von Get-AppLockerPolicy -Xml) in den
+     Designer uebernehmen. FileReader erkennt UTF-16 am BOM - so schreibt
+     PowerShell 5.1 die Umleitung "> datei.xml". */
+  const AL_SAMPLE = [
+    '<AppLockerPolicy Version="1">',
+    '  <RuleCollection Type="Exe" EnforcementMode="AuditOnly">',
+    '    <FilePathRule Id="921cc481-6e17-4653-8f75-050b80acca20" Name="(Standardregel) Alle Dateien im Ordner &quot;Programme&quot;" Description="Ermöglicht Mitgliedern der Gruppe &quot;Jeder&quot; das Ausführen von Anwendungen, die sich im Ordner &quot;Programme&quot; befinden." UserOrGroupSid="S-1-1-0" Action="Allow">',
+    '      <Conditions>',
+    '        <FilePathCondition Path="%PROGRAMFILES%\\*" />',
+    '      </Conditions>',
+    '    </FilePathRule>',
+    '    <FilePathRule Id="a61c8b2c-a319-4cd0-9690-d2177cad7b51" Name="(Standardregel) Alle Dateien im Ordner &quot;Windows&quot;" Description="Ermöglicht Mitgliedern der Gruppe &quot;Jeder&quot; das Ausführen von Anwendungen, die sich im Ordner &quot;Windows&quot; befinden." UserOrGroupSid="S-1-1-0" Action="Allow">',
+    '      <Conditions>',
+    '        <FilePathCondition Path="%WINDIR%\\*" />',
+    '      </Conditions>',
+    '    </FilePathRule>',
+    '    <FilePathRule Id="fd686d83-a829-4351-8ff4-27c7de5755d2" Name="(Standardregel) Alle Dateien" Description="Ermöglicht Mitgliedern der lokalen Gruppe &quot;Administratoren&quot; das Ausführen aller Anwendungen." UserOrGroupSid="S-1-5-32-544" Action="Allow">',
+    '      <Conditions>',
+    '        <FilePathCondition Path="*" />',
+    '      </Conditions>',
+    '    </FilePathRule>',
+    '  </RuleCollection>',
+    '</AppLockerPolicy>'
+  ].join('\n');
+  function importAppLocker(name, text) {
+    state.answer.appLocker = { mode: 'configure', policyXml: text.replace(/^\uFEFF/, '').trim() };
+    syncInputs(); renderAnswer(); refresh();
+    logImport(F('AppLocker-Richtlinie übernommen: {0}', name));
+    toast(T('AppLocker-Richtlinie übernommen – sie wirkt, sobald die Antwortdatei mit dem Designer erzeugt wird.'), state.answer.enabled ? 'ok' : 'warn');
   }
 
   /* Sichtbarkeit (data-show="pfad=wert") und Pruefung */
@@ -1641,6 +1674,10 @@
         await importReg(name, text);
         return;
       }
+      case 'applocker': {
+        importAppLocker(name, text);
+        return;
+      }
       case 'unattend': {
         let info;
         try { info = Importers.parseUnattend(text); }
@@ -2652,6 +2689,16 @@
         state.answer.architectures = $$('.ans-arch').filter((x) => x.checked).map((x) => x.value);
         renderAnswer(); refresh();
       }));
+      $('#btnAlSample').addEventListener('click', () => {
+        state.answer.appLocker.policyXml = AL_SAMPLE;
+        syncInputs(); renderAnswer(); refresh();
+      });
+      $('#btnAlLoad').addEventListener('click', () => $('#alInput').click());
+      $('#alInput').addEventListener('change', async (e) => {
+        const f = e.target.files[0];
+        e.target.value = '';
+        if (f) importAppLocker(f.name, await readText(f));
+      });
       $('#view-answer').addEventListener('change', () => refresh());
       $('#view-answer').addEventListener('input', () => refresh());
     }

@@ -363,7 +363,13 @@ startup, ignore a key), visual effects, desktop icons, “delete Edge shortcut�
 on Start. They apply to every new account at its first sign-in – also without activation.
 Where they overlap with tweaks (dark mode, desktop icons, NumLock), pick only one.
 
-Not ported yet: Wi-Fi profile, wallpaper/lock screen, AppLocker, VM guest tools. Tweaks and
+**AppLocker** takes a policy as XML (export of `Get-AppLockerPolicy -Local -Xml` or from
+`secpol.msc`; drag & drop works too, UTF-16 included), checks it against the original's
+`AppLocker.xsd` and applies it in the `specialize` pass via `Set-AppLockerPolicy`. The schema
+check is rebuilt in the port because browsers have no XSD support; its messages therefore
+differ from the original's, and the golden test compares only the prefix there.
+
+Not ported yet: Wi-Fi profile, wallpaper/lock screen, VM guest tools. Tweaks and
 bloatware are provided by the generator itself.
 
 ### Watching the original for changes

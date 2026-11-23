@@ -292,3 +292,5 @@ body.dragging .dropzone{border-color:var(--acc)}
 #view-answer .checkgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:4px 16px;margin:6px 0 10px}
 #view-answer .tbl select{width:100%}
 #view-answer .checkgrid + .row, #view-answer .chk + .row, #view-answer .chk + .checkgrid{margin-top:10px}
+#view-answer .hint + .row{margin-top:8px}
+#ansAlXml{width:100%;font-family:var(--mono, ui-monospace, monospace);font-size:12px}

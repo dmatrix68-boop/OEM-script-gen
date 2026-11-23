@@ -1027,10 +1027,259 @@
     }
   };
 
-  /* ---------- modifier/AppLocker.cs, Script.cs ----------
-     Nicht portiert: AppLocker gibt es in der Oberflaeche nicht; eigene Skripte
-     laufen ueber die Module des Generators. */
-  const AppLocker = { name: 'AppLocker', process() {} };
+  /* ---------- modifier/AppLocker.cs ----------
+     Richtlinie als XML (Export von Get-AppLockerPolicy -Xml), gegen
+     AppLocker.xsd des Originals geprueft, als Datei eingebettet und im
+     specialize-Pass mit Set-AppLockerPolicy angewendet.
+     PORT: Der Browser kennt keine XSD-Pruefung. alValidate() bildet genau
+     AppLocker.xsd nach (Inhaltsmodelle, Attribute, Typen, xs:unique); die
+     Meldungen nach dem Praefix "AppLocker policy XML is invalid:" lauten
+     anders als bei .NET. DOCTYPE wird abgelehnt. */
+  const AL_ERR = 'AppLocker policy XML is invalid: ';
+  const AL = (() => {
+    const INF = Infinity;
+    const collapse = (v) => v.replace(/[\t\n\r ]+/g, ' ').trim();
+    const re = (src) => { const r = new RegExp('^(?:' + src + ')$'); return (v) => r.test(v); };
+    const enumOf = (...vals) => (v) => vals.includes(v);
+    const len = (min, max) => (v) => [...v].length >= min && [...v].length <= max;
+    const all = (...fs) => (v) => fs.every((f) => f(v));
+    const anyOf = (...fs) => (v) => fs.some((f) => f(v));
+    const T = {
+      string: () => true,
+      decimal: (v) => /^[+-]?(\d+(\.\d*)?|\.\d+)$/.test(collapse(v)),
+      integer: (v) => /^[+-]?\d+$/.test(collapse(v)),
+      unsignedInt: (v) => { const s = collapse(v); return /^\+?\d+$/.test(s) && Number(s) <= 4294967295; },
+      guid: re('[0-9A-Fa-f]{8}-([0-9A-Fa-f]{4}-){3}[0-9A-Fa-f]{12}'),
+      sid: all(len(7, INF), re('S-1(-[0-9a-fA-F]+)+')),
+      enforcement: enumOf('NotConfigured', 'Enabled', 'AuditOnly'),
+      ruleName: len(1, 1024),
+      ruleDescription: len(0, 1024),
+      ruleAction: enumOf('Allow', 'Deny'),
+      publisherName: len(1, INF),
+      fileVersion: anyOf(re('([0-9]{1,5}.){3}[0-9]{1,5}'), enumOf('*')),
+      filePath: len(1, 32767),
+      hashType: enumOf('SHA256', 'SHA256Flat', 'SHA1'),
+      hashData: anyOf(re('0x([0-9A-Fa-f]{64})'), re('0x([0-9A-Fa-f]{40})')),
+      servicesMode: enumOf('NotConfigured', 'Enabled', 'ServicesOnly'),
+      allowSystemApps: enumOf('Enabled', 'NotEnabled'),
+      appidTypes: (v) => collapse(v).split(' ').filter(Boolean).every((x) => ['Hash', 'Path', 'Publisher'].includes(x))
+    };
+    const ruleAttrs = { Id: [T.guid, true], Name: [T.ruleName, true], Description: [T.ruleDescription, true],
+      UserOrGroupSid: [T.sid, true], Action: [T.ruleAction, true] };
+    /* Komplexe Typen: attrs {Name: [Pruefung, Pflicht]}, model seq|all|empty */
+    const C = {};
+    const el = (name, type, min = 1, max = 1) => ({ names: { [name]: type }, min, max });
+    const choice = (map, min, max) => ({ names: map, min, max });
+    const any = { any: true, min: 0, max: INF };
+    C.FileHash = { attrs: { Type: [T.hashType, true], Data: [T.hashData, true], SourceFileName: [T.string, false], SourceFileLength: [T.integer, false] }, model: 'empty' };
+    C.FileHashCondition = { attrs: {}, model: 'seq', items: () => [el('FileHash', C.FileHash, 1, INF)] };
+    C.FilePathCondition = { attrs: { Path: [T.filePath, true] }, model: 'empty' };
+    C.BinaryVersionRange = { attrs: { LowSection: [T.fileVersion, true], HighSection: [T.fileVersion, true] }, model: 'empty' };
+    C.FilePublisherCondition = { attrs: { PublisherName: [T.publisherName, true], ProductName: [T.string, true], BinaryName: [T.string, true] },
+      model: 'all', items: () => [el('BinaryVersionRange', C.BinaryVersionRange)] };
+    const cond = (name, type) => ({ attrs: {}, model: 'seq', items: () => [el(name, type)] });
+    const exceptions = { attrs: {}, model: 'seq',
+      items: () => [choice({ FilePublisherCondition: C.FilePublisherCondition, FilePathCondition: C.FilePathCondition, FileHashCondition: C.FileHashCondition }, 0, INF)] };
+    C.FilePublisherRule = { attrs: ruleAttrs, model: 'all',
+      items: () => [el('Conditions', cond('FilePublisherCondition', C.FilePublisherCondition)), el('Exceptions', exceptions, 0)] };
+    C.FilePathRule = { attrs: ruleAttrs, model: 'all',
+      items: () => [el('Conditions', cond('FilePathCondition', C.FilePathCondition)), el('Exceptions', exceptions, 0)] };
+    C.FileHashRule = { attrs: ruleAttrs, model: 'all', items: () => [el('Conditions', cond('FileHashCondition', C.FileHashCondition))] };
+    C.Services = { attrs: { EnforcementMode: [T.servicesMode, true] }, model: 'empty' };
+    C.SystemApps = { attrs: { Allow: [T.allowSystemApps, true] }, model: 'empty' };
+    C.OriginDataRevocation = { attrs: { CurrentOriginDataId: [T.unsignedInt, true], TrustedOriginDataId: [T.unsignedInt, true] }, model: 'empty' };
+    C.RuleCollectionExtensions = { attrs: {}, model: 'seq', items: () => [
+      el('ThresholdExtensions', { attrs: {}, model: 'seq', items: () => [el('Services', C.Services, 0)] }),
+      el('RedstoneExtensions', { attrs: {}, model: 'seq', items: () => [el('SystemApps', C.SystemApps, 0), el('OriginDataRevocation', C.OriginDataRevocation, 0)] }),
+      any] };
+    C.RuleCollection = { attrs: { Type: [T.string, true], EnforcementMode: [T.enforcement, false] }, model: 'seq', items: () => [
+      choice({ FilePublisherRule: C.FilePublisherRule, FilePathRule: C.FilePathRule, FileHashRule: C.FileHashRule }, 0, INF),
+      el('RuleCollectionExtensions', C.RuleCollectionExtensions, 0)] };
+    C.PluginPolicy = { attrs: { Id: [T.guid, false] }, model: 'empty' };
+    C.ExecutionCategory = { attrs: { Id: [T.guid, false], AppidTypes: [T.appidTypes, false] }, model: 'seq',
+      items: () => [el('Policies', { attrs: {}, model: 'seq', items: () => [el('Policy', C.PluginPolicy, 0, INF)] }, 0)] };
+    C.Plugin = { attrs: { Name: [T.string, false], Id: [T.guid, false] }, model: 'seq',
+      items: () => [el('ExecutionCategories', { attrs: {}, model: 'seq', items: () => [el('ExecutionCategory', C.ExecutionCategory, 1, INF)] })] };
+    C.PolicyExtensions = { attrs: {}, model: 'seq', items: () => [
+      el('ThresholdExtensions', { attrs: {}, model: 'seq', items: () => [el('Plugins', { attrs: {}, model: 'seq', items: () => [el('Plugin', C.Plugin, 0, INF)] }, 0)] }),
+      any] };
+    C.AppLockerPolicy = { attrs: { Version: [T.decimal, true] }, model: 'seq', items: () => [
+      el('RuleCollection', C.RuleCollection, 0, INF), el('PolicyExtensions', C.PolicyExtensions, 0)] };
+
+    const fail = (m) => { throw new ConfigurationException(AL_ERR + m); };
+    const kidsOf = (e) => Array.from(e.childNodes);
+    function check(e, type) {
+      const name = e.nodeName;
+      if (e.namespaceURI) fail("The element '" + name + "' in namespace '" + e.namespaceURI + "' is not declared.");
+      for (const a of Array.from(e.attributes)) {
+        if (a.name === 'xmlns' || a.name.startsWith('xmlns:') || a.name.startsWith('xml:')) continue;
+        const decl = Object.prototype.hasOwnProperty.call(type.attrs, a.name) ? type.attrs[a.name] : null;
+        if (!decl || a.namespaceURI) fail("The '" + a.name + "' attribute is not declared (element '" + name + "').");
+        if (!decl[0](a.value)) fail("The '" + a.name + "' attribute of element '" + name + "' is invalid - the value '" + a.value + "' is invalid according to its datatype.");
+      }
+      for (const [an, decl] of Object.entries(type.attrs)) {
+        if (decl[1] && !e.hasAttribute(an)) fail("The required attribute '" + an + "' is missing (element '" + name + "').");
+      }
+      const kids = kidsOf(e);
+      for (const k of kids) {
+        if ((k.nodeType === 3 || k.nodeType === 4) && k.nodeValue.trim() !== '') {
+          fail("The element '" + name + "' cannot contain text.");
+        }
+      }
+      const elems = kids.filter((k) => k.nodeType === 1);
+      if (type.model === 'empty') {
+        if (elems.length) fail("The element '" + name + "' cannot contain child element '" + elems[0].nodeName + "' because the parent element's content model is empty.");
+        return;
+      }
+      const items = type.items();
+      if (type.model === 'all') {
+        const seen = {};
+        for (const k of elems) {
+          const it = items.find((i) => i.names[k.nodeName]);
+          if (!it || seen[k.nodeName]) fail("The element '" + name + "' has invalid child element '" + k.nodeName + "'.");
+          seen[k.nodeName] = true;
+          check(k, it.names[k.nodeName]);
+        }
+        for (const it of items) {
+          const n = Object.keys(it.names)[0];
+          if (it.min > 0 && !seen[n]) fail("The element '" + name + "' has incomplete content. List of possible elements expected: '" + n + "'.");
+        }
+        return;
+      }
+      let i = 0;
+      for (const it of items) {
+        let n = 0;
+        while (i < elems.length && n < it.max && (it.any || it.names[elems[i].nodeName])) {
+          if (!it.any) check(elems[i], it.names[elems[i].nodeName]);
+          i++; n++;
+        }
+        if (n < it.min) {
+          if (i < elems.length) fail("The element '" + name + "' has invalid child element '" + elems[i].nodeName + "'. List of possible elements expected: '" + Object.keys(it.names).join(', ') + "'.");
+          fail("The element '" + name + "' has incomplete content. List of possible elements expected: '" + Object.keys(it.names).join(', ') + "'.");
+        }
+      }
+      if (i < elems.length) fail("The element '" + name + "' has invalid child element '" + elems[i].nodeName + "'.");
+    }
+    function validate(doc) {
+      const root = doc.documentElement;
+      /* Util.ValidateAgainstSchema: Meldung wortgleich */
+      if ((root.namespaceURI || '') !== '') {
+        throw new ConfigurationException(AL_ERR + "Namespace URI of root element must be '', but was '" + root.namespaceURI + "'.");
+      }
+      if (root.nodeName !== 'AppLockerPolicy') fail("The '" + root.nodeName + "' element is not declared.");
+      check(root, C.AppLockerPolicy);
+      const types = new Set(), ids = new Set();
+      for (const rc of Array.from(root.children).filter((k) => k.nodeName === 'RuleCollection')) {
+        const t = rc.getAttribute('Type');
+        if (types.has(t)) fail("There is a duplicate key sequence '" + t + "' for the 'UniqueRuleCollectionTypeConstraint' key or unique identity constraint.");
+        types.add(t);
+        for (const r of Array.from(rc.children)) {
+          if (!r.hasAttribute('Id')) continue;
+          const id = r.getAttribute('Id');
+          if (ids.has(id)) fail("There is a duplicate key sequence '" + id + "' for the 'UniqueRuleIdConstraint' key or unique identity constraint.");
+          ids.add(id);
+        }
+      }
+    }
+
+    /* Parsen. DOMParser verliert, ob ein Element als <X/> oder <X></X>
+       geschrieben war (XmlElement.IsEmpty) - das stellt ein Durchlauf ueber
+       die Start-Tags des Quelltexts wieder her. */
+    function parse(text) {
+      const doc = new DOMParser().parseFromString(text, 'application/xml');
+      const err = doc.getElementsByTagName('parsererror')[0];
+      if (err) {
+        const detail = err.querySelector('div') || err;
+        fail(String(detail.textContent || 'not well-formed').replace(/\s+/g, ' ').trim());
+      }
+      if (doc.doctype) fail('DTDs are not supported.');
+      const empty = [];
+      const tok = /<!--[\s\S]*?-->|<!\[CDATA\[[\s\S]*?\]\]>|<\?[\s\S]*?\?>|<\/[^>]*>|<([^\s/>!?]+)((?:\s+[^\s=/>]+\s*=\s*(?:"[^"]*"|'[^']*'))*)\s*(\/?)>/g;
+      let m;
+      while ((m = tok.exec(text)) !== null) if (m[1]) empty.push(m[3] === '/');
+      const all = Array.from(doc.getElementsByTagName('*'));
+      if (all.length !== empty.length) fail('unexpected markup.');
+      const isEmpty = new Map(all.map((e, i) => [e, empty[i]]));
+      return { doc, isEmpty };
+    }
+
+    /* Main.cs: EmbedXmlFile - XmlDocument.Save ueber XmlWriter mit
+       Indent, IndentChars \t, NewLineChars \r\n, OmitXmlDeclaration.
+       Nachgebildet ist XmlEncodedRawTextWriterIndent: Einrueckung nur
+       ausserhalb gemischten Inhalts, leere Elemente als <X />,
+       PreserveWhitespace=false (reine Leerraum-Knoten entfallen). */
+    function pretty(parsed) {
+      const CRLF = '\r\n';
+      let out = '', level = 0, mixed = false, textPos = 0, contentPos = -1;
+      const stack = [];
+      const indent = () => { out += CRLF + '\t'.repeat(level); };
+      const escText = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\r\n|\r|\n/g, CRLF);
+      const escAttr = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+        .replace(/\t/g, '&#x9;').replace(/\n/g, '&#xA;').replace(/\r/g, '&#xD;');
+      function node(n) {
+        switch (n.nodeType) {
+          case 1: {
+            if (!mixed && out.length !== textPos) indent();
+            level++; stack.push(mixed);
+            out += '<' + n.nodeName;
+            for (const a of Array.from(n.attributes)) out += ' ' + a.name + '="' + escAttr(a.value) + '"';
+            if (parsed.isEmpty.get(n)) {
+              level--; mixed = stack.pop();
+              contentPos = out.length + 1;
+              out += ' />';
+            } else {
+              out += '>';
+              contentPos = out.length;
+              Array.from(n.childNodes).forEach(node);
+              level--;
+              if (!mixed && contentPos !== out.length && textPos !== out.length) indent();
+              mixed = stack.pop();
+              out += '</' + n.nodeName + '>';
+            }
+            break;
+          }
+          case 3:
+            if (n.nodeValue.trim() === '') break;
+            mixed = true; out += escText(n.nodeValue); textPos = out.length;
+            break;
+          case 4:
+            mixed = true; out += '<![CDATA[' + n.nodeValue.replace(/\r\n|\r|\n/g, CRLF) + ']]>'; textPos = out.length;
+            break;
+          case 7:
+            if (!mixed && out.length !== textPos) indent();
+            out += '<?' + n.target + (n.data ? ' ' + n.data : '') + '?>';
+            break;
+          case 8:
+            if (!mixed && out.length !== textPos) indent();
+            out += '<!--' + n.nodeValue + '-->';
+            break;
+          default: break;
+        }
+      }
+      Array.from(parsed.doc.childNodes).forEach(node);
+      return out;
+    }
+    return { parse, validate, pretty };
+  })();
+
+  const AppLocker = {
+    name: 'AppLocker',
+    process(c) {
+      const s = c.config.appLocker || { mode: 'skip' };
+      if (s.mode === 'skip') return;
+      if (s.mode !== 'configure') throw new Error('Unbekannte AppLocker-Einstellung: ' + s.mode);
+      const parsed = AL.parse(String(s.policyXml || ''));
+      AL.validate(parsed.doc);
+      const xmlFile = c.embedFile('AppLockerPolicy.xml', AL.pretty(parsed));
+      c.specializeScript.append(
+        "Get-Service -Name 'AppIDSvc' | Set-Service -StartupType 'Automatic';\n" +
+        "Get-Service -Name 'AppIDSvc' | Start-Service;\n" +
+        "Set-AppLockerPolicy -XmlPolicy '" + xmlFile + "';");
+    }
+  };
+
+  /* ---------- modifier/Script.cs ----------
+     Nicht portiert: eigene Skripte laufen ueber die Module des Generators. */
   const Script = { name: 'Script', process() {} };
 
   /* ---------- modifier/Specialize.cs ---------- */
@@ -1181,6 +1430,7 @@
       effects: { mode: 'default', custom: {} },
       desktopIcons: { mode: 'default', show: [] },
       startFolders: { mode: 'default', show: [] },
+      appLocker: { mode: 'skip', policyXml: '' },
       colors: { mode: 'default', systemTheme: 'Dark', appsTheme: 'Light', accentColor: '#0078D4', accentOnStart: true, accentOnBorders: true, transparency: true },
       hidePowerShellWindows: false,
       keepSensitiveFiles: false,

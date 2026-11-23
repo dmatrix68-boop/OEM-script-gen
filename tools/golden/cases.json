@@ -954,5 +954,164 @@
     ]
    }
   }
+ },
+ {
+  "name": "applocker-beispiel",
+  "config": {
+   "appLocker": {
+    "mode": "configure",
+    "policyXml": "<AppLockerPolicy Version=\"1\">\n  <RuleCollection Type=\"Exe\" EnforcementMode=\"AuditOnly\">\n    <FilePathRule Id=\"921cc481-6e17-4653-8f75-050b80acca20\" Name=\"(Standardregel) Alle Dateien im Ordner &quot;Programme&quot;\" Description=\"\" UserOrGroupSid=\"S-1-1-0\" Action=\"Allow\">\n      <Conditions>\n        <FilePathCondition Path=\"%PROGRAMFILES%\\*\" />\n      </Conditions>\n    </FilePathRule>\n    <FilePathRule Id=\"a61c8b2c-a319-4cd0-9690-d2177cad7b51\" Name=\"(Standardregel) Alle Dateien im Ordner &quot;Windows&quot;\" Description=\"\" UserOrGroupSid=\"S-1-1-0\" Action=\"Allow\">\n      <Conditions><FilePathCondition Path=\"%WINDIR%\\*\"/></Conditions>\n    </FilePathRule>\n    <FilePathRule Id=\"fd686d83-a829-4351-8ff4-27c7de5755d2\" Name=\"(Standardregel) Alle Dateien\" Description=\"Administratoren &lt;alle&gt;\" UserOrGroupSid=\"S-1-5-32-544\" Action=\"Allow\">\n      <Conditions>\n        <FilePathCondition Path=\"*\"></FilePathCondition>\n      </Conditions>\n    </FilePathRule>\n  </RuleCollection>\n  <!-- Kommentar -->\n  <RuleCollection Type=\"Msi\" EnforcementMode=\"NotConfigured\" />\n</AppLockerPolicy>\n"
+   }
+  }
+ },
+ {
+  "name": "applocker-export",
+  "config": {
+   "appLocker": {
+    "mode": "configure",
+    "policyXml": "<?xml version=\"1.0\" encoding=\"utf-16\"?>\r\n<AppLockerPolicy Version=\"1\">\r\n  <RuleCollection Type=\"Appx\" EnforcementMode=\"Enabled\">\r\n    <FilePublisherRule Id=\"a9e18c21-ff8f-43cf-b9fc-db40eed693ba\" Name=\"(Default Rule) All signed packaged apps\" Description=\"Allows members of the Everyone group to run packaged apps that are signed.\" UserOrGroupSid=\"S-1-1-0\" Action=\"Allow\">\r\n      <Conditions>\r\n        <FilePublisherCondition PublisherName=\"*\" ProductName=\"*\" BinaryName=\"*\">\r\n          <BinaryVersionRange LowSection=\"0.0.0.0\" HighSection=\"*\" />\r\n        </FilePublisherCondition>\r\n      </Conditions>\r\n    </FilePublisherRule>\r\n    <RuleCollectionExtensions>\r\n      <ThresholdExtensions>\r\n        <Services EnforcementMode=\"Enabled\" />\r\n      </ThresholdExtensions>\r\n      <RedstoneExtensions>\r\n        <SystemApps Allow=\"Enabled\" />\r\n      </RedstoneExtensions>\r\n    </RuleCollectionExtensions>\r\n  </RuleCollection>\r\n  <RuleCollection Type=\"Exe\" EnforcementMode=\"AuditOnly\">\r\n    <FileHashRule Id=\"0bb2e4a5-6f6e-4c39-9d3f-5d0f2a7b1c11\" Name=\"Tool &amp; Co\" Description=\"Zeile1&#10;Zeile2&#9;Tab &gt; &apos;x&apos;\" UserOrGroupSid=\"S-1-5-21-1-2-3-1001\" Action=\"Deny\">\r\n      <Conditions>\r\n        <FileHashCondition>\r\n          <FileHash Type=\"SHA256\" Data=\"0xABABABABABABABABABABABABABABABABABABABABABABABABABABABABABABABAB\" SourceFileName=\"tool.exe\" SourceFileLength=\"12345\" />\r\n        </FileHashCondition>\r\n      </Conditions>\r\n    </FileHashRule>\r\n    <FilePublisherRule Id=\"5b1c3c0e-2f3a-4d4b-8c9e-1a2b3c4d5e6f\" Name=\"Gemischt\" Description=\"\" UserOrGroupSid=\"S-1-1-0\" Action=\"Allow\">\r\n      <Conditions><FilePublisherCondition PublisherName=\"O=MICROSOFT CORPORATION, L=REDMOND, S=WASHINGTON, C=US\" ProductName=\"\" BinaryName=\"\"><BinaryVersionRange LowSection=\"10.0.0.0\" HighSection=\"*\"/></FilePublisherCondition></Conditions>\r\n      <Exceptions>\r\n        <FilePathCondition Path=\"%OSDRIVE%\\Temp\\*\" />\r\n        <FileHashCondition><FileHash Type=\"SHA1\" Data=\"0x0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f\"/></FileHashCondition>\r\n      </Exceptions>\r\n    </FilePublisherRule>\r\n  </RuleCollection>\r\n  <?ug test?>\r\n</AppLockerPolicy>"
+   }
+  }
+ },
+ {
+  "name": "applocker-einzeilig",
+  "config": {
+   "appLocker": {
+    "mode": "configure",
+    "policyXml": "<AppLockerPolicy Version=\"1.0\"><RuleCollection Type=\"Script\" EnforcementMode=\"NotConfigured\"></RuleCollection><RuleCollection Type=\"Dll\"/></AppLockerPolicy>"
+   }
+  }
+ },
+ {
+  "name": "applocker-mit-pe",
+  "config": {
+   "appLocker": {
+    "mode": "configure",
+    "policyXml": "<AppLockerPolicy Version=\"1.0\"><RuleCollection Type=\"Script\" EnforcementMode=\"NotConfigured\"></RuleCollection><RuleCollection Type=\"Dll\"/></AppLockerPolicy>"
+   },
+   "pe": {
+    "mode": "generate",
+    "disableDefender": true
+   }
+  }
+ },
+ {
+  "name": "fehler-applocker-namespace",
+  "config": {
+   "appLocker": {
+    "mode": "configure",
+    "policyXml": "<AppLockerPolicy xmlns=\"urn:x\" Version=\"1\"/>"
+   }
+  }
+ },
+ {
+  "name": "fehler-applocker-wurzel",
+  "errorPrefix": "AppLocker policy XML is invalid:",
+  "config": {
+   "appLocker": {
+    "mode": "configure",
+    "policyXml": "<Foo Version=\"1\"/>"
+   }
+  }
+ },
+ {
+  "name": "fehler-applocker-kaputt",
+  "errorPrefix": "AppLocker policy XML is invalid:",
+  "config": {
+   "appLocker": {
+    "mode": "configure",
+    "policyXml": "<AppLockerPolicy Version=\"1\">"
+   }
+  }
+ },
+ {
+  "name": "fehler-applocker-leer",
+  "errorPrefix": "AppLocker policy XML is invalid:",
+  "config": {
+   "appLocker": {
+    "mode": "configure",
+    "policyXml": ""
+   }
+  }
+ },
+ {
+  "name": "fehler-applocker-doppelter-typ",
+  "errorPrefix": "AppLocker policy XML is invalid:",
+  "config": {
+   "appLocker": {
+    "mode": "configure",
+    "policyXml": "<AppLockerPolicy Version=\"1\"><RuleCollection Type=\"Exe\"/><RuleCollection Type=\"Exe\"/></AppLockerPolicy>"
+   }
+  }
+ },
+ {
+  "name": "fehler-applocker-sid",
+  "errorPrefix": "AppLocker policy XML is invalid:",
+  "config": {
+   "appLocker": {
+    "mode": "configure",
+    "policyXml": "<AppLockerPolicy Version=\"1\">\n  <RuleCollection Type=\"Exe\" EnforcementMode=\"AuditOnly\">\n    <FilePathRule Id=\"921cc481-6e17-4653-8f75-050b80acca20\" Name=\"(Standardregel) Alle Dateien im Ordner &quot;Programme&quot;\" Description=\"\" UserOrGroupSid=\"S-1\" Action=\"Allow\">\n      <Conditions>\n        <FilePathCondition Path=\"%PROGRAMFILES%\\*\" />\n      </Conditions>\n    </FilePathRule>\n    <FilePathRule Id=\"a61c8b2c-a319-4cd0-9690-d2177cad7b51\" Name=\"(Standardregel) Alle Dateien im Ordner &quot;Windows&quot;\" Description=\"\" UserOrGroupSid=\"S-1-1-0\" Action=\"Allow\">\n      <Conditions><FilePathCondition Path=\"%WINDIR%\\*\"/></Conditions>\n    </FilePathRule>\n    <FilePathRule Id=\"fd686d83-a829-4351-8ff4-27c7de5755d2\" Name=\"(Standardregel) Alle Dateien\" Description=\"Administratoren &lt;alle&gt;\" UserOrGroupSid=\"S-1-5-32-544\" Action=\"Allow\">\n      <Conditions>\n        <FilePathCondition Path=\"*\"></FilePathCondition>\n      </Conditions>\n    </FilePathRule>\n  </RuleCollection>\n  <!-- Kommentar -->\n  <RuleCollection Type=\"Msi\" EnforcementMode=\"NotConfigured\" />\n</AppLockerPolicy>\n"
+   }
+  }
+ },
+ {
+  "name": "fehler-applocker-modus",
+  "errorPrefix": "AppLocker policy XML is invalid:",
+  "config": {
+   "appLocker": {
+    "mode": "configure",
+    "policyXml": "<AppLockerPolicy Version=\"1\"><RuleCollection Type=\"Exe\" EnforcementMode=\"On\"/></AppLockerPolicy>"
+   }
+  }
+ },
+ {
+  "name": "fehler-applocker-reihenfolge",
+  "errorPrefix": "AppLocker policy XML is invalid:",
+  "config": {
+   "appLocker": {
+    "mode": "configure",
+    "policyXml": "<AppLockerPolicy Version=\"1\"><PolicyExtensions><ThresholdExtensions/></PolicyExtensions><RuleCollection Type=\"Exe\"/></AppLockerPolicy>"
+   }
+  }
+ },
+ {
+  "name": "fehler-applocker-ohne-bedingung",
+  "errorPrefix": "AppLocker policy XML is invalid:",
+  "config": {
+   "appLocker": {
+    "mode": "configure",
+    "policyXml": "<AppLockerPolicy Version=\"1\"><RuleCollection Type=\"Exe\"><FilePathRule Id=\"921cc481-6e17-4653-8f75-050b80acca20\" Name=\"a\" Description=\"\" UserOrGroupSid=\"S-1-1-0\" Action=\"Allow\"/></RuleCollection></AppLockerPolicy>"
+   }
+  }
+ },
+ {
+  "name": "fehler-applocker-doppelte-id",
+  "errorPrefix": "AppLocker policy XML is invalid:",
+  "config": {
+   "appLocker": {
+    "mode": "configure",
+    "policyXml": "<AppLockerPolicy Version=\"1\"><RuleCollection Type=\"Exe\"><FilePathRule Id=\"921cc481-6e17-4653-8f75-050b80acca20\" Name=\"a\" Description=\"\" UserOrGroupSid=\"S-1-1-0\" Action=\"Allow\"><Conditions><FilePathCondition Path=\"*\"/></Conditions></FilePathRule></RuleCollection><RuleCollection Type=\"Msi\"><FilePathRule Id=\"921cc481-6e17-4653-8f75-050b80acca20\" Name=\"b\" Description=\"\" UserOrGroupSid=\"S-1-1-0\" Action=\"Allow\"><Conditions><FilePathCondition Path=\"*\"/></Conditions></FilePathRule></RuleCollection></AppLockerPolicy>"
+   }
+  }
+ },
+ {
+  "name": "fehler-applocker-text",
+  "errorPrefix": "AppLocker policy XML is invalid:",
+  "config": {
+   "appLocker": {
+    "mode": "configure",
+    "policyXml": "<AppLockerPolicy Version=\"1\">Text</AppLockerPolicy>"
+   }
+  }
+ },
+ {
+  "name": "fehler-applocker-attribut",
+  "errorPrefix": "AppLocker policy XML is invalid:",
+  "config": {
+   "appLocker": {
+    "mode": "configure",
+    "policyXml": "<AppLockerPolicy Version=\"1\" Foo=\"x\"/>"
+   }
+  }
  }
 ]

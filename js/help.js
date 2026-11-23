@@ -475,6 +475,11 @@ MIT-Lizenz). Die Logik ist Datei für Datei übernommen; welcher Stand portiert 
     wirkt für jedes neue Konto bei der ersten Anmeldung (<code>UserOnce.ps1</code>, danach startet der Explorer neu) – auch
     ohne Aktivierung, wenn Windows die Einstellungen sperrt. Wer dieselbe Einstellung zusätzlich als Tweak wählt (z.&nbsp;B.
     „Dunkles Design“, „Desktopsymbole“, „NumLock“), bekommt sie doppelt; besser nur eines.</dd>
+  <dt>AppLocker</dt><dd>Eine Richtlinie als XML – exportiert mit <code>Get-AppLockerPolicy -Local -Xml</code> oder aus
+    <code>secpol.msc</code>, per Knopf geladen oder einfach auf die Seite gezogen (UTF-16 wie von PowerShell 5.1 geht auch).
+    Der Designer prüft sie gegen das Schema des Originals und meldet Fehler sofort; im <code>specialize</code>-Pass wird der
+    Dienst <code>AppIDSvc</code> auf automatisch gestellt und die Richtlinie mit <code>Set-AppLockerPolicy</code> angewendet.
+    Neue Regeln zuerst mit <code>AuditOnly</code> testen – erzwungene Regeln ohne Standardregeln können die Anmeldung sperren.</dd>
 </dl>
 <p>Im pe.cmd-Modus kopiert das Skript <code>$OEM$</code> aus dem <b>Wurzelverzeichnis</b> des Mediums selbst –
 <code>UseConfigurationSet</code> spielt dann keine Rolle, die Ablage muss aber „Wurzelverzeichnis“ oder „beide Orte“ sein.
@@ -1071,6 +1076,11 @@ MIT licence). The logic is taken over file by file; the ported state is recorded
     account at its first sign-in (<code>UserOnce.ps1</code>, Explorer restarts afterwards) – also without activation, when
     Windows locks these settings. Choosing the same setting again as a tweak (e.g. “Dark mode”, “Desktop icons”, “NumLock”)
     applies it twice; better pick only one.</dd>
+  <dt>AppLocker</dt><dd>A policy as XML – exported with <code>Get-AppLockerPolicy -Local -Xml</code> or from
+    <code>secpol.msc</code>, loaded via the button or simply dropped onto the page (UTF-16 as written by PowerShell 5.1 works too).
+    The designer checks it against the original's schema and reports errors immediately; in the <code>specialize</code> pass the
+    <code>AppIDSvc</code> service is set to automatic and the policy is applied with <code>Set-AppLockerPolicy</code>.
+    Test new rules with <code>AuditOnly</code> first – enforced rules without the default rules can block sign-in.</dd>
 </dl>
 <p>In pe.cmd mode the script copies <code>$OEM$</code> from the <b>root</b> of the medium itself –
 <code>UseConfigurationSet</code> does not matter then, but the location must be “root” or “both places”. Edition and hardware

@@ -297,6 +297,7 @@
       insertTextWithIndentation(file, content);
       return path;
     }
+    ctx.embedFile = embedFile;
     ctx.embedTextFile = (name, content, before, after) =>
       embedFile(name, (before || '') + content + CRLF + (after || ''));
     ctx.embedTextFileFromResource = (name, before, after) => ctx.embedTextFile(name, res(name), before, after);

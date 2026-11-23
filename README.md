@@ -377,7 +377,13 @@ löschen“ und die Ordner im Startmenü. Sie greifen für jedes neue Konto bei 
 Anmeldung – auch ohne Aktivierung. Überschneidungen mit Tweaks (Dunkles Design,
 Desktopsymbole, NumLock) besser nur an einer Stelle wählen.
 
-Noch nicht portiert: WLAN-Profil, Hintergrundbild/Sperrbildschirm, AppLocker, VM-Gasttools.
+**AppLocker** übernimmt eine Richtlinie als XML (Export von `Get-AppLockerPolicy -Local -Xml`
+oder aus `secpol.msc`; auch per Drag & Drop, UTF-16 inklusive), prüft sie gegen das Schema
+`AppLocker.xsd` des Originals und wendet sie im `specialize`-Pass mit `Set-AppLockerPolicy` an.
+Die Schemaprüfung ist im Port nachgebaut, weil der Browser kein XSD kennt; ihre Meldungen
+lauten deshalb anders als beim Original, der Golden-Test vergleicht dort nur das Präfix.
+
+Noch nicht portiert: WLAN-Profil, Hintergrundbild/Sperrbildschirm, VM-Gasttools.
 Tweaks und Bloatware liefert der Generator selbst.
 
 ### Änderungen im Original beobachten

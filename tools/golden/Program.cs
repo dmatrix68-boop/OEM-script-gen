@@ -235,6 +235,13 @@ static class Program
     );
   }
 
+  static IAppLockerSettings BuildAppLocker(JsonElement c)
+  {
+    JsonElement al = Opt(c, "appLocker");
+    if (Mode(al) != "configure") return new SkipAppLockerSettings();
+    return new ConfigureAppLockerSettings(PolicyXml: Str(al, "policyXml"));
+  }
+
   static JsonElement Obj(JsonElement o, string key)
   {
     return o.GetProperty(key);
@@ -367,6 +374,7 @@ static class Program
       DesktopIcons = BuildDesktopIcons(gen, c),
       StartFolderSettings = BuildStartFolders(gen, c),
       ColorSettings = BuildColors(c),
+      AppLockerSettings = BuildAppLocker(c),
     };
   }
 }

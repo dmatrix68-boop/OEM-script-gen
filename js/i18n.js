@@ -244,7 +244,7 @@
     'antwortdatei-lead': 'Creates a complete <code>autounattend.xml</code> – language, accounts, computer name, edition, OOBE – '
       + 'into which the generator then inserts its calls. The designer is a port of the generator by Christoph Schneegans '
       + '(<a href="https://github.com/cschneegans/unattend-generator" target="_blank" rel="noopener noreferrer">unattend-generator</a>, '
-      + 'MIT licence). Not yet included: Wi-Fi profile, wallpaper, AppLocker, VM guest tools.',
+      + 'MIT licence). Not yet included: Wi-Fi profile, wallpaper, VM guest tools.',
     'sprache-und-region': 'Language &amp; region',
     'sprache-einstellung': 'Language and keyboard',
     'opt-interaktiv-setup-fragt': 'interactive – Setup asks',
@@ -321,6 +321,17 @@
     'opt-diese-anzeigen': 'show these',
     'edge-verknuepfung-loeschen': 'Delete the Edge shortcut on the desktop',
     'ordner-im-start': 'Folders on Start (next to the power button)',
+    'applocker-hinweis': 'Applies an AppLocker policy in the <code>specialize</code> pass via <code>Set-AppLockerPolicy</code> and '
+      + 'sets the Application Identity service (<code>AppIDSvc</code>) to automatic. The policy comes e.g. from a reference machine: '
+      + '<code>Get-AppLockerPolicy -Local -Xml &gt; AppLocker.xml</code> or <code>secpol.msc</code> → Application Control Policies → '
+      + 'AppLocker → Export Policy. <b>Careful:</b> enforced rules without the default rules can block programs, scripts and even '
+      + 'sign-in – test new rules with “Audit only” (<code>AuditOnly</code>) first. Check in a VM whether the edition (e.g. Pro) '
+      + 'enforces the rules.',
+    'applocker': 'AppLocker policy',
+    'opt-al-skip': 'do not change',
+    'opt-al-configure': 'apply this policy',
+    'al-beispiel': 'Insert example (default rules, audit only)',
+    'al-laden': 'Load XML file …',
     'benutzerkonten': 'User accounts',
     'opt-konto-ms': 'interactive – Microsoft account',
     'opt-konto-lokal': 'interactive – local account',
@@ -791,6 +802,9 @@
     'Achtung: Mit UseConfigurationSet=true sucht Setup $OEM$ im Wurzelverzeichnis – die Ablage „sources“ allein wird ignoriert.': 'Careful: with UseConfigurationSet=true Setup looks for $OEM$ in the root – the location “sources” alone is ignored.',
     /* Antwortdatei-Designer */
     'Gebietsschema': 'Locale',
+    'AppLocker-Richtlinie übernommen: {0}': 'AppLocker policy adopted: {0}',
+    'AppLocker-Richtlinie übernommen – sie wirkt, sobald die Antwortdatei mit dem Designer erzeugt wird.':
+      'AppLocker policy adopted – it takes effect once the answer file is created with the designer.',
     'Steuerelemente und Elemente innerhalb von Fenstern animieren': 'Animate controls and elements inside windows',
     'Animation beim Minimieren und Maximieren von Fenstern': 'Animate windows when minimizing and maximizing',
     'Animationen in der Taskleiste': 'Animations in the taskbar',
