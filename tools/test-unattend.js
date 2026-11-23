@@ -119,6 +119,19 @@ const CASES = [
     reject: [/HideWirelessSetupInOOBE/]
   },
   { name: 'Fehler: WLAN-Namensraum', config: { wifi: { mode: 'xml', xml: '<WLANProfile><name>A</name></WLANProfile>' } }, error: /^WLAN profile XML is invalid: Namespace URI of root element must be 'http:\/\/www\.microsoft\.com\/networking\/WLAN\/profile\/v1', but was ''\.$/ },
+  {
+    name: 'Hintergrund, Sperrbildschirm, VirtIO',
+    config: {
+      wallpaper: { mode: 'solid', color: '#1e3a5f', script: '' },
+      lockScreen: { mode: 'script', script: "return ,[System.Convert]::FromBase64String('AAEC');" },
+      vmTools: { virtualBox: false, vmware: false, virtIo: true, parallels: false }
+    },
+    expect: [
+      /Set-WallpaperColor -HtmlColor '#1E3A5F';/,
+      /PersonalizationCSP" \/v LockScreenImagePath \/t REG_SZ \/d "C:\\Windows\\Setup\\Scripts\\LockScreenImage" \/f;/,
+      /<File path="C:\\Windows\\Setup\\Scripts\\VirtIoGuestTools\.ps1">/
+    ]
+  },
   { name: 'Fehler: reservierter Kontoname', config: { account: { mode: 'unattended', accounts: [{ name: 'Administrator', password: '', group: 'Administrators' }], autoLogon: 'own' } }, error: /Username 'Administrator' is invalid/ },
   { name: 'Fehler: Konto = Computername', config: { computerName: { mode: 'custom', name: 'PC1' }, account: { mode: 'unattended', accounts: [{ name: 'pc1', password: '', group: 'Administrators' }], autoLogon: 'own' } }, error: /must not be the same as the computer name/ },
   { name: 'Fehler: Produktschluessel', config: { edition: { mode: 'key', key: 'ABC' } }, error: /ill-formed/ },

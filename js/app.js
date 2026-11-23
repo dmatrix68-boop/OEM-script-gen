@@ -57,7 +57,7 @@
       custom: { cmdEnabled: true, cmd: '', psEnabled: true, psPhase: 'setup', ps: '' },
       iso: { noPrompt: false },
       /* Antwortdatei-Designer (js/ug, Port des Schneegans-Generators) */
-      answer: Object.assign({ enabled: false }, window.UG ? UG.defaultConfig() : {})
+      answer: answerDefaults()
     };
   }
 
@@ -93,6 +93,43 @@
   }
 
   /* Zwei-Wege-Bindung für einfache Felder */
+  /* Designer-Konfiguration plus Felder, die nur die Oberflaeche braucht:
+     Hintergrund/Sperrbildschirm unterscheiden "Bild" (eingebettet) und
+     "eigenes Skript"; derivePictures() setzt daraus mode/script fuer den Port. */
+  function answerDefaults() {
+    const a = Object.assign({ enabled: false }, window.UG ? UG.defaultConfig() : {});
+    if (a.wallpaper) Object.assign(a.wallpaper, { ui: 'default', imageScript: '', imageName: '', imageSize: 0, customScript: '' });
+    if (a.lockScreen) Object.assign(a.lockScreen, { ui: 'default', imageScript: '', imageName: '', imageSize: 0, customScript: '' });
+    return a;
+  }
+  function derivePictures() {
+    for (const [key, solid] of [['wallpaper', true], ['lockScreen', false]]) {
+      const o = state.answer[key];
+      if (!o) continue;
+      const ui = o.ui || 'default';
+      if (ui === 'solid' && solid) { o.mode = 'solid'; o.script = ''; }
+      else if (ui === 'image' && o.imageScript) { o.mode = 'script'; o.script = o.imageScript; }
+      else if (ui === 'script') { o.mode = 'script'; o.script = o.customScript || ''; }
+      else { o.mode = 'default'; o.script = ''; }
+    }
+  }
+  async function loadPicture(key, file) {
+    const o = state.answer[key];
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    let bin = '';
+    for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    const kb = Math.max(1, Math.round(bytes.length / 1024));
+    o.imageName = file.name;
+    o.imageSize = bytes.length;
+    o.imageScript = '# Bild: ' + file.name.replace(/[\r\n]/g, ' ') + ' (' + kb + ' KB)\n' +
+      "return ,[System.Convert]::FromBase64String('" + btoa(bin) + "');";
+    if (bytes.length > 2 * 1024 * 1024) {
+      toast(F('{0} ist {1} MB groß – die Antwortdatei wächst um rund {2} MB. Besser vorher verkleinern.',
+        file.name, (bytes.length / 1048576).toFixed(1), (bytes.length * 4 / 3 / 1048576).toFixed(1)), 'warn');
+    }
+    renderAnswer(); refresh();
+  }
+
   const BINDINGS = [
     ['projectName', 'meta.name', 'text'],
     ['appsEnabled', 'apps.enabled', 'bool'],
@@ -219,6 +256,15 @@
     ['ansDeleteEdge', 'answer.deleteEdgeDesktopIcon', 'bool'],
     ['ansFoldersMode', 'answer.startFolders.mode', 'text'],
     ['ansAlMode', 'answer.appLocker.mode', 'text'],
+    ['ansWpUi', 'answer.wallpaper.ui', 'text'],
+    ['ansWpColor', 'answer.wallpaper.color', 'text'],
+    ['ansWpScript', 'answer.wallpaper.customScript', 'text'],
+    ['ansLsUi', 'answer.lockScreen.ui', 'text'],
+    ['ansLsScript', 'answer.lockScreen.customScript', 'text'],
+    ['ansVmVbox', 'answer.vmTools.virtualBox', 'bool'],
+    ['ansVmVmware', 'answer.vmTools.vmware', 'bool'],
+    ['ansVmVirtio', 'answer.vmTools.virtIo', 'bool'],
+    ['ansVmParallels', 'answer.vmTools.parallels', 'bool'],
     ['ansWifiName', 'answer.wifi.name', 'text'],
     ['ansWifiAuth', 'answer.wifi.authentication', 'text'],
     ['ansWifiPw', 'answer.wifi.password', 'text'],
@@ -668,6 +714,11 @@
   function renderAnswer() {
     const view = $('#view-answer');
     if (!view) return;
+    derivePictures();
+    for (const [key, id] of [['wallpaper', '#ansWpInfo'], ['lockScreen', '#ansLsInfo']]) {
+      const o = state.answer[key];
+      if (o && $(id)) $(id).textContent = o.imageScript ? o.imageName + ' (' + Math.max(1, Math.round(o.imageSize / 1024)) + ' KB)' : T('kein Bild gewählt');
+    }
     /* data-show="pfad=wert", "pfad!=wert"; data-show-not="pfad=wert1,wert2" */
     $$('[data-show]', view).forEach((el) => {
       const neg = el.dataset.show.includes('!=');
@@ -696,6 +747,8 @@
     }
     if (state.options.trigger === 'setupcomplete') notes.push(T('Achtung: Unter Einstellungen → Auslöser ist „nur SetupComplete.cmd“ gewählt – dann entsteht keine autounattend.xml.'));
     if (state.unattend && state.unattend.xml) notes.push(T('Die importierte autounattend.xml wird nicht verwendet, solange der Designer aktiv ist.'));
+    if (state.answer.wallpaper && state.answer.wallpaper.ui === 'image' && !state.answer.wallpaper.imageScript) notes.push(T('Kein Bild gewählt – Hintergrundbild bleibt Windows-Standard.'));
+    if (state.answer.lockScreen && state.answer.lockScreen.ui === 'image' && !state.answer.lockScreen.imageScript) notes.push(T('Kein Bild gewählt – Sperrbildschirm bleibt Windows-Standard.'));
     const pe = state.answer.pe || {};
     if (pe.mode === 'generate' || pe.mode === 'script') {
       if (state.paths.zipRoot === 'sources') notes.push(T('Achtung: pe.cmd kopiert nur <Medium>\\$OEM$ – die Ablage steht auf „sources“. Unter Einstellungen → Pfade „beide Orte“ wählen.'));
@@ -2718,6 +2771,14 @@
         syncInputs(); renderAnswer(); refresh();
       });
       $('#btnAlLoad').addEventListener('click', () => $('#alInput').click());
+      for (const [btn, input, key] of [['#btnWpImage', '#wpInput', 'wallpaper'], ['#btnLsImage', '#lsInput', 'lockScreen']]) {
+        $(btn).addEventListener('click', () => $(input).click());
+        $(input).addEventListener('change', async (e) => {
+          const f = e.target.files[0];
+          e.target.value = '';
+          if (f) await loadPicture(key, f);
+        });
+      }
       $('#btnWifiLoad').addEventListener('click', () => $('#wifiInput').click());
       $('#wifiInput').addEventListener('change', async (e) => {
         const f = e.target.files[0];

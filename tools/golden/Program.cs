@@ -56,12 +56,12 @@ static class Program
 
   static string Str(JsonElement o, string key, string fallback = "")
   {
-    return o.TryGetProperty(key, out JsonElement v) && v.ValueKind == JsonValueKind.String ? v.GetString()! : fallback;
+    return o.ValueKind == JsonValueKind.Object && o.TryGetProperty(key, out JsonElement v) && v.ValueKind == JsonValueKind.String ? v.GetString()! : fallback;
   }
 
   static bool Bool(JsonElement o, string key)
   {
-    return o.TryGetProperty(key, out JsonElement v) && v.ValueKind == JsonValueKind.True;
+    return o.ValueKind == JsonValueKind.Object && o.TryGetProperty(key, out JsonElement v) && v.ValueKind == JsonValueKind.True;
   }
 
   static int? Int(JsonElement o, string key)
@@ -235,6 +235,29 @@ static class Program
     );
   }
 
+  static Color HtmlColor(string html)
+  {
+    int rgb = int.Parse(html.TrimStart('#'), NumberStyles.HexNumber);
+    return Color.FromArgb(255, (rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF);
+  }
+
+  static IWallpaperSettings BuildWallpaper(JsonElement c)
+  {
+    JsonElement w = Opt(c, "wallpaper");
+    return Mode(w) switch
+    {
+      "solid" => new SolidWallpaperSettings(Color: HtmlColor(Str(w, "color", "#000000"))),
+      "script" => new ScriptWallpaperSettings(Script: Str(w, "script")),
+      _ => new DefaultWallpaperSettings(),
+    };
+  }
+
+  static ILockScreenSettings BuildLockScreen(JsonElement c)
+  {
+    JsonElement l = Opt(c, "lockScreen");
+    return Mode(l) == "script" ? new ScriptLockScreenSettings(Script: Str(l, "script")) : new DefaultLockScreenSettings();
+  }
+
   static IWifiSettings BuildWifi(JsonElement c)
   {
     JsonElement w = Opt(c, "wifi");
@@ -393,6 +416,12 @@ static class Program
       StartFolderSettings = BuildStartFolders(gen, c),
       ColorSettings = BuildColors(c),
       AppLockerSettings = BuildAppLocker(c),
+      WallpaperSettings = BuildWallpaper(c),
+      LockScreenSettings = BuildLockScreen(c),
+      VBoxGuestAdditions = Bool(Opt(c, "vmTools"), "virtualBox"),
+      VMwareTools = Bool(Opt(c, "vmTools"), "vmware"),
+      VirtIoGuestTools = Bool(Opt(c, "vmTools"), "virtIo"),
+      ParallelsTools = Bool(Opt(c, "vmTools"), "parallels"),
     };
   }
 }

@@ -387,7 +387,13 @@ lauten deshalb anders als beim Original, der Golden-Test vergleicht dort nur das
 oder übernimmt ein Profil aus `netsh wlan export profile key=clear` (geprüft gegen
 `WLAN_profile_v1.xsd`, ebenfalls nachgebaut). Das Kennwort steht im Klartext in der Antwortdatei.
 
-Noch nicht portiert: Hintergrundbild/Sperrbildschirm, VM-Gasttools.
+**Hintergrundbild und Sperrbildschirm** nehmen eine Farbe, ein hochgeladenes Bild (Base64 in der
+Antwortdatei) oder ein eigenes PowerShell-Skript, das die Bilddaten liefert. **Gasterweiterungen**
+für VirtualBox, VMware, VirtIO (QEMU/KVM, Proxmox) und Parallels werden installiert, wenn das
+Medium in der VM eingelegt ist; mit `pe.cmd` lädt VirtIO zusätzlich Speicher- und Netzwerktreiber.
+
+Damit sind alle Modifier des Originals portiert – bis auf Bloatware und die übrigen Optimierungen,
+für die der Generator eigene Kataloge hat (Seiten *Bloatware* und *Tweaks*).
 Tweaks und Bloatware liefert der Generator selbst.
 
 ### Änderungen im Original beobachten

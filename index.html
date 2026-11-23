@@ -450,7 +450,7 @@
       <p class="lead" data-i18n="antwortdatei-lead">Erzeugt eine vollständige <code>autounattend.xml</code> – Sprache, Konten, Computername,
       Edition, OOBE –, in die der Generator anschließend seine Aufrufe einfügt. Der Designer ist eine Portierung des
       Generators von Christoph Schneegans (<a href="https://github.com/cschneegans/unattend-generator" target="_blank" rel="noopener noreferrer">unattend-generator</a>,
-      MIT-Lizenz). Noch nicht übernommen: Hintergrundbild, VM-Gasttools.</p>
+      MIT-Lizenz). Bloatware und weitere Optimierungen kommen aus den eigenen Katalogen des Generators.</p>
       <p class="hint" id="answerStatus"></p>
 
       <div class="grid2">
@@ -738,6 +738,43 @@
             </table>
           </div>
         </div>
+        <div class="grid2">
+          <div>
+            <label class="field"><span data-i18n="hintergrundbild">Hintergrundbild</span>
+              <select id="ansWpUi">
+                <option value="default" data-i18n="opt-windows-standard">Windows-Standard</option>
+                <option value="solid" data-i18n="opt-einfarbig">einfarbig</option>
+                <option value="image" data-i18n="opt-bild">Bild</option>
+                <option value="script" data-i18n="opt-bild-skript">Bild per eigenem PowerShell-Skript</option>
+              </select></label>
+            <label class="field" data-show="answer.wallpaper.ui=solid"><span data-i18n="farbe">Farbe</span><input type="color" id="ansWpColor"></label>
+            <div class="row wrap" data-show="answer.wallpaper.ui=image">
+              <button class="btn small" type="button" id="btnWpImage" data-i18n="bild-waehlen">Bild wählen …</button>
+              <span class="hint" id="ansWpInfo"></span>
+              <input type="file" id="wpInput" accept="image/jpeg,image/png,image/bmp" hidden>
+            </div>
+            <textarea id="ansWpScript" class="code" rows="4" spellcheck="false" wrap="off" data-show="answer.wallpaper.ui=script"></textarea>
+          </div>
+          <div>
+            <label class="field"><span data-i18n="sperrbildschirm">Sperrbildschirm</span>
+              <select id="ansLsUi">
+                <option value="default" data-i18n="opt-windows-standard">Windows-Standard</option>
+                <option value="image" data-i18n="opt-bild">Bild</option>
+                <option value="script" data-i18n="opt-bild-skript">Bild per eigenem PowerShell-Skript</option>
+              </select></label>
+            <div class="row wrap" data-show="answer.lockScreen.ui=image">
+              <button class="btn small" type="button" id="btnLsImage" data-i18n="bild-waehlen">Bild wählen …</button>
+              <span class="hint" id="ansLsInfo"></span>
+              <input type="file" id="lsInput" accept="image/jpeg,image/png" hidden>
+            </div>
+            <textarea id="ansLsScript" class="code" rows="4" spellcheck="false" wrap="off" data-show="answer.lockScreen.ui=script"></textarea>
+          </div>
+        </div>
+        <p class="hint" data-i18n="bild-hinweis">Ein Bild wird Base64-kodiert in die Antwortdatei eingebettet (rund ein Drittel größer als
+        die Datei) und im <code>specialize</code>-Pass nach <code>C:\Windows\Setup\Scripts</code> geschrieben – große Fotos also vorher
+        verkleinern. Ein eigenes Skript muss die Bilddaten als Bytes ausgeben, z.&nbsp;B.
+        <code>(Invoke-WebRequest -Uri 'https://…/bild.jpg' -UseBasicParsing).Content</code>; im <code>specialize</code>-Pass steht das
+        Netzwerk aber oft noch nicht bereit.</p>
         <div class="row wrap">
           <label class="field grow"><span data-i18n="visuelle-effekte">Visuelle Effekte</span>
             <select id="ansFxMode">
@@ -765,6 +802,19 @@
             </select></label>
         </div>
         <div class="checkgrid" id="ansFolderList" data-show="answer.startFolders.mode=custom"></div>
+      </div>
+
+      <div class="panel">
+        <h3 data-i18n="vm-gasterweiterungen">Gasterweiterungen für virtuelle Maschinen</h3>
+        <p class="hint" data-i18n="vm-hinweis">Installiert die Gasterweiterungen, wenn das passende Medium in der VM eingelegt ist –
+        durchsucht werden die Laufwerke D: bis Z:. Ohne Medium wird nur ein Hinweis protokolliert, die Installation läuft weiter.
+        Installiert wird bei der ersten Anmeldung, mit <code>pe.cmd</code> und abgeschaltetem Defender schon im
+        <code>specialize</code>-Pass. VirtIO lädt mit <code>pe.cmd</code> zusätzlich die Speicher- und Netzwerktreiber
+        (<code>vioscsi</code>, <code>viostor</code>, <code>NetKVM</code>) vom Medium.</p>
+        <label class="chk"><input type="checkbox" id="ansVmVbox"> <span>VirtualBox Guest Additions</span> <small class="muted" data-i18n="vm-vbox-medium">(Geräte → Gasterweiterungen einlegen)</small></label>
+        <label class="chk"><input type="checkbox" id="ansVmVmware"> <span>VMware Tools</span> <small class="muted" data-i18n="vm-vmware-medium">(windows.iso einbinden)</small></label>
+        <label class="chk"><input type="checkbox" id="ansVmVirtio"> <span>VirtIO Guest Tools</span> <small class="muted" data-i18n="vm-virtio-medium">(QEMU/KVM, Proxmox – virtio-win-*.iso einbinden)</small></label>
+        <label class="chk"><input type="checkbox" id="ansVmParallels"> <span>Parallels Tools</span> <small class="muted" data-i18n="vm-parallels-medium">(prl-tools-win-*.iso einbinden)</small></label>
       </div>
 
       <div class="panel">

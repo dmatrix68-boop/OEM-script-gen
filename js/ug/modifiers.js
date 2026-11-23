@@ -20,6 +20,9 @@
       wifi:       { mode: 'interactive' | 'skip' | 'unattended' | 'xml', name, password,
                     authentication: 'Open' | 'WPA2PSK' | 'WPA3SAE', connectAutomatically, nonBroadcast, xml }
       appLocker:  { mode: 'skip' | 'configure', policyXml }
+      wallpaper:  { mode: 'default' | 'solid' | 'script', color, script }
+      lockScreen: { mode: 'default' | 'script', script }
+      vmTools:    { virtualBox, vmware, virtIo, parallels }
       edition:    { mode: 'interactive' | 'firmware' | 'edition' | 'key', edition, key }
       activationKey, bypassRequirements, bypassNetwork, useConfigurationSet,
       expressSettings: 'interactive' | 'enableAll' | 'disableAll',
@@ -391,7 +394,10 @@
           if exist %%d:\$WinPEDriver$ set "PEDRIVERS_FOLDER=%%d:\$WinPEDriver$"
           if exist %%d:\$WinPEPackage$ set "MSU_FOLDER=%%d:\$WinPEPackage$"
       `);
-    /* PORT: VirtIoGuestTools gibt es in der Oberflaeche nicht (Optimizations) */
+    const virtIo = !!(config.vmTools && config.vmTools.virtIo);
+    if (virtIo) {
+      w.writeLine('if exist %%d:\\virtio-win-guest-tools.exe set "VIRTIO_DRIVE=%%d:"');
+    }
     w.writeLine(csRaw`
       )
       for /f "tokens=3" %%t in ('reg.exe query HKLM\System\Setup /v UnattendFile 2^>nul') do ( if exist %%t set "XML_FILE=%%t" )
@@ -415,6 +421,18 @@
       )
 
       `);
+
+    if (virtIo) {
+      w.writeLine(csRaw`
+        if defined VIRTIO_DRIVE (
+            call :print "Loading VirtIO drivers from %VIRTIO_DRIVE%"
+            drvload.exe "%VIRTIO_DRIVE%\vioscsi\w%OS_VERSION%\%PROCESSOR_ARCHITECTURE%\vioscsi.inf"
+            drvload.exe "%VIRTIO_DRIVE%\viostor\w%OS_VERSION%\%PROCESSOR_ARCHITECTURE%\viostor.inf"
+            drvload.exe "%VIRTIO_DRIVE%\NetKVM\w%OS_VERSION%\%PROCESSOR_ARCHITECTURE%\netkvm.inf"
+        )
+
+        `);
+    }
 
     const part = pe.partition || { mode: 'interactive' };
     {
@@ -598,6 +616,18 @@
       )
 
       `);
+
+    if (virtIo) {
+      w.writeLine(csRaw`
+        if defined VIRTIO_DRIVE (
+            call :print "Adding VirtIO drivers from %VIRTIO_DRIVE% to new installation"
+            dism.exe /Add-Driver /Image:${W}:\ /Driver:"%VIRTIO_DRIVE%\vioscsi\w%OS_VERSION%\%PROCESSOR_ARCHITECTURE%\vioscsi.inf"
+            dism.exe /Add-Driver /Image:${W}:\ /Driver:"%VIRTIO_DRIVE%\viostor\w%OS_VERSION%\%PROCESSOR_ARCHITECTURE%\viostor.inf"
+            dism.exe /Add-Driver /Image:${W}:\ /Driver:"%VIRTIO_DRIVE%\NetKVM\w%OS_VERSION%\%PROCESSOR_ARCHITECTURE%\netkvm.inf"
+        )
+
+        `);
+    }
 
     const tz = config.timeZone || {};
     if (tz.mode === 'explicit') {
@@ -1272,7 +1302,7 @@
      Teilweise portiert: Tweaks liefert der Generator selbst (Tweaks-Seite).
      Uebernommen sind die Abschnitte, die es dort nicht gibt - in der
      Reihenfolge des Originals: Defender-Hinweise (haengt am PE-Modus),
-     Edge-Verknuepfung, Sperrtasten, visuelle Effekte, Desktopsymbole, Ordner
+     Edge-Verknuepfung, VM-Gastprogramme, Sperrtasten, visuelle Effekte, Desktopsymbole, Ordner
      im Startmenue. Alle anderen Schalter des Originals stehen auf ihrem
      Standardwert und erzeugen dort keine Ausgabe. */
   const EFFECTS = ['ControlAnimations', 'AnimateMinMax', 'TaskbarAnimations', 'DWMAeroPeekEnabled', 'MenuAnimation',
@@ -1296,6 +1326,19 @@
         c.specializeScript.append("Remove-Item -LiteralPath 'C:\\Users\\Public\\Desktop\\Microsoft Edge.lnk' -ErrorAction 'SilentlyContinue' -Verbose;");
         c.userOnceScript.append('Remove-Item -LiteralPath "${env:USERPROFILE}\\Desktop\\Microsoft Edge.lnk" -ErrorAction \'SilentlyContinue\' -Verbose;');
       }
+
+      /* VM-Gastprogramme: bei abgeschaltetem Defender schon im specialize-Pass,
+         sonst bei der ersten Anmeldung; VirtIO immer bei der ersten Anmeldung */
+      const vm = cfg.vmTools || {};
+      const defenderOff = !!(pe && pe.mode === 'generate' && pe.disableDefender);
+      const installVm = (resource, alwaysAtFirstLogon) => {
+        const target = alwaysAtFirstLogon ? c.firstLogonScript : (defenderOff ? c.specializeScript : c.firstLogonScript);
+        target.invokeFile(c.embedTextFileFromResource(resource));
+      };
+      if (vm.virtualBox) installVm('VBoxGuestAdditions.ps1');
+      if (vm.vmware) installVm('VMwareTools.ps1');
+      if (vm.virtIo) installVm('VirtIoGuestTools.ps1', true);
+      if (vm.parallels) installVm('ParallelsTools.ps1');
 
       const lk = cfg.lockKeys;
       if (lk && lk.mode === 'configure') {
@@ -1365,7 +1408,7 @@
   };
 
   /* ---------- modifier/Personalization.cs ----------
-     Portiert: Farben. Hintergrund und Sperrbildschirm folgen. */
+     Farben, Hintergrundbild (Farbe oder Bild per Skript), Sperrbildschirm. */
   const Personalization = {
     name: 'Personalization',
     process(c) {
@@ -1386,6 +1429,45 @@
         c.userOnceScript.invokeFile(ps1);
         c.userOnceScript.restartExplorer();
       } else if (col.mode !== 'default') throw new Error('Unbekannte Farb-Einstellung: ' + col.mode);
+
+      /* Hintergrundbild: Farbe oder Bild aus einem Skript, das die Bytes liefert */
+      const wp = c.config.wallpaper || { mode: 'default' };
+      const writeWallpaperScript = (line) => {
+        c.userOnceScript.invokeFile(c.embedTextFileFromResource('SetWallpaper.ps1', '', line + '\r\n'));
+      };
+      if (wp.mode === 'script') {
+        const imageFile = 'C:\\Windows\\Setup\\Scripts\\Wallpaper';
+        const getterFile = c.embedTextFile('GetWallpaper.ps1', String(wp.script || ''));
+        c.specializeScript.append([
+          'try {',
+          "  $bytes = & '" + getterFile + "';",
+          "  [System.IO.File]::WriteAllBytes( '" + imageFile + "', $bytes );",
+          '} catch {',
+          '  $_;',
+          '}'
+        ].join('\n'));
+        writeWallpaperScript("Set-WallpaperImage -LiteralPath '" + imageFile + "';");
+      } else if (wp.mode === 'solid') {
+        const hex = String(wp.color || '#000000').replace(/^#?/, '#').toUpperCase();
+        if (!/^#[0-9A-F]{6}$/.test(hex)) throw new ConfigurationException("Color '" + wp.color + "' is invalid.");
+        writeWallpaperScript("Set-WallpaperColor -HtmlColor '" + hex + "';");
+      } else if (wp.mode !== 'default') throw new Error('Unbekannte Hintergrund-Einstellung: ' + wp.mode);
+
+      /* Sperrbildschirm: Bild aus einem Skript, Pfad ueber PersonalizationCSP */
+      const ls = c.config.lockScreen || { mode: 'default' };
+      if (ls.mode === 'script') {
+        const imageFile = 'C:\\Windows\\Setup\\Scripts\\LockScreenImage';
+        const getterFile = c.embedTextFile('GetLockScreenImage.ps1', String(ls.script || ''));
+        c.specializeScript.append([
+          'try {',
+          "  $bytes = & '" + getterFile + "';",
+          "  [System.IO.File]::WriteAllBytes( '" + imageFile + "', $bytes );",
+          '  reg.exe add "HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\PersonalizationCSP" /v LockScreenImagePath /t REG_SZ /d "' + imageFile + '" /f;',
+          '} catch {',
+          '  $_;',
+          '}'
+        ].join('\n'));
+      } else if (ls.mode !== 'default') throw new Error('Unbekannte Sperrbildschirm-Einstellung: ' + ls.mode);
     }
   };
 
@@ -1637,6 +1719,9 @@
       startFolders: { mode: 'default', show: [] },
       appLocker: { mode: 'skip', policyXml: '' },
       colors: { mode: 'default', systemTheme: 'Dark', appsTheme: 'Light', accentColor: '#0078D4', accentOnStart: true, accentOnBorders: true, transparency: true },
+      wallpaper: { mode: 'default', color: '#000000', script: '' },
+      lockScreen: { mode: 'default', script: '' },
+      vmTools: { virtualBox: false, vmware: false, virtIo: false, parallels: false },
       hidePowerShellWindows: false,
       keepSensitiveFiles: false,
       useNarrator: false

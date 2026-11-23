@@ -484,6 +484,13 @@ MIT-Lizenz). Die Logik ist Datei für Datei übernommen; welcher Stand portiert 
     wirkt für jedes neue Konto bei der ersten Anmeldung (<code>UserOnce.ps1</code>, danach startet der Explorer neu) – auch
     ohne Aktivierung, wenn Windows die Einstellungen sperrt. Wer dieselbe Einstellung zusätzlich als Tweak wählt (z.&nbsp;B.
     „Dunkles Design“, „Desktopsymbole“, „NumLock“), bekommt sie doppelt; besser nur eines.</dd>
+  <dt>Hintergrundbild &amp; Sperrbildschirm</dt><dd>Einfarbiger Hintergrund oder ein Bild – entweder hochgeladen (wird
+    Base64-kodiert in die Antwortdatei eingebettet, große Fotos also vorher verkleinern) oder von einem eigenen PowerShell-Skript
+    geliefert, das die Bilddaten als Bytes ausgibt. Das Bild wird im <code>specialize</code>-Pass geschrieben; den Hintergrund setzt
+    das Einmal-Skript je Benutzer, den Sperrbildschirm <code>PersonalizationCSP</code> für alle.</dd>
+  <dt>Gasterweiterungen</dt><dd>VirtualBox Guest Additions, VMware Tools, VirtIO Guest Tools (QEMU/KVM, Proxmox) und Parallels
+    Tools werden installiert, wenn das passende Medium in der VM eingelegt ist (Laufwerk D: bis Z:). Mit <code>pe.cmd</code> lädt
+    VirtIO außerdem die Speicher- und Netzwerktreiber vom Medium – damit findet Setup auch eine VirtIO-SCSI-Platte.</dd>
   <dt>AppLocker</dt><dd>Eine Richtlinie als XML – exportiert mit <code>Get-AppLockerPolicy -Local -Xml</code> oder aus
     <code>secpol.msc</code>, per Knopf geladen oder einfach auf die Seite gezogen (UTF-16 wie von PowerShell 5.1 geht auch).
     Der Designer prüft sie gegen das Schema des Originals und meldet Fehler sofort; im <code>specialize</code>-Pass wird der
@@ -1094,6 +1101,13 @@ MIT licence). The logic is taken over file by file; the ported state is recorded
     account at its first sign-in (<code>UserOnce.ps1</code>, Explorer restarts afterwards) – also without activation, when
     Windows locks these settings. Choosing the same setting again as a tweak (e.g. “Dark mode”, “Desktop icons”, “NumLock”)
     applies it twice; better pick only one.</dd>
+  <dt>Wallpaper &amp; lock screen</dt><dd>A solid-color background or an image – either uploaded (embedded Base64-encoded in
+    the answer file, so shrink large photos first) or delivered by an own PowerShell script that outputs the image data as bytes.
+    The image is written in the <code>specialize</code> pass; the wallpaper is set by the per-user one-time script, the lock screen
+    via <code>PersonalizationCSP</code> for everyone.</dd>
+  <dt>Guest additions</dt><dd>VirtualBox Guest Additions, VMware Tools, VirtIO Guest Tools (QEMU/KVM, Proxmox) and Parallels
+    Tools are installed if the matching medium is inserted in the VM (drive D: to Z:). With <code>pe.cmd</code>, VirtIO also loads
+    the storage and network drivers from the medium – so Setup finds a VirtIO SCSI disk as well.</dd>
   <dt>AppLocker</dt><dd>A policy as XML – exported with <code>Get-AppLockerPolicy -Local -Xml</code> or from
     <code>secpol.msc</code>, loaded via the button or simply dropped onto the page (UTF-16 as written by PowerShell 5.1 works too).
     The designer checks it against the original's schema and reports errors immediately; in the <code>specialize</code> pass the

@@ -1452,5 +1452,209 @@
     "xml": "<WLANProfile xmlns=\"http://www.microsoft.com/networking/WLAN/profile/v1\"><name>Firma</name><SSIDConfig><SSID><name>Firma</name></SSID><nonBroadcast>ja</nonBroadcast></SSIDConfig><connectionType>ESS</connectionType><connectionMode>manual</connectionMode><MSM><security><authEncryption><authentication>WPA3SAE</authentication><encryption>AES</encryption><useOneX>false</useOneX><transitionMode xmlns=\"http://www.microsoft.com/networking/WLAN/profile/v4\">true</transitionMode></authEncryption><sharedKey><keyType>passPhrase</keyType><protected>false</protected><keyMaterial></keyMaterial></sharedKey></security></MSM></WLANProfile>"
    }
   }
+ },
+ {
+  "name": "hintergrund-farbe",
+  "config": {
+   "wallpaper": {
+    "mode": "solid",
+    "color": "#1e3a5f",
+    "script": ""
+   }
+  }
+ },
+ {
+  "name": "hintergrund-bild",
+  "config": {
+   "wallpaper": {
+    "mode": "script",
+    "color": "#000000",
+    "script": "# Bild: bild.png (1 KB)\nreturn ,[System.Convert]::FromBase64String('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==');"
+   }
+  }
+ },
+ {
+  "name": "sperrbildschirm-bild",
+  "config": {
+   "lockScreen": {
+    "mode": "script",
+    "script": "# Bild: bild.png (1 KB)\nreturn ,[System.Convert]::FromBase64String('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==');"
+   }
+  }
+ },
+ {
+  "name": "hintergrund-sperrbildschirm-farben",
+  "config": {
+   "colors": {
+    "mode": "custom",
+    "systemTheme": "Dark",
+    "appsTheme": "Dark",
+    "accentColor": "#FF8800",
+    "accentOnStart": true,
+    "accentOnBorders": false,
+    "transparency": false
+   },
+   "wallpaper": {
+    "mode": "script",
+    "color": "#000000",
+    "script": "$url = 'https://example.com/bild.jpg';\r\n(Invoke-WebRequest -Uri $url -UseBasicParsing).Content;"
+   },
+   "lockScreen": {
+    "mode": "script",
+    "script": "# Bild: bild.png (1 KB)\nreturn ,[System.Convert]::FromBase64String('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==');"
+   }
+  }
+ },
+ {
+  "name": "vm-virtualbox-vmware-parallels",
+  "config": {
+   "vmTools": {
+    "virtualBox": true,
+    "vmware": true,
+    "virtIo": false,
+    "parallels": true
+   }
+  }
+ },
+ {
+  "name": "vm-virtio-ohne-pe",
+  "config": {
+   "vmTools": {
+    "virtualBox": false,
+    "vmware": false,
+    "virtIo": true,
+    "parallels": false
+   }
+  }
+ },
+ {
+  "name": "vm-alle-pe-defender-aus",
+  "config": {
+   "language": {
+    "mode": "unattended",
+    "image": "de-DE",
+    "locales": [
+     {
+      "locale": "de-DE",
+      "keyboard": "00000407"
+     }
+    ],
+    "geo": "94"
+   },
+   "timeZone": {
+    "mode": "explicit",
+    "id": "W. Europe Standard Time"
+   },
+   "pe": {
+    "mode": "generate",
+    "script": "",
+    "partition": {
+     "mode": "unattended",
+     "layout": "Automatic",
+     "recovery": "Partition",
+     "systemSize": 300,
+     "recoverySize": 1000,
+     "customScript": "",
+     "target": {
+      "mode": "generated",
+      "index": 0,
+      "minSizeGiB": 100,
+      "maxSizeGiB": 4000,
+      "assertNoPartitions": true,
+      "assertInterfaceType": false,
+      "assertMediaType": false,
+      "script": ""
+     }
+    },
+    "installFrom": {
+     "mode": "edition",
+     "edition": "pro",
+     "index": 1,
+     "name": ""
+    },
+    "pagingFile": {
+     "mode": "automatic",
+     "initialSizeMiB": 1024,
+     "maxSizeMiB": 4096
+    },
+    "disableDefender": true,
+    "disable8Dot3Names": false,
+    "pauseBeforeFormatting": false,
+    "pauseBeforeReboot": false,
+    "compactOs": false,
+    "skipIntegrityCheck": false
+   },
+   "vmTools": {
+    "virtualBox": true,
+    "vmware": true,
+    "virtIo": true,
+    "parallels": true
+   }
+  }
+ },
+ {
+  "name": "vm-virtio-pe-defender-an",
+  "config": {
+   "language": {
+    "mode": "unattended",
+    "image": "de-DE",
+    "locales": [
+     {
+      "locale": "de-DE",
+      "keyboard": "00000407"
+     }
+    ],
+    "geo": "94"
+   },
+   "timeZone": {
+    "mode": "explicit",
+    "id": "W. Europe Standard Time"
+   },
+   "pe": {
+    "mode": "generate",
+    "script": "",
+    "partition": {
+     "mode": "unattended",
+     "layout": "Automatic",
+     "recovery": "Partition",
+     "systemSize": 300,
+     "recoverySize": 1000,
+     "customScript": "",
+     "target": {
+      "mode": "generated",
+      "index": 0,
+      "minSizeGiB": 100,
+      "maxSizeGiB": 4000,
+      "assertNoPartitions": true,
+      "assertInterfaceType": false,
+      "assertMediaType": false,
+      "script": ""
+     }
+    },
+    "installFrom": {
+     "mode": "edition",
+     "edition": "pro",
+     "index": 1,
+     "name": ""
+    },
+    "pagingFile": {
+     "mode": "automatic",
+     "initialSizeMiB": 1024,
+     "maxSizeMiB": 4096
+    },
+    "disableDefender": false,
+    "disable8Dot3Names": false,
+    "pauseBeforeFormatting": false,
+    "pauseBeforeReboot": false,
+    "compactOs": false,
+    "skipIntegrityCheck": false
+   },
+   "vmTools": {
+    "virtualBox": false,
+    "vmware": true,
+    "virtIo": true,
+    "parallels": false
+   }
+  }
  }
 ]

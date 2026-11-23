@@ -373,7 +373,13 @@ differ from the original's, and the golden test compares only the prefix there.
 takes a profile from `netsh wlan export profile key=clear` (checked against
 `WLAN_profile_v1.xsd`, also rebuilt). The password is stored in plain text in the answer file.
 
-Not ported yet: wallpaper/lock screen, VM guest tools. Tweaks and
+**Wallpaper and lock screen** take a color, an uploaded image (Base64 in the answer file) or an own
+PowerShell script that delivers the image data. **Guest additions** for VirtualBox, VMware, VirtIO
+(QEMU/KVM, Proxmox) and Parallels are installed if the medium is inserted in the VM; with `pe.cmd`,
+VirtIO also loads storage and network drivers.
+
+That covers every modifier of the original – except bloatware and the remaining optimizations,
+for which the generator has its own catalogs (pages *Bloatware* and *Tweaks*). Tweaks and
 bloatware are provided by the generator itself.
 
 ### Watching the original for changes

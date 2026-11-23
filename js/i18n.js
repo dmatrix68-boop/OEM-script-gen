@@ -245,7 +245,7 @@
     'antwortdatei-lead': 'Creates a complete <code>autounattend.xml</code> – language, accounts, computer name, edition, OOBE – '
       + 'into which the generator then inserts its calls. The designer is a port of the generator by Christoph Schneegans '
       + '(<a href="https://github.com/cschneegans/unattend-generator" target="_blank" rel="noopener noreferrer">unattend-generator</a>, '
-      + 'MIT licence). Not yet included: wallpaper, VM guest tools.',
+      + 'MIT licence). Bloatware and further optimizations come from the generator’s own catalogs.',
     'sprache-und-region': 'Language &amp; region',
     'sprache-einstellung': 'Language and keyboard',
     'opt-interaktiv-setup-fragt': 'interactive – Setup asks',
@@ -347,6 +347,26 @@
     'wlan-kennwort-hinweis': 'The password is stored in plain text in the answer file on the medium. On the target computer '
       + '<code>Wifi.xml</code> is deleted after the first sign-in unless “Keep unattend.xml after the first sign-in” is on. In the '
       + 'specialize pass Setup waits up to one minute for the Wi-Fi service – without a Wi-Fi adapter it simply continues afterwards.',
+    'hintergrundbild': 'Wallpaper',
+    'opt-einfarbig': 'solid color',
+    'opt-bild': 'image',
+    'opt-bild-skript': 'image via own PowerShell script',
+    'farbe': 'Color',
+    'bild-waehlen': 'Choose image …',
+    'sperrbildschirm': 'Lock screen',
+    'bild-hinweis': 'An image is embedded Base64-encoded in the answer file (about a third larger than the file) and written to '
+      + '<code>C:\\Windows\\Setup\\Scripts</code> in the <code>specialize</code> pass – so shrink large photos first. An own script '
+      + 'must output the image data as bytes, e.g. <code>(Invoke-WebRequest -Uri \'https://…/image.jpg\' -UseBasicParsing).Content</code>; '
+      + 'in the <code>specialize</code> pass the network is often not ready yet, though.',
+    'vm-gasterweiterungen': 'Guest additions for virtual machines',
+    'vm-hinweis': 'Installs the guest additions if the matching medium is inserted in the VM – drives D: to Z: are searched. '
+      + 'Without a medium only a note is logged and the installation continues. Installation happens at the first sign-in, '
+      + 'with <code>pe.cmd</code> and Defender turned off already in the <code>specialize</code> pass. With <code>pe.cmd</code>, '
+      + 'VirtIO additionally loads the storage and network drivers (<code>vioscsi</code>, <code>viostor</code>, <code>NetKVM</code>) from the medium.',
+    'vm-vbox-medium': '(Devices → Insert Guest Additions CD image)',
+    'vm-vmware-medium': '(attach windows.iso)',
+    'vm-virtio-medium': '(QEMU/KVM, Proxmox – attach virtio-win-*.iso)',
+    'vm-parallels-medium': '(attach prl-tools-win-*.iso)',
     'benutzerkonten': 'User accounts',
     'opt-konto-ms': 'interactive – Microsoft account',
     'opt-konto-lokal': 'interactive – local account',
@@ -817,6 +837,11 @@
     'Achtung: Mit UseConfigurationSet=true sucht Setup $OEM$ im Wurzelverzeichnis – die Ablage „sources“ allein wird ignoriert.': 'Careful: with UseConfigurationSet=true Setup looks for $OEM$ in the root – the location “sources” alone is ignored.',
     /* Antwortdatei-Designer */
     'Gebietsschema': 'Locale',
+    'Kein Bild gewählt – Hintergrundbild bleibt Windows-Standard.': 'No image chosen – the wallpaper stays at the Windows default.',
+    'Kein Bild gewählt – Sperrbildschirm bleibt Windows-Standard.': 'No image chosen – the lock screen stays at the Windows default.',
+    '{0} ist {1} MB groß – die Antwortdatei wächst um rund {2} MB. Besser vorher verkleinern.':
+      '{0} is {1} MB – the answer file grows by about {2} MB. Better shrink it first.',
+    'kein Bild gewählt': 'no image chosen',
     'WLAN-Profil übernommen: {0}': 'Wi-Fi profile adopted: {0}',
     'WLAN-Profil übernommen – es wirkt, sobald die Antwortdatei mit dem Designer erzeugt wird.':
       'Wi-Fi profile adopted – it takes effect once the answer file is created with the designer.',

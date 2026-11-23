@@ -293,4 +293,4 @@ body.dragging .dropzone{border-color:var(--acc)}
 #view-answer .tbl select{width:100%}
 #view-answer .checkgrid + .row, #view-answer .chk + .row, #view-answer .chk + .checkgrid{margin-top:10px}
 #view-answer .hint + .row{margin-top:8px}
-#ansAlXml,#ansWifiXml{width:100%;font-family:var(--mono, ui-monospace, monospace);font-size:12px}
+#ansAlXml,#ansWifiXml,#ansWpScript,#ansLsScript{width:100%;font-family:var(--mono, ui-monospace, monospace);font-size:12px}
