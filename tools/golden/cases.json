@@ -985,13 +985,63 @@
  {
   "name": "applocker-mit-pe",
   "config": {
-   "appLocker": {
-    "mode": "configure",
-    "policyXml": "<AppLockerPolicy Version=\"1.0\"><RuleCollection Type=\"Script\" EnforcementMode=\"NotConfigured\"></RuleCollection><RuleCollection Type=\"Dll\"/></AppLockerPolicy>"
+   "language": {
+    "mode": "unattended",
+    "image": "de-DE",
+    "locales": [
+     {
+      "locale": "de-DE",
+      "keyboard": "00000407"
+     }
+    ],
+    "geo": "94"
+   },
+   "timeZone": {
+    "mode": "explicit",
+    "id": "W. Europe Standard Time"
    },
    "pe": {
     "mode": "generate",
-    "disableDefender": true
+    "script": "",
+    "partition": {
+     "mode": "unattended",
+     "layout": "Automatic",
+     "recovery": "Partition",
+     "systemSize": 300,
+     "recoverySize": 1000,
+     "customScript": "",
+     "target": {
+      "mode": "generated",
+      "index": 0,
+      "minSizeGiB": 100,
+      "maxSizeGiB": 4000,
+      "assertNoPartitions": true,
+      "assertInterfaceType": false,
+      "assertMediaType": false,
+      "script": ""
+     }
+    },
+    "installFrom": {
+     "mode": "edition",
+     "edition": "pro",
+     "index": 1,
+     "name": ""
+    },
+    "pagingFile": {
+     "mode": "automatic",
+     "initialSizeMiB": 1024,
+     "maxSizeMiB": 4096
+    },
+    "disableDefender": true,
+    "disable8Dot3Names": false,
+    "pauseBeforeFormatting": false,
+    "pauseBeforeReboot": false,
+    "compactOs": false,
+    "skipIntegrityCheck": false
+   },
+   "appLocker": {
+    "mode": "configure",
+    "policyXml": "<AppLockerPolicy Version=\"1.0\"><RuleCollection Type=\"Script\" EnforcementMode=\"NotConfigured\"></RuleCollection><RuleCollection Type=\"Dll\"/></AppLockerPolicy>"
    }
   }
  },
