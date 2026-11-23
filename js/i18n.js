@@ -784,6 +784,7 @@
     '1 Edition': '1 edition',
     '{0} Editionen': '{0} editions',
     'Build nicht lesbar (verschlüsseltes ESD?)': 'Build not readable (encrypted ESD?)',
+    'Wird bei der ersten Anmeldung jedes Benutzers gesetzt – der Explorer startet dabei einmal kurz neu': 'Set at the first sign-in of every user – Explorer restarts briefly once',
     /* Registry-Dateien */
     '{0} ist keine gültige .reg-Datei.': '{0} is not a valid .reg file.',
     'Registry-Datei übernommen: {0} – {1} Einträge': 'Registry file taken over: {0} – {1} entries',

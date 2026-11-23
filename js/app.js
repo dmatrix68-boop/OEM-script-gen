@@ -1330,7 +1330,9 @@
          ganze Elementinhalte neu und wuerde sie sonst wieder ueberbuegeln. */
       I18n.apply();
       $('#badgeApps').textContent = state.apps.items.filter((p) => p.enabled).length;
-      $('#badgeTweaks').textContent = state.tweaks.selected.length + Templates.regEntries(state).length;
+      /* Tweaks plus importierte .reg-Dateien - je Datei eins, nicht je Zeile */
+      $('#badgeTweaks').textContent = state.tweaks.selected.length +
+        (state.tweaks.regFiles || []).filter((f) => f.enabled && f.entries.some((e) => e.enabled)).length;
       $('#badgeBloat').textContent = state.bloat.selected.length;
       $('#badgeFeatures').textContent = state.features.selected.length;
       labelHelp();

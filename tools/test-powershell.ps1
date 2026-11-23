@@ -161,6 +161,8 @@ if ($Functional) {
                         ForEach-Object { Write-Host ('        Software\' + $_.PSChildName) }
                     Get-ItemProperty -LiteralPath $testKey -ErrorAction SilentlyContinue | Format-List | Out-String | Write-Host
                 } else { Ok 'Default-Profil: Wert aus Beispiel.reg vorhanden' }
+                $ro = (Get-ItemProperty -LiteralPath 'Registry::HKEY_LOCAL_MACHINE\OEMTESTDEFAULT\Software\Microsoft\Windows\CurrentVersion\RunOnce' -ErrorAction SilentlyContinue).'OEM-UserOnce'
+                if ($ro -notmatch 'UserOnce\.ps1') { Fail 'Default-Profil: RunOnce-Eintrag OEM-UserOnce fehlt' } else { Ok ('Default-Profil: RunOnce ' + $ro) }
                 $h = (Get-ItemProperty -LiteralPath 'Registry::HKEY_LOCAL_MACHINE\OEMTESTDEFAULT\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced' -ErrorAction SilentlyContinue).HideFileExt
                 if ($h -ne 0) { Fail 'Default-Profil: Tweak HideFileExt fehlt' } else { Ok 'Default-Profil: Tweak HideFileExt' }
             } finally {
@@ -170,7 +172,21 @@ if ($Functional) {
         }
     }
 
-    # 4c. Diagnose.ps1 darf nicht abbrechen
+    # 4c. Einmal-Skript je Benutzer (perUser-Tweaks, z. B. Suchfeld nur als Symbol)
+    $userOnce = Join-Path $env:ProgramData 'OEM-Setup\UserOnce.ps1'
+    if (-not (Test-Path -LiteralPath $userOnce)) { Fail ('Einmal-Skript fehlt: ' + $userOnce) }
+    else {
+        $tokens = $null; $errors = $null
+        [System.Management.Automation.Language.Parser]::ParseFile($userOnce, [ref]$tokens, [ref]$errors) | Out-Null
+        if ($errors) { $errors | ForEach-Object { Fail ('UserOnce.ps1: ' + $_.Message) } }
+        Set-ItemProperty -LiteralPath 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Search' -Name 'SearchboxTaskbarMode' -Value 2 -Type DWord -ErrorAction SilentlyContinue
+        $code = Invoke-Isolated $userOnce @()
+        $mode = (Get-ItemProperty -LiteralPath 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Search' -ErrorAction SilentlyContinue).SearchboxTaskbarMode
+        if ($code -ne 0 -or $mode -ne 1) { Fail ('UserOnce.ps1: Exitcode ' + $code + ', SearchboxTaskbarMode = ' + $mode + ' statt 1') }
+        else { Ok 'UserOnce.ps1 setzt SearchboxTaskbarMode = 1 (nur Symbol)' }
+    }
+
+    # 4d. Diagnose.ps1 darf nicht abbrechen
     foreach ($profile in @('voll', 'standard')) {
         $diag = $null
         foreach ($base in @('sources\$OEM$', '$OEM$')) {

@@ -1395,6 +1395,40 @@ try {
       }
     }
 
+    /*  perUser-Tweaks: Windows setzt diese Werte bei der ersten Anmeldung selbst
+        neu. Ein Einmal-Skript je Benutzer (RunOnce im Default-Profil) setzt sie
+        danach erneut und startet den Explorer neu. Das Skript liegt unter
+        ProgramData, damit es das Aufraeumen von Install-Ordner und
+        Setup\\Scripts uebersteht. */
+    const perUser = late ? [] : list.filter((t) => t.perUser && (t.reg || []).some((r) => r.scope === 'user'));
+    if (perUser.length) {
+      const body = [];
+      for (const t of perUser) {
+        body.push('# ' + t.label);
+        for (const r of t.reg.filter((x) => x.scope === 'user')) {
+          const key = 'Registry::HKEY_CURRENT_USER\\' + r.path;
+          body.push('if (-not (Test-Path -LiteralPath ' + psq(key) + ')) { New-Item -Path ' + psq(key) + ' -Force | Out-Null }');
+          body.push('Set-ItemProperty -LiteralPath ' + psq(key) + ' -Name ' + psq(r.name) + ' -Type ' + r.type +
+            ' -Value ' + (typeof r.value === 'number' ? r.value : psq(r.value)));
+        }
+      }
+      body.push('# Explorer neu starten, damit die Taskleiste die Werte uebernimmt');
+      body.push("Get-Process -Name 'explorer' -ErrorAction SilentlyContinue | Where-Object { $_.SessionId -eq (Get-Process -Id $PID).SessionId } | Stop-Process -Force");
+      const block = [
+        '# ---------- Einstellungen bei der ersten Anmeldung jedes Benutzers ----------',
+        "Write-Log ('Einmal-Skript je Benutzer: " + perUser.map((t) => t.label.replace(/'/g, "''")).join(', ') + "')",
+        '$userOnceDir = Join-Path $env:ProgramData \'OEM-Setup\'',
+        'New-Item -Path $userOnceDir -ItemType Directory -Force | Out-Null',
+        '$userOnce = Join-Path $userOnceDir \'UserOnce.ps1\'',
+        "Set-Content -LiteralPath $userOnce -Encoding UTF8 -Value @'",
+        body.join(NL),
+        "'@",
+        "Set-RegValue -Scope User -Path 'Software\\Microsoft\\Windows\\CurrentVersion\\RunOnce' -Name 'OEM-UserOnce' -Type String -Value ('powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"' + $userOnce + '\"')"
+      ];
+      /* Inhalt und Ende des Here-Strings ('@) muessen am Zeilenanfang stehen */
+      s += NL + block.map((l, i) => (i === 6 || i === 7 ? l : pad + l)).join(NL) + NL;
+    }
+
     /* Importierte .reg-Dateien: in Dateireihenfolge, Loeschungen zuerst wie bei regedit */
     for (const f of (late ? [] : (st.tweaks.regFiles || []).filter((x) => x.enabled))) {
       const items = f.entries.filter((e) => e.enabled);

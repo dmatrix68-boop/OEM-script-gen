@@ -8,7 +8,12 @@
             Cmdlets, deshalb laeuft er dort erst in Phase 2. Der reg-Teil bleibt
             in der gewaehlten Phase. Solche ps-Bloecke duerfen keine Funktionen
             aus OEM-Common.ps1 verwenden - sie laufen in einem eigenen Runspace.
-   timeout: Sekunden, nach denen der ps-Teil abgebrochen wird. */
+   timeout: Sekunden, nach denen der ps-Teil abgebrochen wird.
+   perUser: Windows setzt den Wert bei der ersten Anmeldung jedes Benutzers
+            selbst neu - ein Wert im Default-Profil wird dabei ueberschrieben.
+            Die user-Werte werden deshalb zusaetzlich per RunOnce bei der ersten
+            Anmeldung gesetzt, danach startet der Explorer neu (wie im Generator
+            von Christoph Schneegans, Optimizations.cs). */
 (function (global) {
   'use strict';
 
@@ -39,8 +44,11 @@
     /* ---------- Taskleiste ---------- */
     { id: 'taskbarLeft', cat: 'Taskleiste', label: 'Taskleiste linksbündig ausrichten',
       reg: [{ scope: 'user', path: 'Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced', name: 'TaskbarAl', type: 'DWord', value: 0 }] },
+    /* SearchboxTaskbarMode: 0 = ausgeblendet, 1 = nur Symbol, 2 = Suchfeld, 3 = Symbol mit Beschriftung */
     { id: 'taskbarSearch', cat: 'Taskleiste', label: 'Suchfeld ausblenden (nur Symbol)',
-      reg: [{ scope: 'user', path: 'Software\\Microsoft\\Windows\\CurrentVersion\\Search', name: 'SearchboxTaskbarMode', type: 'DWord', value: 0 }] },
+      desc: 'Wird bei der ersten Anmeldung jedes Benutzers gesetzt – der Explorer startet dabei einmal kurz neu',
+      perUser: true,
+      reg: [{ scope: 'user', path: 'Software\\Microsoft\\Windows\\CurrentVersion\\Search', name: 'SearchboxTaskbarMode', type: 'DWord', value: 1 }] },
     { id: 'taskbarWidgets', cat: 'Taskleiste', label: 'Widgets ausblenden',
       reg: [
         { scope: 'user', path: 'Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced', name: 'TaskbarDa', type: 'DWord', value: 0 },
