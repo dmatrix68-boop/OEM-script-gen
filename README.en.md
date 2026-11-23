@@ -369,7 +369,11 @@ Where they overlap with tweaks (dark mode, desktop icons, NumLock), pick only on
 check is rebuilt in the port because browsers have no XSD support; its messages therefore
 differ from the original's, and the golden test compares only the prefix there.
 
-Not ported yet: Wi-Fi profile, wallpaper/lock screen, VM guest tools. Tweaks and
+**Wi-Fi** connects with network name, password and security (WPA2, WPA3, open, hidden too) or
+takes a profile from `netsh wlan export profile key=clear` (checked against
+`WLAN_profile_v1.xsd`, also rebuilt). The password is stored in plain text in the answer file.
+
+Not ported yet: wallpaper/lock screen, VM guest tools. Tweaks and
 bloatware are provided by the generator itself.
 
 ### Watching the original for changes

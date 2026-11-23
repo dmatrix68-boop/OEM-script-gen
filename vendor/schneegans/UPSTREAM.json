@@ -171,12 +171,12 @@
     "modifier/Wifi.cs": {
       "blob": "05ab59b6b9b87fa9fa9f59a4860807f8fbe8e59b",
       "port": "js/ug/modifiers.js",
-      "status": "teilweise – interaktiv/ueberspringen; WLAN-Profil in Schritt 3"
+      "status": "portiert; XSD-Pruefung (resource/WLAN_profile_v1.xsd) im Port nachgebaut, Meldungstexte weichen ab"
     },
     "resource/AppLocker.xsd": {
       "blob": "5aa1670cd16c72543639d76c6505c230460f1e2f",
-      "port": "js/ug/modifiers.js (alValidate)",
-      "status": "von Hand nachgebildet – bei Aenderung alValidate anpassen"
+      "port": "js/ug/modifiers.js (validateAppLocker)",
+      "status": "von Hand nachgebildet – bei Aenderung validateAppLocker anpassen"
     },
     "resource/Bloatware.json": {
       "blob": "4e25dffe331dc7073183afc04eb272ef9d9c9c24",
@@ -335,8 +335,8 @@
     },
     "resource/WLAN_profile_v1.xsd": {
       "blob": "7712ab01560b3624d0a5d42f6a4835241f662c24",
-      "port": "js/ug/resources.js",
-      "status": "nicht uebernommen (Schema)"
+      "port": "js/ug/modifiers.js (validateWlan)",
+      "status": "von Hand nachgebildet – bei Aenderung validateWlan anpassen"
     },
     "resource/WindowsEdition.json": {
       "blob": "86ad0dfcd829c215538c09d42ded5db35e27c366",

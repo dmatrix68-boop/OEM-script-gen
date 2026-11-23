@@ -1163,5 +1163,294 @@
     "policyXml": "<AppLockerPolicy Version=\"1\" Foo=\"x\"/>"
    }
   }
+ },
+ {
+  "name": "wlan-wpa2-auto",
+  "config": {
+   "wifi": {
+    "mode": "unattended",
+    "name": "Heimnetz",
+    "password": "geheim123",
+    "authentication": "WPA2PSK",
+    "connectAutomatically": true,
+    "nonBroadcast": false,
+    "xml": ""
+   }
+  }
+ },
+ {
+  "name": "wlan-wpa3-versteckt-manuell",
+  "config": {
+   "wifi": {
+    "mode": "unattended",
+    "name": "Büro \"5G\" & <Gäste>",
+    "password": "p&ss<w>rd\"",
+    "authentication": "WPA3SAE",
+    "connectAutomatically": false,
+    "nonBroadcast": true,
+    "xml": ""
+   }
+  }
+ },
+ {
+  "name": "wlan-offen-versteckt",
+  "config": {
+   "wifi": {
+    "mode": "unattended",
+    "name": "Café",
+    "password": "",
+    "authentication": "Open",
+    "connectAutomatically": true,
+    "nonBroadcast": true,
+    "xml": ""
+   }
+  }
+ },
+ {
+  "name": "wlan-leeres-kennwort",
+  "config": {
+   "wifi": {
+    "mode": "unattended",
+    "name": "X",
+    "password": "",
+    "authentication": "WPA2PSK",
+    "connectAutomatically": true,
+    "nonBroadcast": false,
+    "xml": ""
+   }
+  }
+ },
+ {
+  "name": "wlan-mit-pe-und-applocker",
+  "config": {
+   "language": {
+    "mode": "unattended",
+    "image": "de-DE",
+    "locales": [
+     {
+      "locale": "de-DE",
+      "keyboard": "00000407"
+     }
+    ],
+    "geo": "94"
+   },
+   "timeZone": {
+    "mode": "explicit",
+    "id": "W. Europe Standard Time"
+   },
+   "pe": {
+    "mode": "generate",
+    "script": "",
+    "partition": {
+     "mode": "unattended",
+     "layout": "Automatic",
+     "recovery": "Partition",
+     "systemSize": 300,
+     "recoverySize": 1000,
+     "customScript": "",
+     "target": {
+      "mode": "generated",
+      "index": 0,
+      "minSizeGiB": 100,
+      "maxSizeGiB": 4000,
+      "assertNoPartitions": true,
+      "assertInterfaceType": false,
+      "assertMediaType": false,
+      "script": ""
+     }
+    },
+    "installFrom": {
+     "mode": "edition",
+     "edition": "pro",
+     "index": 1,
+     "name": ""
+    },
+    "pagingFile": {
+     "mode": "automatic",
+     "initialSizeMiB": 1024,
+     "maxSizeMiB": 4096
+    },
+    "disableDefender": true,
+    "disable8Dot3Names": false,
+    "pauseBeforeFormatting": false,
+    "pauseBeforeReboot": false,
+    "compactOs": false,
+    "skipIntegrityCheck": false
+   },
+   "wifi": {
+    "mode": "unattended",
+    "name": "Heimnetz",
+    "password": "geheim123",
+    "authentication": "WPA2PSK",
+    "connectAutomatically": true,
+    "nonBroadcast": false,
+    "xml": ""
+   },
+   "appLocker": {
+    "mode": "configure",
+    "policyXml": "<AppLockerPolicy Version=\"1\"/>"
+   }
+  }
+ },
+ {
+  "name": "wlan-xml-export",
+  "config": {
+   "wifi": {
+    "mode": "xml",
+    "name": "",
+    "password": "",
+    "authentication": "WPA2PSK",
+    "connectAutomatically": true,
+    "nonBroadcast": false,
+    "xml": "<?xml version=\"1.0\"?>\r\n<WLANProfile xmlns=\"http://www.microsoft.com/networking/WLAN/profile/v1\">\r\n\t<name>Heimnetz &amp; Gäste</name>\r\n\t<SSIDConfig>\r\n\t\t<SSID>\r\n\t\t\t<hex>4865696D6E65747A20262047C3A4737465</hex>\r\n\t\t\t<name>Heimnetz &amp; Gäste</name>\r\n\t\t</SSID>\r\n\t</SSIDConfig>\r\n\t<connectionType>ESS</connectionType>\r\n\t<connectionMode>auto</connectionMode>\r\n\t<MSM>\r\n\t\t<security>\r\n\t\t\t<authEncryption>\r\n\t\t\t\t<authentication>WPA2PSK</authentication>\r\n\t\t\t\t<encryption>AES</encryption>\r\n\t\t\t\t<useOneX>false</useOneX>\r\n\t\t\t</authEncryption>\r\n\t\t\t<sharedKey>\r\n\t\t\t\t<keyType>passPhrase</keyType>\r\n\t\t\t\t<protected>false</protected>\r\n\t\t\t\t<keyMaterial>geheim&lt;123&gt;</keyMaterial>\r\n\t\t\t</sharedKey>\r\n\t\t</security>\r\n\t</MSM>\r\n\t<MacRandomization xmlns=\"http://www.microsoft.com/networking/WLAN/profile/v3\">\r\n\t\t<enableRandomization>false</enableRandomization>\r\n\t\t<randomizationSeed>1451755948</randomizationSeed>\r\n\t</MacRandomization>\r\n</WLANProfile>"
+   }
+  }
+ },
+ {
+  "name": "wlan-xml-manuell-wpa3",
+  "config": {
+   "wifi": {
+    "mode": "xml",
+    "name": "",
+    "password": "",
+    "authentication": "WPA2PSK",
+    "connectAutomatically": true,
+    "nonBroadcast": false,
+    "xml": "<WLANProfile xmlns=\"http://www.microsoft.com/networking/WLAN/profile/v1\"><name>Firma</name><SSIDConfig><SSID><name>Firma</name></SSID><nonBroadcast>true</nonBroadcast></SSIDConfig><connectionType>ESS</connectionType><connectionMode>manual</connectionMode><MSM><security><authEncryption><authentication>WPA3SAE</authentication><encryption>AES</encryption><useOneX>false</useOneX><transitionMode xmlns=\"http://www.microsoft.com/networking/WLAN/profile/v4\">true</transitionMode></authEncryption><sharedKey><keyType>passPhrase</keyType><protected>false</protected><keyMaterial></keyMaterial></sharedKey></security></MSM></WLANProfile>"
+   }
+  }
+ },
+ {
+  "name": "wlan-xml-ohne-verbindungsmodus",
+  "config": {
+   "wifi": {
+    "mode": "xml",
+    "name": "",
+    "password": "",
+    "authentication": "WPA2PSK",
+    "connectAutomatically": true,
+    "nonBroadcast": false,
+    "xml": "<WLANProfile xmlns=\"http://www.microsoft.com/networking/WLAN/profile/v1\">\n  <name>Offen</name>\n  <SSIDConfig><SSID><hex>4F6666656E</hex></SSID></SSIDConfig>\n  <connectionType>ESS</connectionType>\n  <MSM><security><authEncryption><authentication>open</authentication><encryption>none</encryption><useOneX>false</useOneX></authEncryption></security></MSM>\n  <!-- ohne connectionMode -->\n</WLANProfile>"
+   }
+  }
+ },
+ {
+  "name": "fehler-wlan-namespace",
+  "config": {
+   "wifi": {
+    "mode": "xml",
+    "name": "",
+    "password": "",
+    "authentication": "WPA2PSK",
+    "connectAutomatically": true,
+    "nonBroadcast": false,
+    "xml": "<WLANProfile><name>A</name></WLANProfile>"
+   }
+  }
+ },
+ {
+  "name": "fehler-wlan-kaputt",
+  "errorPrefix": "WLAN profile XML is invalid:",
+  "config": {
+   "wifi": {
+    "mode": "xml",
+    "name": "",
+    "password": "",
+    "authentication": "WPA2PSK",
+    "connectAutomatically": true,
+    "nonBroadcast": false,
+    "xml": "<WLANProfile xmlns=\"http://www.microsoft.com/networking/WLAN/profile/v1\">"
+   }
+  }
+ },
+ {
+  "name": "fehler-wlan-ohne-name",
+  "errorPrefix": "WLAN profile XML is invalid:",
+  "config": {
+   "wifi": {
+    "mode": "xml",
+    "name": "",
+    "password": "",
+    "authentication": "WPA2PSK",
+    "connectAutomatically": true,
+    "nonBroadcast": false,
+    "xml": "<WLANProfile xmlns=\"http://www.microsoft.com/networking/WLAN/profile/v1\"><SSIDConfig><SSID><name>A</name></SSID></SSIDConfig><connectionType>ESS</connectionType></WLANProfile>"
+   }
+  }
+ },
+ {
+  "name": "fehler-wlan-authentifizierung",
+  "errorPrefix": "WLAN profile XML is invalid:",
+  "config": {
+   "wifi": {
+    "mode": "xml",
+    "name": "",
+    "password": "",
+    "authentication": "WPA2PSK",
+    "connectAutomatically": true,
+    "nonBroadcast": false,
+    "xml": "<WLANProfile xmlns=\"http://www.microsoft.com/networking/WLAN/profile/v1\"><name>Firma</name><SSIDConfig><SSID><name>Firma</name></SSID><nonBroadcast>true</nonBroadcast></SSIDConfig><connectionType>ESS</connectionType><connectionMode>manual</connectionMode><MSM><security><authEncryption><authentication>WPA4</authentication><encryption>AES</encryption><useOneX>false</useOneX><transitionMode xmlns=\"http://www.microsoft.com/networking/WLAN/profile/v4\">true</transitionMode></authEncryption><sharedKey><keyType>passPhrase</keyType><protected>false</protected><keyMaterial></keyMaterial></sharedKey></security></MSM></WLANProfile>"
+   }
+  }
+ },
+ {
+  "name": "fehler-wlan-reihenfolge",
+  "errorPrefix": "WLAN profile XML is invalid:",
+  "config": {
+   "wifi": {
+    "mode": "xml",
+    "name": "",
+    "password": "",
+    "authentication": "WPA2PSK",
+    "connectAutomatically": true,
+    "nonBroadcast": false,
+    "xml": "<WLANProfile xmlns=\"http://www.microsoft.com/networking/WLAN/profile/v1\"><name>A</name><connectionType>ESS</connectionType><SSIDConfig><SSID><name>A</name></SSID></SSIDConfig></WLANProfile>"
+   }
+  }
+ },
+ {
+  "name": "fehler-wlan-hex",
+  "errorPrefix": "WLAN profile XML is invalid:",
+  "config": {
+   "wifi": {
+    "mode": "xml",
+    "name": "",
+    "password": "",
+    "authentication": "WPA2PSK",
+    "connectAutomatically": true,
+    "nonBroadcast": false,
+    "xml": "<WLANProfile xmlns=\"http://www.microsoft.com/networking/WLAN/profile/v1\">\n  <name>Offen</name>\n  <SSIDConfig><SSID><hex>4F6</hex></SSID></SSIDConfig>\n  <connectionType>ESS</connectionType>\n  <MSM><security><authEncryption><authentication>open</authentication><encryption>none</encryption><useOneX>false</useOneX></authEncryption></security></MSM>\n  <!-- ohne connectionMode -->\n</WLANProfile>"
+   }
+  }
+ },
+ {
+  "name": "fehler-wlan-unbekanntes-element",
+  "errorPrefix": "WLAN profile XML is invalid:",
+  "config": {
+   "wifi": {
+    "mode": "xml",
+    "name": "",
+    "password": "",
+    "authentication": "WPA2PSK",
+    "connectAutomatically": true,
+    "nonBroadcast": false,
+    "xml": "<WLANProfile xmlns=\"http://www.microsoft.com/networking/WLAN/profile/v1\">\n  <name>Offen</name>\n  <SSIDConfig><SSID><hex>4F6666656E</hex></SSID></SSIDConfig>\n  <foo/><connectionType>ESS</connectionType>\n  <MSM><security><authEncryption><authentication>open</authentication><encryption>none</encryption><useOneX>false</useOneX></authEncryption></security></MSM>\n  <!-- ohne connectionMode -->\n</WLANProfile>"
+   }
+  }
+ },
+ {
+  "name": "fehler-wlan-bool",
+  "errorPrefix": "WLAN profile XML is invalid:",
+  "config": {
+   "wifi": {
+    "mode": "xml",
+    "name": "",
+    "password": "",
+    "authentication": "WPA2PSK",
+    "connectAutomatically": true,
+    "nonBroadcast": false,
+    "xml": "<WLANProfile xmlns=\"http://www.microsoft.com/networking/WLAN/profile/v1\"><name>Firma</name><SSIDConfig><SSID><name>Firma</name></SSID><nonBroadcast>ja</nonBroadcast></SSIDConfig><connectionType>ESS</connectionType><connectionMode>manual</connectionMode><MSM><security><authEncryption><authentication>WPA3SAE</authentication><encryption>AES</encryption><useOneX>false</useOneX><transitionMode xmlns=\"http://www.microsoft.com/networking/WLAN/profile/v4\">true</transitionMode></authEncryption><sharedKey><keyType>passPhrase</keyType><protected>false</protected><keyMaterial></keyMaterial></sharedKey></security></MSM></WLANProfile>"
+   }
+  }
  }
 ]

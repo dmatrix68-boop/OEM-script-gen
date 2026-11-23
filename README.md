@@ -383,7 +383,11 @@ oder aus `secpol.msc`; auch per Drag & Drop, UTF-16 inklusive), prüft sie gegen
 Die Schemaprüfung ist im Port nachgebaut, weil der Browser kein XSD kennt; ihre Meldungen
 lauten deshalb anders als beim Original, der Golden-Test vergleicht dort nur das Präfix.
 
-Noch nicht portiert: WLAN-Profil, Hintergrundbild/Sperrbildschirm, VM-Gasttools.
+**WLAN** verbindet mit Netzwerkname, Kennwort und Sicherheit (WPA2, WPA3, offen, auch verborgen)
+oder übernimmt ein Profil aus `netsh wlan export profile key=clear` (geprüft gegen
+`WLAN_profile_v1.xsd`, ebenfalls nachgebaut). Das Kennwort steht im Klartext in der Antwortdatei.
+
+Noch nicht portiert: Hintergrundbild/Sperrbildschirm, VM-Gasttools.
 Tweaks und Bloatware liefert der Generator selbst.
 
 ### Änderungen im Original beobachten

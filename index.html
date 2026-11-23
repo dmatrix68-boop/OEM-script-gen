@@ -45,7 +45,7 @@
     <button class="nav-item" data-view="settings"><span class="ico">⚒</span><span data-i18n="nav-einstellungen">Einstellungen</span></button>
     <button class="nav-item" data-view="preview"><span class="ico">◲</span><span data-i18n="nav-vorschau">Vorschau</span></button>
     <div class="sidebar-foot">
-      <div id="dropHint" class="drop-hint" data-i18n="dateien-irgendwo-ablegen-zum-importieren">Dateien irgendwo ablegen zum Importieren<br><small>.ubundle · .cmd · .ps1 · .xml · .json</small></div>
+      <div id="dropHint" class="drop-hint" data-i18n="dateien-irgendwo-ablegen-zum-importieren">Dateien irgendwo ablegen zum Importieren<br><small>.ubundle · .cmd · .ps1 · .reg · .xml · .json</small></div>
     </div>
   </nav>
 
@@ -75,13 +75,14 @@
     <section class="view" id="view-import">
       <h2 data-i18n="import-2">Import</h2>
       <p class="lead" data-i18n="bestehende-skripte-und-paketlisten-einlesen">Bestehende Skripte und Paketlisten einlesen. Erkannt werden UniGetUI-Bundles, winget-Exporte,
-      <code>SetupComplete.cmd</code>, ODT-<code>Configuration.xml</code>, PowerShell-Skripte und gespeicherte Projekte.</p>
+      <code>SetupComplete.cmd</code>, ODT-<code>Configuration.xml</code>, PowerShell-Skripte, <code>.reg</code>-Dateien,
+      <code>autounattend.xml</code>, AppLocker-Richtlinien, WLAN-Profile und gespeicherte Projekte.</p>
 
       <div class="dropzone" id="dropzone">
         <div class="dz-inner">
           <div class="dz-ico">↧</div>
           <div><span data-i18n="dateien-hierher-ziehen-oder"><b>Dateien hierher ziehen</b> oder </span><button class="btn small" id="btnPickFiles" data-i18n="auswaehlen">auswählen</button></div>
-          <div class="dz-types" data-i18n="ubundle-json-cmd-bat-ps1">.ubundle · .json · .cmd/.bat · .ps1 · autounattend.xml · .exe/.msi</div>
+          <div class="dz-types" data-i18n="ubundle-json-cmd-bat-ps1">.ubundle · .json · .yaml · .cmd/.bat · .ps1 · .reg · autounattend.xml · Configuration.xml · AppLocker.xml · WLAN-Profil.xml · .oemproj.json · .exe/.msi</div>
         </div>
         <input type="file" id="fileInput" multiple hidden>
       </div>
@@ -449,7 +450,7 @@
       <p class="lead" data-i18n="antwortdatei-lead">Erzeugt eine vollständige <code>autounattend.xml</code> – Sprache, Konten, Computername,
       Edition, OOBE –, in die der Generator anschließend seine Aufrufe einfügt. Der Designer ist eine Portierung des
       Generators von Christoph Schneegans (<a href="https://github.com/cschneegans/unattend-generator" target="_blank" rel="noopener noreferrer">unattend-generator</a>,
-      MIT-Lizenz). Noch nicht übernommen: WLAN-Profil, Hintergrundbild, VM-Gasttools.</p>
+      MIT-Lizenz). Noch nicht übernommen: Hintergrundbild, VM-Gasttools.</p>
       <p class="hint" id="answerStatus"></p>
 
       <div class="grid2">
@@ -533,8 +534,37 @@
             <select id="ansWifi">
               <option value="interactive" data-i18n="opt-interaktiv-setup-fragt">interaktiv – Setup fragt nach</option>
               <option value="skip" data-i18n="opt-wlan-ueberspringen">überspringen</option>
+              <option value="unattended" data-i18n="opt-wlan-einstellungen">mit diesen Einstellungen verbinden</option>
+              <option value="xml" data-i18n="opt-wlan-xml">WLAN-Profil (XML)</option>
             </select></label>
         </div>
+        <div data-show="answer.wifi.mode=unattended">
+          <div class="row wrap">
+            <label class="field grow"><span data-i18n="wlan-ssid">Netzwerkname (SSID)</span><input type="text" id="ansWifiName" maxlength="32" spellcheck="false"></label>
+            <label class="field grow"><span data-i18n="wlan-sicherheit">Sicherheit</span>
+              <select id="ansWifiAuth">
+                <option value="WPA2PSK">WPA2-Personal</option>
+                <option value="WPA3SAE">WPA3-Personal</option>
+                <option value="Open" data-i18n="opt-wlan-offen">offen (ohne Kennwort)</option>
+              </select></label>
+          </div>
+          <label class="field" data-show="answer.wifi.authentication!=Open"><span data-i18n="wlan-kennwort">Kennwort</span><input type="text" id="ansWifiPw" spellcheck="false" autocomplete="off"></label>
+          <label class="chk"><input type="checkbox" id="ansWifiAuto"> <span data-i18n="wlan-automatisch">automatisch verbinden</span></label>
+          <label class="chk"><input type="checkbox" id="ansWifiHidden"> <span data-i18n="wlan-verborgen">verborgenes Netzwerk (sendet seinen Namen nicht)</span></label>
+        </div>
+        <div data-show="answer.wifi.mode=xml">
+          <p class="hint" data-i18n="wlan-xml-hinweis">Profil eines Rechners exportieren, der schon verbunden ist:
+          <code>netsh wlan export profile name="NETZ" key=clear folder=.</code> – die Datei hier laden oder auf die Seite ziehen.</p>
+          <textarea id="ansWifiXml" class="code" rows="10" spellcheck="false" wrap="off"></textarea>
+          <div class="row wrap">
+            <button class="btn small" type="button" id="btnWifiLoad" data-i18n="wlan-laden">XML-Datei laden …</button>
+            <input type="file" id="wifiInput" accept=".xml,text/xml" hidden>
+          </div>
+        </div>
+        <p class="hint" data-show-not="answer.wifi.mode=interactive,skip" data-i18n="wlan-kennwort-hinweis">Das Kennwort steht im Klartext in der
+        Antwortdatei auf dem Medium. Auf dem Zielrechner wird <code>Wifi.xml</code> nach der ersten Anmeldung gelöscht, sofern
+        „unattend.xml nach der ersten Anmeldung behalten“ aus ist. Im specialize-Pass wartet Setup bis zu einer Minute auf den
+        WLAN-Dienst – ohne WLAN-Adapter geht es danach normal weiter.</p>
         <div class="row wrap">
           <label class="field grow"><span data-i18n="kontosperrung">Kontosperrung</span>
             <select id="ansLockMode">

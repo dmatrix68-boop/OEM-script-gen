@@ -103,6 +103,11 @@ auf die Fläche ziehen oder auswählen – auch mehrere auf einmal, auch irgendw
       <td>Wird <b>ergänzt statt ersetzt</b> (siehe <a data-help="settings">Einstellungen → Auslöser</a>). Bei
       <code>UseConfigurationSet=true</code> stellt der Generator die Ablage auf „beide Orte“.</td></tr>
   <tr><td><code>.ps1</code></td><td>Wird als Datei mitgeliefert, der Aufruf wird unter Eigene Befehle → PowerShell ergänzt.</td></tr>
+  <tr><td><code>.reg</code></td><td>Landet unter <a data-help="tweaks">Tweaks → Registry-Dateien</a> (REGEDIT4 und 5.00, auch UTF-16).</td></tr>
+  <tr><td>AppLocker-Richtlinie (<code>.xml</code> mit <code>&lt;AppLockerPolicy&gt;</code>)</td>
+      <td>Wird in den <a data-help="answer">Antwortdatei-Designer</a> übernommen (Abschnitt AppLocker).</td></tr>
+  <tr><td>WLAN-Profil (<code>.xml</code> mit <code>&lt;WLANProfile&gt;</code>, aus <code>netsh wlan export profile</code>)</td>
+      <td>Wird in den <a data-help="answer">Antwortdatei-Designer</a> übernommen (OOBE → WLAN).</td></tr>
   <tr><td><code>.exe</code>, <code>.msi</code> und andere Binärdateien</td><td>Landen unter <a data-help="files">Eigene Dateien</a>.</td></tr>
   <tr><td><code>.oemproj.json</code></td><td>Lädt ein gespeichertes Projekt komplett.</td></tr>
 </table>
@@ -461,6 +466,10 @@ MIT-Lizenz). Die Logik ist Datei für Datei übernommen; welcher Stand portiert 
   <dt>Benutzerkonten</dt><dd>interaktiv (Microsoft- oder lokales Konto) oder vorgegebene lokale Konten mit Gruppe und Kennwort, dazu
     automatische Anmeldung. „Verschleiern“ speichert Kennwörter Base64-kodiert wie Windows SIM – das ist <b>kein</b> Schutz.</dd>
   <dt>OOBE &amp; Sicherheit</dt><dd>Datenschutzseiten, WLAN-Seite, Kontosperrung, Kennwortablauf.</dd>
+  <dt>WLAN</dt><dd>Interaktiv, überspringen, mit Netzwerkname/Kennwort/Sicherheit (WPA2, WPA3, offen; auch verborgene Netze)
+    oder als Profil-XML aus <code>netsh wlan export profile key=clear</code>. Das Profil wird im <code>specialize</code>-Pass mit
+    <code>netsh wlan add profile</code> für alle Benutzer angelegt, auf Wunsch wird gleich verbunden – die WLAN-Seite in OOBE
+    entfällt dann. Das Kennwort steht im Klartext in der Antwortdatei.</dd>
   <dt>Installation &amp; Partitionierung</dt><dd><b>Windows Setup</b> (Standard): Partitionen wählt man in Setup.
     <b>pe.cmd</b>: Ein Skript übernimmt die windowsPE-Phase – Zieldatenträger bestimmen (nach Kriterien wie Größe, Index,
     „ohne Partitionen“, fest, abgefragt oder per eigenem VBScript), mit <code>diskpart</code> einteilen (GPT/MBR passend zur
@@ -710,6 +719,11 @@ several at once, and dropping anywhere on the page works too.</p>
       <td>Is <b>extended rather than replaced</b> (see <a data-help="settings">Settings → Trigger</a>). With
       <code>UseConfigurationSet=true</code> the generator sets the location to "both places".</td></tr>
   <tr><td><code>.ps1</code></td><td>Shipped as a file; the call is added under Own commands → PowerShell.</td></tr>
+  <tr><td><code>.reg</code></td><td>Goes to <a data-help="tweaks">Tweaks → Registry files</a> (REGEDIT4 and 5.00, UTF-16 too).</td></tr>
+  <tr><td>AppLocker policy (<code>.xml</code> with <code>&lt;AppLockerPolicy&gt;</code>)</td>
+      <td>Taken over into the <a data-help="answer">answer file designer</a> (AppLocker section).</td></tr>
+  <tr><td>Wi-Fi profile (<code>.xml</code> with <code>&lt;WLANProfile&gt;</code>, from <code>netsh wlan export profile</code>)</td>
+      <td>Taken over into the <a data-help="answer">answer file designer</a> (OOBE → Wi-Fi).</td></tr>
   <tr><td><code>.exe</code>, <code>.msi</code> and other binaries</td><td>Go to <a data-help="files">Own files</a>.</td></tr>
   <tr><td><code>.oemproj.json</code></td><td>Loads a saved project completely.</td></tr>
 </table>
@@ -1062,6 +1076,10 @@ MIT licence). The logic is taken over file by file; the ported state is recorded
   <dt>User accounts</dt><dd>interactive (Microsoft or local account) or predefined local accounts with group and password, plus
     automatic sign-in. “Obscure” stores passwords Base64-encoded like Windows SIM – that is <b>no</b> protection.</dd>
   <dt>OOBE &amp; security</dt><dd>Privacy pages, Wi-Fi page, account lockout, password expiration.</dd>
+  <dt>Wi-Fi</dt><dd>Interactive, skip, with network name/password/security (WPA2, WPA3, open; hidden networks too) or as
+    profile XML from <code>netsh wlan export profile key=clear</code>. The profile is added for all users in the
+    <code>specialize</code> pass via <code>netsh wlan add profile</code> and optionally connected right away – the Wi-Fi page in
+    OOBE is skipped then. The password is stored in plain text in the answer file.</dd>
   <dt>Installation &amp; partitioning</dt><dd><b>Windows Setup</b> (default): partitions are chosen in Setup.
     <b>pe.cmd</b>: a script handles the windowsPE phase – determine the target disk (by criteria such as size, index,
     “without partitions”, fixed, asked or via own VBScript), partition it with <code>diskpart</code> (GPT/MBR matching the

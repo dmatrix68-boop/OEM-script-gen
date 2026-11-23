@@ -105,6 +105,20 @@ const CASES = [
     reject: [/&lt;\?xml/]
   },
   { name: 'Fehler: AppLocker-Schema', config: { appLocker: { mode: 'configure', policyXml: '<AppLockerPolicy Version="1"><RuleCollection Type="Exe" EnforcementMode="On"/></AppLockerPolicy>' } }, error: /^AppLocker policy XML is invalid: / },
+  {
+    name: 'WLAN mit Einstellungen',
+    config: { wifi: { mode: 'unattended', name: 'Café', password: 'a&b', authentication: 'WPA3SAE', connectAutomatically: true, nonBroadcast: true } },
+    expect: [
+      /&lt;hex&gt;436166C3A9&lt;\/hex&gt;/,
+      /&lt;nonBroadcast&gt;true&lt;\/nonBroadcast&gt;\r\n\t&lt;\/SSIDConfig&gt;/,
+      /&lt;transitionMode xmlns="http:\/\/www\.microsoft\.com\/networking\/WLAN\/profile\/v4"&gt;true/,
+      /&lt;keyMaterial&gt;a&amp;amp;b&lt;\/keyMaterial&gt;/,
+      /netsh\.exe wlan add profile filename="C:\\Windows\\Setup\\Scripts\\Wifi\.xml" user=all;/,
+      /netsh\.exe wlan connect name="Caf&#xE9;" ssid="Caf&#xE9;";/
+    ],
+    reject: [/HideWirelessSetupInOOBE/]
+  },
+  { name: 'Fehler: WLAN-Namensraum', config: { wifi: { mode: 'xml', xml: '<WLANProfile><name>A</name></WLANProfile>' } }, error: /^WLAN profile XML is invalid: Namespace URI of root element must be 'http:\/\/www\.microsoft\.com\/networking\/WLAN\/profile\/v1', but was ''\.$/ },
   { name: 'Fehler: reservierter Kontoname', config: { account: { mode: 'unattended', accounts: [{ name: 'Administrator', password: '', group: 'Administrators' }], autoLogon: 'own' } }, error: /Username 'Administrator' is invalid/ },
   { name: 'Fehler: Konto = Computername', config: { computerName: { mode: 'custom', name: 'PC1' }, account: { mode: 'unattended', accounts: [{ name: 'pc1', password: '', group: 'Administrators' }], autoLogon: 'own' } }, error: /must not be the same as the computer name/ },
   { name: 'Fehler: Produktschluessel', config: { edition: { mode: 'key', key: 'ABC' } }, error: /ill-formed/ },

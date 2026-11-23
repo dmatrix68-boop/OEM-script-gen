@@ -235,6 +235,24 @@ static class Program
     );
   }
 
+  static IWifiSettings BuildWifi(JsonElement c)
+  {
+    JsonElement w = Opt(c, "wifi");
+    switch (w.ValueKind == JsonValueKind.Object ? Str(w, "mode", "interactive") : "interactive")
+    {
+      case "skip": return new SkipWifiSettings();
+      case "unattended":
+        return new ParameterizedWifiSettings(
+          Name: Str(w, "name"),
+          Password: Str(w, "password"),
+          ConnectAutomatically: Bool(w, "connectAutomatically"),
+          Authentication: Enum.Parse<WifiAuthentications>(Str(w, "authentication", "WPA2PSK")),
+          NonBroadcast: Bool(w, "nonBroadcast"));
+      case "xml": return new XmlWifiSettings(Str(w, "xml"));
+      default: return new InteractiveWifiSettings();
+    }
+  }
+
   static IAppLockerSettings BuildAppLocker(JsonElement c)
   {
     JsonElement al = Opt(c, "appLocker");
@@ -327,7 +345,7 @@ static class Program
     ITimeZoneSettings timeZone = Str(tz, "mode") == "explicit"
       ? gen.CreateExplicitTimeZoneSettings(Str(tz, "id"))
       : new ImplicitTimeZoneSettings();
-    IWifiSettings wifi = Str(Obj(c, "wifi"), "mode") == "skip" ? new SkipWifiSettings() : new InteractiveWifiSettings();
+    IWifiSettings wifi = BuildWifi(c);
 
     // Edition
     JsonElement ed = Obj(c, "edition");

@@ -457,6 +457,7 @@
       if (/<Package[\s>]/i.test(t)) return 'bundle';
       if (/<unattend[\s>]/i.test(t)) return 'unattend';
       if (/<AppLockerPolicy[\s>/]/.test(t)) return 'applocker';
+      if (/<WLANProfile[\s>/]/.test(t)) return 'wlan';
       return 'xml';
     }
     if (t.startsWith('{') || t.startsWith('[')) {

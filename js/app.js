@@ -219,6 +219,12 @@
     ['ansDeleteEdge', 'answer.deleteEdgeDesktopIcon', 'bool'],
     ['ansFoldersMode', 'answer.startFolders.mode', 'text'],
     ['ansAlMode', 'answer.appLocker.mode', 'text'],
+    ['ansWifiName', 'answer.wifi.name', 'text'],
+    ['ansWifiAuth', 'answer.wifi.authentication', 'text'],
+    ['ansWifiPw', 'answer.wifi.password', 'text'],
+    ['ansWifiAuto', 'answer.wifi.connectAutomatically', 'bool'],
+    ['ansWifiHidden', 'answer.wifi.nonBroadcast', 'bool'],
+    ['ansWifiXml', 'answer.wifi.xml', 'text'],
     ['ansAlXml', 'answer.appLocker.policyXml', 'text']
   ];
 
@@ -650,13 +656,27 @@
     toast(T('AppLocker-Richtlinie übernommen – sie wirkt, sobald die Antwortdatei mit dem Designer erzeugt wird.'), state.answer.enabled ? 'ok' : 'warn');
   }
 
+  /* WLAN-Profil (netsh wlan export profile) in den Designer uebernehmen */
+  function importWifi(name, text) {
+    Object.assign(state.answer.wifi, { mode: 'xml', xml: text.replace(/^\uFEFF/, '').trim() });
+    syncInputs(); renderAnswer(); refresh();
+    logImport(F('WLAN-Profil übernommen: {0}', name));
+    toast(T('WLAN-Profil übernommen – es wirkt, sobald die Antwortdatei mit dem Designer erzeugt wird.'), state.answer.enabled ? 'ok' : 'warn');
+  }
+
   /* Sichtbarkeit (data-show="pfad=wert") und Pruefung */
   function renderAnswer() {
     const view = $('#view-answer');
     if (!view) return;
+    /* data-show="pfad=wert", "pfad!=wert"; data-show-not="pfad=wert1,wert2" */
     $$('[data-show]', view).forEach((el) => {
-      const [path, value] = el.dataset.show.split('=');
-      el.hidden = String(get(path)) !== value;
+      const neg = el.dataset.show.includes('!=');
+      const [path, value] = el.dataset.show.split(neg ? '!=' : '=');
+      el.hidden = (String(get(path)) === value) === neg;
+    });
+    $$('[data-show-not]', view).forEach((el) => {
+      const [path, values] = el.dataset.showNot.split('=');
+      el.hidden = values.split(',').includes(String(get(path)));
     });
     const st = $('#answerStatus');
     if (!window.UG) { st.textContent = T('Der Designer ist nicht geladen (js/ug fehlt).'); st.style.color = 'var(--warn)'; return; }
@@ -1678,6 +1698,10 @@
         importAppLocker(name, text);
         return;
       }
+      case 'wlan': {
+        importWifi(name, text);
+        return;
+      }
       case 'unattend': {
         let info;
         try { info = Importers.parseUnattend(text); }
@@ -2694,6 +2718,12 @@
         syncInputs(); renderAnswer(); refresh();
       });
       $('#btnAlLoad').addEventListener('click', () => $('#alInput').click());
+      $('#btnWifiLoad').addEventListener('click', () => $('#wifiInput').click());
+      $('#wifiInput').addEventListener('change', async (e) => {
+        const f = e.target.files[0];
+        e.target.value = '';
+        if (f) importWifi(f.name, await readText(f));
+      });
       $('#alInput').addEventListener('change', async (e) => {
         const f = e.target.files[0];
         e.target.value = '';

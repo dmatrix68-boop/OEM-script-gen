@@ -59,7 +59,7 @@
     'nav-einstellungen': 'Settings',
     'nav-vorschau': 'Preview',
     'dateien-irgendwo-ablegen-zum-importieren':
-      'Drop files anywhere to import<br><small>.ubundle · .cmd · .ps1 · .xml · .json</small>',
+      'Drop files anywhere to import<br><small>.ubundle · .cmd · .ps1 · .reg · .xml · .json</small>',
 
     /* Übersicht */
     'uebersicht-2': 'Overview',
@@ -75,9 +75,10 @@
     'import-2': 'Import',
     'bestehende-skripte-und-paketlisten-einlesen':
       'Read in existing scripts and package lists. Recognised are UniGetUI bundles, winget exports, ' +
-      '<code>SetupComplete.cmd</code>, ODT <code>Configuration.xml</code>, PowerShell scripts and saved projects.',
+      '<code>SetupComplete.cmd</code>, ODT <code>Configuration.xml</code>, PowerShell scripts, <code>.reg</code> files, ' +
+      '<code>autounattend.xml</code>, AppLocker policies, Wi-Fi profiles and saved projects.',
     'auswaehlen': 'select',
-    'ubundle-json-cmd-bat-ps1': '.ubundle · .json · .cmd/.bat · .ps1 · autounattend.xml · .exe/.msi',
+    'ubundle-json-cmd-bat-ps1': '.ubundle · .json · .yaml · .cmd/.bat · .ps1 · .reg · autounattend.xml · Configuration.xml · AppLocker.xml · Wi-Fi profile.xml · .oemproj.json · .exe/.msi',
     'unigetui-bundle-importieren': 'Import a UniGetUI bundle',
     'in-unigetui-pakete-buendel-buendel':
       'In UniGetUI: <i>Package bundles → Export bundle</i>. Supported are JSON ' +
@@ -244,7 +245,7 @@
     'antwortdatei-lead': 'Creates a complete <code>autounattend.xml</code> – language, accounts, computer name, edition, OOBE – '
       + 'into which the generator then inserts its calls. The designer is a port of the generator by Christoph Schneegans '
       + '(<a href="https://github.com/cschneegans/unattend-generator" target="_blank" rel="noopener noreferrer">unattend-generator</a>, '
-      + 'MIT licence). Not yet included: Wi-Fi profile, wallpaper, VM guest tools.',
+      + 'MIT licence). Not yet included: wallpaper, VM guest tools.',
     'sprache-und-region': 'Language &amp; region',
     'sprache-einstellung': 'Language and keyboard',
     'opt-interaktiv-setup-fragt': 'interactive – Setup asks',
@@ -332,6 +333,20 @@
     'opt-al-configure': 'apply this policy',
     'al-beispiel': 'Insert example (default rules, audit only)',
     'al-laden': 'Load XML file …',
+    'opt-wlan-einstellungen': 'connect with these settings',
+    'opt-wlan-xml': 'Wi-Fi profile (XML)',
+    'wlan-ssid': 'Network name (SSID)',
+    'wlan-sicherheit': 'Security',
+    'opt-wlan-offen': 'open (no password)',
+    'wlan-kennwort': 'Password',
+    'wlan-automatisch': 'connect automatically',
+    'wlan-verborgen': 'hidden network (does not broadcast its name)',
+    'wlan-xml-hinweis': 'Export the profile from a computer that is already connected: '
+      + '<code>netsh wlan export profile name="NETWORK" key=clear folder=.</code> – load the file here or drop it onto the page.',
+    'wlan-laden': 'Load XML file …',
+    'wlan-kennwort-hinweis': 'The password is stored in plain text in the answer file on the medium. On the target computer '
+      + '<code>Wifi.xml</code> is deleted after the first sign-in unless “Keep unattend.xml after the first sign-in” is on. In the '
+      + 'specialize pass Setup waits up to one minute for the Wi-Fi service – without a Wi-Fi adapter it simply continues afterwards.',
     'benutzerkonten': 'User accounts',
     'opt-konto-ms': 'interactive – Microsoft account',
     'opt-konto-lokal': 'interactive – local account',
@@ -802,6 +817,9 @@
     'Achtung: Mit UseConfigurationSet=true sucht Setup $OEM$ im Wurzelverzeichnis – die Ablage „sources“ allein wird ignoriert.': 'Careful: with UseConfigurationSet=true Setup looks for $OEM$ in the root – the location “sources” alone is ignored.',
     /* Antwortdatei-Designer */
     'Gebietsschema': 'Locale',
+    'WLAN-Profil übernommen: {0}': 'Wi-Fi profile adopted: {0}',
+    'WLAN-Profil übernommen – es wirkt, sobald die Antwortdatei mit dem Designer erzeugt wird.':
+      'Wi-Fi profile adopted – it takes effect once the answer file is created with the designer.',
     'AppLocker-Richtlinie übernommen: {0}': 'AppLocker policy adopted: {0}',
     'AppLocker-Richtlinie übernommen – sie wirkt, sobald die Antwortdatei mit dem Designer erzeugt wird.':
       'AppLocker policy adopted – it takes effect once the answer file is created with the designer.',
