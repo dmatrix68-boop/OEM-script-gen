@@ -64,6 +64,10 @@ unpack the ZIP and open `index.html`. Inside the package the screenshots are lin
 * **Custom files** – ship installers and scripts, either to `Install\Files` (where
   they are executed) or next to `SetupComplete.cmd` in `Setup\Scripts` (reachable
   via `%~dp0`).
+  Known setup files get their parameters from a template catalog (`Catalog.INSTALLERS`,
+  e.g. Right-Click Tools); for other `.exe` files the generator detects Inno Setup, NSIS
+  and WiX Burn from the file header and suggests the default switches. An installer without
+  parameters is only copied – the table points that out.
 * **autounattend.xml** – generated as a trigger or, if you already use an answer
   file, imported and **extended rather than replaced**: the calls are inserted into
   the existing blocks with a continuing `<Order>`.

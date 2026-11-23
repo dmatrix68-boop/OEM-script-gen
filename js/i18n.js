@@ -837,6 +837,22 @@
     'Achtung: Mit UseConfigurationSet=true sucht Setup $OEM$ im Wurzelverzeichnis – die Ablage „sources“ allein wird ignoriert.': 'Careful: with UseConfigurationSet=true Setup looks for $OEM$ in the root – the location “sources” alone is ignored.',
     /* Antwortdatei-Designer */
     'Gebietsschema': 'Locale',
+    ['Inno Setup. Phase 2, damit Kontextmenü und Privileg-Aufgabe beim ersten Benutzer landen (als SYSTEM gibt es noch keinen). ' +
+        'Still installiert gilt immer: Windows 11 – Kontextmenü-Handler (modern + klassisch), Privileg-Aufgabe an. ' +
+        'Ohne Privileg-Aufgabe: unter Eigene Befehle → PowerShell (Phase 2) ' +
+        '& \'C:\\Program Files\\RightClickTools\\RightClickTools.exe\' /TaskRemoveQuiet. ' +
+        'Weitere Benutzer starten C:\\Program Files\\RightClickTools\\RightClickTools.msix selbst.']:
+      'Inno Setup. Phase 2 so that the context menu and privilege task land with the first user (as SYSTEM there is none yet). ' +
+      'A silent install always uses: Windows 11 – context menu handler (modern + classic), privilege task on. ' +
+      'Without privilege task: under Own commands → PowerShell (phase 2) ' +
+      '& \'C:\\Program Files\\RightClickTools\\RightClickTools.exe\' /TaskRemoveQuiet. ' +
+      'Other users run C:\\Program Files\\RightClickTools\\RightClickTools.msix themselves.',
+    'Wird nur kopiert, nicht ausgeführt – Parameter eintragen, damit installiert wird.': 'Only copied, not run – enter parameters so that it gets installed.',
+    'Vorlage: {0}. {1}': 'Template: {0}. {1}',
+    'Vorlage „{0}“ anwenden': 'Apply template “{0}”',
+    'Vorlage „{0}“ angewendet: {1}': 'Template “{0}” applied: {1}',
+    'Erkannt: {0} – Standardschalter vorgeschlagen.': 'Detected: {0} – default switches suggested.',
+    '{0}: als {1} erkannt – Parameter {2} vorgeschlagen': '{0}: detected as {1} – parameters {2} suggested',
     'Kein Bild gewählt – Hintergrundbild bleibt Windows-Standard.': 'No image chosen – the wallpaper stays at the Windows default.',
     'Kein Bild gewählt – Sperrbildschirm bleibt Windows-Standard.': 'No image chosen – the lock screen stays at the Windows default.',
     '{0} ist {1} MB groß – die Antwortdatei wächst um rund {2} MB. Besser vorher verkleinern.':

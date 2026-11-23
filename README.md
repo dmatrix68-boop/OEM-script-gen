@@ -65,7 +65,11 @@ ZIP entpacken, `index.html` öffnen. Im Paket sind die Screenshots nur verlinkt.
   schon in Windows Setup laden, optional je Gerätemodell (siehe unten).
 * **Eigene Dateien** – Installer und Skripte mitliefern, wahlweise nach
   `Install\Files` (wird ausgeführt) oder neben `SetupComplete.cmd` in
-  `Setup\Scripts` (über `%~dp0` erreichbar).
+  `Setup\Scripts` (über `%~dp0` erreichbar). Bekannte Setup-Dateien bekommen ihre
+  Parameter aus einem Vorlagen-Katalog (`Catalog.INSTALLERS`, z. B. Right-Click Tools);
+  bei anderen `.exe` erkennt der Generator Inno Setup, NSIS und WiX Burn am Dateianfang
+  und schlägt die Standardschalter vor. Ein Installer ohne Parameter wird nur kopiert –
+  darauf weist die Tabelle hin.
 * **autounattend.xml** – wird als Auslöser erzeugt oder, wenn Sie bereits eine
   Antwortdatei verwenden, importiert und **ergänzt statt ersetzt**: die Aufrufe
   werden mit fortlaufender `<Order>` in die vorhandenen Blöcke eingefügt.

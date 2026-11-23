@@ -950,8 +950,34 @@
       ri.type = 'text'; ri.value = f.run; ri.placeholder = T('/S  bzw.  /qn /norestart  – leer = nur kopieren');
       if (f.dest === 'scripts') { ri.disabled = true; ri.placeholder = T('Aufruf über eigene CMD-Zeilen (%~dp0)'); }
       if (f.dest === 'office') { ri.disabled = true; ri.placeholder = T('wird vom Office-Modul gestartet'); }
-      ri.addEventListener('change', () => { f.run = ri.value; refresh(); });
-      runTd.appendChild(ri); tr.appendChild(runTd);
+      ri.addEventListener('change', () => { f.run = ri.value; renderFiles(); refresh(); });
+      runTd.appendChild(ri);
+      const tpl = f.template && Catalog.INSTALLERS.find((t) => t.id === f.template);
+      const note = document.createElement('div');
+      note.className = 'hint';
+      note.style.fontSize = '11px';
+      if (f.dest === 'files' && !f.run.trim() && /\.(exe|msi|msix|appx|msixbundle|appxbundle)$/i.test(f.name)) {
+        note.textContent = T('Wird nur kopiert, nicht ausgeführt – Parameter eintragen, damit installiert wird.');
+        note.style.color = 'var(--warn)';
+        const match = Catalog.INSTALLERS.find((t) => t.match.test(f.name));
+        if (match) {
+          const b = document.createElement('button');
+          b.type = 'button'; b.className = 'btn small mt-s';
+          b.textContent = F('Vorlage „{0}“ anwenden', match.name);
+          b.addEventListener('click', () => {
+            Object.assign(f, { run: match.run, phase: match.phase, template: match.id });
+            renderFiles(); refresh();
+          });
+          note.appendChild(document.createElement('br'));
+          note.appendChild(b);
+        }
+      } else if (tpl) {
+        note.textContent = F('Vorlage: {0}. {1}', tpl.name, T(tpl.note));
+      } else if (f.detected) {
+        note.textContent = F('Erkannt: {0} – Standardschalter vorgeschlagen.', f.detected);
+      }
+      if (note.textContent) runTd.appendChild(note);
+      tr.appendChild(runTd);
 
       const phTd = document.createElement('td');
       const ps = document.createElement('select');
@@ -1661,11 +1687,7 @@
     }
 
     if (BINARY_EXT.test(name) && !/\.reg$/i.test(name)) {
-      state.files.items.push({
-        name, target: name, run: /\.msi$/i.test(name) ? '/qn /norestart' : '',
-        phase: 'firstlogon', enabled: true, dest: defaultFileDest(name), blob: file, blobPresent: true,
-        src: opts.handle ? await rememberSource(opts.handle, 'file') : null
-      });
+      state.files.items.push(await newFileItem(file, opts.handle ? await rememberSource(opts.handle, 'file') : null));
       logImport(F('Datei übernommen: {0} ({1} KB)', name, Math.round(file.size / 1024)));
       renderFiles(); refresh();
       return;
@@ -2034,18 +2056,46 @@
     return /^setup\.exe$/i.test(name) && state.office.enabled && state.office.setupSource === 'bundled' ? 'office' : 'files';
   }
 
+  /*  Neuer Eintrag unter "Eigene Dateien": Vorlage aus dem Katalog, sonst den
+      Installer-Typ am Dateianfang erkennen und Standardschalter vorschlagen. */
+  async function newFileItem(file, src) {
+    const name = file.name;
+    const item = {
+      name, target: name, run: /\.msi$/i.test(name) ? '/qn /norestart' : '',
+      phase: 'firstlogon', enabled: true, dest: defaultFileDest(name), blob: file, blobPresent: true, src: src || null
+    };
+    if (item.dest !== 'files') return item;
+    const tpl = Catalog.INSTALLERS.find((t) => t.match.test(name));
+    if (tpl) {
+      Object.assign(item, { run: tpl.run, phase: tpl.phase, template: tpl.id });
+      logImport(F('Vorlage „{0}“ angewendet: {1}', tpl.name, tpl.run));
+      return item;
+    }
+    if (/\.exe$/i.test(name)) {
+      const type = await detectInstaller(file);
+      if (type) {
+        Object.assign(item, { run: type.run, detected: type.name });
+        logImport(F('{0}: als {1} erkannt – Parameter {2} vorgeschlagen', name, type.name, type.run));
+      }
+    }
+    return item;
+  }
+  async function detectInstaller(file) {
+    try {
+      const head = new Uint8Array(await file.slice(0, 1024 * 1024).arrayBuffer());
+      let text = '';
+      for (let i = 0; i < head.length; i += 0x8000) text += String.fromCharCode.apply(null, head.subarray(i, i + 0x8000));
+      return Catalog.INSTALLER_TYPES.find((t) => t.re.test(text)) || null;
+    } catch (e) { return null; }
+  }
+
   async function pickFiles() {
     let hs;
     try { hs = await window.showOpenFilePicker({ id: 'oem-files', multiple: true }); }
     catch (e) { if (!e || e.name !== 'AbortError') toast(F('Ordner nicht verfügbar: {0}', e.message), 'err'); return; }
     for (const h of hs || []) {
       const f = await h.getFile();
-      state.files.items.push({
-        name: f.name, target: f.name,
-        run: /\.msi$/i.test(f.name) ? '/qn /norestart' : '',
-        phase: 'firstlogon', enabled: true, dest: defaultFileDest(f.name), blob: f, blobPresent: true,
-        src: await rememberSource(h, 'file')
-      });
+      state.files.items.push(await newFileItem(f, await rememberSource(h, 'file')));
     }
     renderFiles(); refresh();
   }
@@ -2951,13 +3001,7 @@
     });
 
     $('#filesInput').addEventListener('change', async (e) => {
-      for (const f of Array.from(e.target.files)) {
-        state.files.items.push({
-          name: f.name, target: f.name,
-          run: /\.msi$/i.test(f.name) ? '/qn /norestart' : '',
-          phase: 'firstlogon', enabled: true, dest: defaultFileDest(f.name), blob: f, blobPresent: true
-        });
-      }
+      for (const f of Array.from(e.target.files)) state.files.items.push(await newFileItem(f, null));
       e.target.value = '';
       renderFiles(); refresh();
     });

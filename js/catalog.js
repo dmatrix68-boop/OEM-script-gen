@@ -120,7 +120,13 @@
     { id: 'timezone', cat: 'System', label: 'Zeitzone auf „W. Europe Standard Time“ setzen',
       ps: 'tzutil.exe /s "W. Europe Standard Time"' },
     { id: 'execPolicy', cat: 'System', label: 'PowerShell-Ausführungsrichtlinie auf RemoteSigned',
-      ps: 'Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope LocalMachine -Force' },
+      /*  Laeuft der Aufrufer mit -ExecutionPolicy Bypass, meldet Set-ExecutionPolicy
+          eine SecurityException ("ueberschrieben durch spezifischeren Bereich"),
+          obwohl der Wert gesetzt ist - massgeblich ist die Kontrolle danach. */
+      ps: [
+        'try { Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope LocalMachine -Force -ErrorAction Stop } catch [System.Security.SecurityException] { }',
+        "if ((Get-ExecutionPolicy -Scope LocalMachine) -ne 'RemoteSigned') { throw 'Ausfuehrungsrichtlinie LocalMachine ist nicht RemoteSigned.' }"
+      ].join('\n') },
     { id: 'uacSecureDesktop', cat: 'System', label: 'UAC ohne abgedunkelten Desktop',
       desc: 'Schutzstufe bleibt aktiv, nur der sichere Desktop entfällt',
       reg: [{ scope: 'machine', path: 'SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System', name: 'PromptOnSecureDesktop', type: 'DWord', value: 0 }] },
@@ -354,5 +360,27 @@
     powershell: { label: 'PowerShell Gallery', cmd: 'powershell', install: (p) => p.id }
   };
 
-  global.Catalog = { TWEAKS, BLOAT, FEATURES, MANAGERS };
+  /*  Vorlagen fuer bekannte Setup-Dateien unter "Eigene Dateien": passt der
+      Dateiname, werden Parameter und Phase vorbelegt. note erscheint in der
+      Tabelle; Platzhalter gibt es keine (Sprache waehlt der Installer selbst). */
+  const INSTALLERS = [
+    { id: 'rightclicktools', name: 'Right-Click Tools (Les Ferch)', match: /^RightClickTools-Setup.*\.exe$/i,
+      run: '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-', phase: 'firstlogon',
+      url: 'https://github.com/LesFerch/RightClickTools',
+      note: 'Inno Setup. Phase 2, damit Kontextmenü und Privileg-Aufgabe beim ersten Benutzer landen (als SYSTEM gibt es noch keinen). ' +
+        'Still installiert gilt immer: Windows 11 – Kontextmenü-Handler (modern + klassisch), Privileg-Aufgabe an. ' +
+        'Ohne Privileg-Aufgabe: unter Eigene Befehle → PowerShell (Phase 2) ' +
+        '& \'C:\\Program Files\\RightClickTools\\RightClickTools.exe\' /TaskRemoveQuiet. ' +
+        'Weitere Benutzer starten C:\\Program Files\\RightClickTools\\RightClickTools.msix selbst.' }
+  ];
+
+  /*  Installer-Typ am Dateianfang erkennen (erstes MB genuegt fuer die
+      Kennungen der Installer-Baukaesten) und passende Standardschalter. */
+  const INSTALLER_TYPES = [
+    { name: 'Inno Setup', re: /Inno Setup Setup Data|<description>Inno Setup<\/description>/, run: '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-' },
+    { name: 'NSIS', re: /Nullsoft Install System|NullsoftInst/, run: '/S' },
+    { name: 'WiX Burn', re: /\.wixburn/, run: '/quiet /norestart' }
+  ];
+
+  global.Catalog = { TWEAKS, BLOAT, FEATURES, MANAGERS, INSTALLERS, INSTALLER_TYPES };
 })(window);

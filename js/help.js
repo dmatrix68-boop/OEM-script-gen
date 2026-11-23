@@ -396,7 +396,10 @@ Lizenzdateien. Auf Wunsch werden Installer mit Silent-Parametern ausgeführt.</p
   <dd>Parameter für die unbeaufsichtigte Installation. <b>Leer = nur kopieren.</b> <code>.msi</code> wird über
   <code>msiexec /i</code> gestartet (Vorgabe <code>/qn /norestart</code>). Übliche Schalter für <code>.exe</code>:
   <code>/S</code> (NSIS), <code>/VERYSILENT /NORESTART</code> (Inno Setup), <code>/quiet /norestart</code>
-  (WiX/Burn), <code>/s /v"/qn"</code> (InstallShield). Im Zweifel hilft <code>setup.exe /?</code>.</dd>
+  (WiX/Burn), <code>/s /v"/qn"</code> (InstallShield). Im Zweifel hilft <code>setup.exe /?</code>.
+  <br>Beim Hinzufügen füllt der Generator das Feld selbst: Für bekannte Programme gibt es Vorlagen (z.&nbsp;B.
+  Right-Click Tools, mit Hinweisen zur Phase), bei anderen <code>.exe</code> erkennt er Inno Setup, NSIS und WiX Burn am
+  Dateianfang. Bleibt ein Installer ohne Parameter, steht in der Tabelle ein Warnhinweis – er würde nur kopiert.</dd>
   <dt>Phase</dt><dd>Phase 1 (SYSTEM, vor der Anmeldung) oder Phase 2 (nach der ersten Anmeldung).</dd>
 </dl>
 <p>Als Erfolg gelten die Exitcodes <code>0</code>, <code>3010</code> und <code>1641</code>.</p>
@@ -1015,7 +1018,10 @@ Installers can be run with silent parameters.</p>
   <dd>Parameters for the unattended installation. <b>Empty = copy only.</b> <code>.msi</code> is started through
   <code>msiexec /i</code> (default <code>/qn /norestart</code>). Common switches for <code>.exe</code>: <code>/S</code> (NSIS),
   <code>/VERYSILENT /NORESTART</code> (Inno Setup), <code>/quiet /norestart</code> (WiX/Burn), <code>/s /v"/qn"</code>
-  (InstallShield). When in doubt, <code>setup.exe /?</code> helps.</dd>
+  (InstallShield). When in doubt, <code>setup.exe /?</code> helps.
+  <br>When adding a file the generator fills the field itself: known programs have templates (e.g. Right-Click Tools,
+  with notes on the phase); for other <code>.exe</code> files it detects Inno Setup, NSIS and WiX Burn from the file header.
+  If an installer has no parameters, the table shows a warning – it would only be copied.</dd>
   <dt>Phase</dt><dd>Phase 1 (SYSTEM, before sign-in) or phase 2 (after the first sign-in).</dd>
 </dl>
 <p>Exit codes <code>0</code>, <code>3010</code> and <code>1641</code> count as success.</p>
