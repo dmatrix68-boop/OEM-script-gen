@@ -223,7 +223,8 @@
       const lines = [];
       const block = (command) => {
         lines.push('\t{');
-        splitLines(command).forEach((l) => lines.push('\t\t' + l));
+        /* wie Util.SplitLines: ein abschliessender Umbruch ergibt keine Leerzeile */
+        csSplitLines(command).forEach((l) => lines.push('\t\t' + l));
         lines.push('\t};');
       };
       lines.push('$scripts = @(');
@@ -298,7 +299,7 @@
     }
     ctx.embedTextFile = (name, content, before, after) =>
       embedFile(name, (before || '') + content + CRLF + (after || ''));
-    ctx.embedTextFileFromResource = (name) => ctx.embedTextFile(name, res(name));
+    ctx.embedTextFileFromResource = (name, before, after) => ctx.embedTextFile(name, res(name), before, after);
     return ctx;
   }
 

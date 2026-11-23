@@ -895,20 +895,125 @@
     }
   };
 
-  /* ---------- modifier/Optimizations.cs, Personalization.cs ----------
-     Nicht portiert: Tweaks liefert der Generator selbst. Mit den Standardwerten
-     des Originals erzeugen beide keine Ausgabe - bis auf den Teil, der am
-     PE-Modus haengt (IsDefenderDisabled), der ist hier uebernommen. */
+  /* ---------- modifier/Optimizations.cs ----------
+     Teilweise portiert: Tweaks liefert der Generator selbst (Tweaks-Seite).
+     Uebernommen sind die Abschnitte, die es dort nicht gibt - in der
+     Reihenfolge des Originals: Defender-Hinweise (haengt am PE-Modus),
+     Edge-Verknuepfung, Sperrtasten, visuelle Effekte, Desktopsymbole, Ordner
+     im Startmenue. Alle anderen Schalter des Originals stehen auf ihrem
+     Standardwert und erzeugen dort keine Ausgabe. */
+  const EFFECTS = ['ControlAnimations', 'AnimateMinMax', 'TaskbarAnimations', 'DWMAeroPeekEnabled', 'MenuAnimation',
+    'TooltipAnimation', 'SelectionFade', 'DWMSaveThumbnailEnabled', 'CursorShadow', 'ListviewShadow', 'ThumbnailsOrIcon',
+    'ListviewAlphaSelect', 'DragFullWindows', 'ComboBoxAnimation', 'FontSmoothing', 'ListBoxSmoothScrolling', 'DropShadow'];
+  /* ImmutableSortedDictionary nach Id (string.CompareTo) */
+  const byId = (a, b) => a.Id.localeCompare(b.Id, 'en');
+  const startFolders = () => UG.list('StartFolder').map((f) => Object.assign({ Id: f.DisplayName.replace(/ /g, '') }, f)).sort(byId);
+
   const Optimizations = {
     name: 'Optimizations',
     process(c) {
-      const pe = c.config.pe;
+      const cfg = c.config;
+      const pe = cfg.pe;
       if (pe && pe.mode === 'generate' && pe.disableDefender) {
         c.specializeScript.append('reg.exe add "HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows Defender Security Center\\Notifications" /v DisableNotifications /t REG_DWORD /d 1 /f;');
       }
+
+      if (cfg.deleteEdgeDesktopIcon) {
+        c.specializeScript.append("Remove-Item -LiteralPath 'C:\\Users\\Public\\Desktop\\Microsoft Edge.lnk' -ErrorAction 'SilentlyContinue' -Verbose;");
+        c.userOnceScript.append('Remove-Item -LiteralPath "${env:USERPROFILE}\\Desktop\\Microsoft Edge.lnk" -ErrorAction \'SilentlyContinue\' -Verbose;');
+      }
+
+      const lk = cfg.lockKeys;
+      if (lk && lk.mode === 'configure') {
+        const keys = [lk.capsLock || {}, lk.numLock || {}, lk.scrollLock || {}];
+        let indicators = 0;
+        if (keys[0].initial === 'On') indicators |= 1;
+        if (keys[1].initial === 'On') indicators |= 2;
+        if (keys[2].initial === 'On') indicators |= 4;
+        c.defaultUserScript.append(
+          "foreach( $root in 'Registry::HKU\\.DEFAULT', 'Registry::HKU\\DefaultUser' ) {\n" +
+          "  Set-ItemProperty -LiteralPath \"$root\\Control Panel\\Keyboard\" -Name 'InitialKeyboardIndicators' -Type 'String' -Value " + indicators + ' -Force;\n' +
+          '}');
+        /* Scancode Map: Taste auf 0 abbilden = Tastendruck ignorieren */
+        const scancodes = [0x3A, 0x45, 0x46];
+        const ignored = keys.map((k, i) => (k.behavior === 'Ignore' ? scancodes[i] : null)).filter((x) => x !== null);
+        if (ignored.length > 0) {
+          const bytes = [0, 0, 0, 0, 0, 0, 0, 0, ignored.length + 1, 0, 0, 0];
+          ignored.forEach((code) => bytes.push(0, 0, code, 0));
+          bytes.push(0, 0, 0, 0);
+          const base64 = btoa(String.fromCharCode.apply(null, bytes));
+          c.specializeScript.append("Set-ItemProperty -LiteralPath 'Registry::HKLM\\SYSTEM\\CurrentControlSet\\Control\\Keyboard Layout' -Name 'Scancode Map' -Type 'Binary' -Value([convert]::FromBase64String('" + base64 + "'));");
+        }
+      }
+
+      const fx = cfg.effects || { mode: 'default' };
+      const setEffects = (values, setting) => {
+        let sb = '';
+        EFFECTS.forEach((key) => {
+          sb += 'Set-ItemProperty -LiteralPath "Registry::HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\VisualEffects\\' + key +
+            '" -Name \'DefaultValue\' -Value ' + (values(key) ? 1 : 0) + " -Type 'DWord' -Force;\n";
+        });
+        c.specializeScript.append(sb);
+        c.userOnceScript.append("Set-ItemProperty -LiteralPath 'Registry::HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\VisualEffects' -Name 'VisualFXSetting' -Type 'DWord' -Value " + setting + ' -Force;');
+      };
+      switch (fx.mode) {
+        case 'default': break;
+        case 'bestAppearance': setEffects(() => true, 1); break;
+        case 'bestPerformance': setEffects(() => false, 2); break;
+        case 'custom': setEffects((k) => !!(fx.custom && fx.custom[k]), 3); break;
+        default: throw new Error('Unbekannte Effekt-Einstellung: ' + fx.mode);
+      }
+
+      const di = cfg.desktopIcons || { mode: 'default' };
+      if (di.mode === 'custom') {
+        const show = di.show || [];
+        const icons = UG.list('DesktopIcon').slice().sort(byId);
+        let sb = '';
+        for (const key of ['ClassicStartMenu', 'NewStartPanel']) {
+          const path = 'Registry::HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\HideDesktopIcons\\' + key;
+          sb += "New-Item -Path '" + path + "' -Force;\n";
+          for (const icon of icons) {
+            sb += "Set-ItemProperty -Path '" + path + "' -Name '" + icon.Guid + "' -Value " + (show.includes(icon.Id) ? 0 : 1) + " -Type 'DWord';\n";
+          }
+        }
+        c.userOnceScript.append(sb);
+        c.userOnceScript.restartExplorer();
+      } else if (di.mode !== 'default') throw new Error('Unbekannte Desktopsymbol-Einstellung: ' + di.mode);
+
+      const sf = cfg.startFolders || { mode: 'default' };
+      if (sf.mode === 'custom') {
+        const show = sf.show || [];
+        let bin = '';
+        for (const f of startFolders()) if (show.includes(f.Id)) bin += atob(f.Bytes);
+        c.userOnceScript.append("Set-ItemProperty -Path 'Registry::HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Start' -Name 'VisiblePlaces' -Value $( [convert]::FromBase64String('" + btoa(bin) + "') ) -Type 'Binary';");
+      } else if (sf.mode !== 'default') throw new Error('Unbekannte Startmenue-Einstellung: ' + sf.mode);
     }
   };
-  const Personalization = { name: 'Personalization', process() {} };
+
+  /* ---------- modifier/Personalization.cs ----------
+     Portiert: Farben. Hintergrund und Sperrbildschirm folgen. */
+  const Personalization = {
+    name: 'Personalization',
+    process(c) {
+      const col = c.config.colors || { mode: 'default' };
+      if (col.mode === 'custom') {
+        const theme = (t) => (t === 'Light' ? 1 : 0);
+        const hex = String(col.accentColor || '#0078D4').replace(/^#?/, '#').toUpperCase();
+        if (!/^#[0-9A-F]{6}$/.test(hex)) throw new ConfigurationException("Color '" + col.accentColor + "' is invalid.");
+        const before = [
+          '$lightThemeSystem = ' + theme(col.systemTheme) + ';',
+          '$lightThemeApps = ' + theme(col.appsTheme) + ';',
+          '$accentColorOnStart = ' + (col.accentOnStart ? 1 : 0) + ';',
+          '$enableTransparency = ' + (col.transparency ? 1 : 0) + ';',
+          "$htmlAccentColor = '" + hex + "';"
+        ].join('\n') + '\n';
+        const ps1 = c.embedTextFileFromResource('SetColorTheme.ps1', before);
+        c.defaultUserScript.append('reg.exe add "HKU\\DefaultUser\\Software\\Microsoft\\Windows\\DWM" /v ColorPrevalence /t REG_DWORD /d ' + (col.accentOnBorders ? 1 : 0) + ' /f;');
+        c.userOnceScript.invokeFile(ps1);
+        c.userOnceScript.restartExplorer();
+      } else if (col.mode !== 'default') throw new Error('Unbekannte Farb-Einstellung: ' + col.mode);
+    }
+  };
 
   /* ---------- modifier/TimeZone.cs ---------- */
   const TimeZone = {
@@ -1070,6 +1175,12 @@
         disableDefender: false, disable8Dot3Names: false, pauseBeforeFormatting: false, pauseBeforeReboot: false,
         compactOs: false, skipIntegrityCheck: false
       },
+      deleteEdgeDesktopIcon: false,
+      lockKeys: { mode: 'default', capsLock: { initial: 'Off', behavior: 'Toggle' }, numLock: { initial: 'On', behavior: 'Toggle' }, scrollLock: { initial: 'Off', behavior: 'Toggle' } },
+      effects: { mode: 'default', custom: {} },
+      desktopIcons: { mode: 'default', show: [] },
+      startFolders: { mode: 'default', show: [] },
+      colors: { mode: 'default', systemTheme: 'Dark', appsTheme: 'Light', accentColor: '#0078D4', accentOnStart: true, accentOnBorders: true, transparency: true },
       hidePowerShellWindows: false,
       keepSensitiveFiles: false,
       useNarrator: false
@@ -1077,4 +1188,6 @@
   };
 
   UG.validateComputerName = validateComputerName;
+  UG.EFFECTS = EFFECTS;
+  UG.startFolders = startFolders;
 })(typeof window !== 'undefined' ? window : globalThis);

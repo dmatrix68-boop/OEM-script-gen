@@ -753,5 +753,206 @@
     "skipIntegrityCheck": false
    }
   }
+ },
+ {
+  "name": "farben",
+  "config": {
+   "colors": {
+    "mode": "custom",
+    "systemTheme": "Dark",
+    "appsTheme": "Light",
+    "accentColor": "#0078D4",
+    "accentOnStart": true,
+    "accentOnBorders": true,
+    "transparency": true
+   }
+  }
+ },
+ {
+  "name": "farben-hell-ohne-akzent",
+  "config": {
+   "colors": {
+    "mode": "custom",
+    "systemTheme": "Light",
+    "appsTheme": "Dark",
+    "accentColor": "#c42b1c",
+    "accentOnStart": false,
+    "accentOnBorders": false,
+    "transparency": false
+   }
+  }
+ },
+ {
+  "name": "sperrtasten-ignorieren",
+  "config": {
+   "lockKeys": {
+    "mode": "configure",
+    "capsLock": {
+     "initial": "Off",
+     "behavior": "Ignore"
+    },
+    "numLock": {
+     "initial": "On",
+     "behavior": "Toggle"
+    },
+    "scrollLock": {
+     "initial": "Off",
+     "behavior": "Ignore"
+    }
+   }
+  }
+ },
+ {
+  "name": "sperrtasten-nur-status",
+  "config": {
+   "lockKeys": {
+    "mode": "configure",
+    "capsLock": {
+     "initial": "On",
+     "behavior": "Toggle"
+    },
+    "numLock": {
+     "initial": "On",
+     "behavior": "Toggle"
+    },
+    "scrollLock": {
+     "initial": "On",
+     "behavior": "Toggle"
+    }
+   }
+  }
+ },
+ {
+  "name": "effekte-beste-darstellung",
+  "config": {
+   "effects": {
+    "mode": "bestAppearance",
+    "custom": {}
+   }
+  }
+ },
+ {
+  "name": "effekte-beste-leistung",
+  "config": {
+   "effects": {
+    "mode": "bestPerformance",
+    "custom": {}
+   }
+  }
+ },
+ {
+  "name": "effekte-eigene",
+  "config": {
+   "effects": {
+    "mode": "custom",
+    "custom": {
+     "FontSmoothing": true,
+     "DragFullWindows": true,
+     "ThumbnailsOrIcon": true,
+     "ListviewAlphaSelect": true
+    }
+   }
+  }
+ },
+ {
+  "name": "desktopsymbole",
+  "config": {
+   "desktopIcons": {
+    "mode": "custom",
+    "show": [
+     "ThisPC",
+     "RecycleBin",
+     "UserFiles",
+     "ControlPanel"
+    ]
+   }
+  }
+ },
+ {
+  "name": "startordner",
+  "config": {
+   "startFolders": {
+    "mode": "custom",
+    "show": [
+     "Settings",
+     "FileExplorer",
+     "Downloads",
+     "PersonalFolder"
+    ]
+   }
+  }
+ },
+ {
+  "name": "startordner-leer",
+  "config": {
+   "startFolders": {
+    "mode": "custom",
+    "show": []
+   }
+  }
+ },
+ {
+  "name": "edge-verknuepfung",
+  "config": {
+   "deleteEdgeDesktopIcon": true
+  }
+ },
+ {
+  "name": "personalisierung-kombiniert",
+  "config": {
+   "language": {
+    "mode": "unattended",
+    "image": "de-DE",
+    "locales": [
+     {
+      "locale": "de-DE",
+      "keyboard": "00000407"
+     }
+    ],
+    "geo": "94"
+   },
+   "colors": {
+    "mode": "custom",
+    "systemTheme": "Dark",
+    "appsTheme": "Light",
+    "accentColor": "#107C10",
+    "accentOnStart": true,
+    "accentOnBorders": true,
+    "transparency": true
+   },
+   "desktopIcons": {
+    "mode": "custom",
+    "show": [
+     "ThisPC"
+    ]
+   },
+   "effects": {
+    "mode": "bestPerformance",
+    "custom": {}
+   },
+   "lockKeys": {
+    "mode": "configure",
+    "capsLock": {
+     "initial": "Off",
+     "behavior": "Ignore"
+    },
+    "numLock": {
+     "initial": "On",
+     "behavior": "Toggle"
+    },
+    "scrollLock": {
+     "initial": "Off",
+     "behavior": "Toggle"
+    }
+   },
+   "deleteEdgeDesktopIcon": true,
+   "startFolders": {
+    "mode": "custom",
+    "show": [
+     "Settings",
+     "FileExplorer"
+    ]
+   }
+  }
  }
 ]

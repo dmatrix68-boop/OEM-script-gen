@@ -9,6 +9,8 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Drawing;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -151,6 +153,88 @@ static class Program
     );
   }
 
+  static JsonElement Opt(JsonElement o, string key)
+  {
+    return o.TryGetProperty(key, out JsonElement v) && v.ValueKind == JsonValueKind.Object ? v : default;
+  }
+
+  static string Mode(JsonElement o)
+  {
+    return o.ValueKind == JsonValueKind.Object ? Str(o, "mode", "default") : "default";
+  }
+
+  static HashSet<string> Strings(JsonElement o, string key)
+  {
+    HashSet<string> set = [];
+    if (o.ValueKind == JsonValueKind.Object && o.TryGetProperty(key, out JsonElement a) && a.ValueKind == JsonValueKind.Array)
+    {
+      foreach (JsonElement e in a.EnumerateArray()) set.Add(e.GetString()!);
+    }
+    return set;
+  }
+
+  static ILockKeySettings BuildLockKeys(JsonElement c)
+  {
+    JsonElement lk = Opt(c, "lockKeys");
+    if (Mode(lk) != "configure") return new SkipLockKeySettings();
+    LockKeySetting Key(string name)
+    {
+      JsonElement k = Obj(lk, name);
+      return new LockKeySetting(Enum.Parse<LockKeyInitial>(Str(k, "initial", "Off")), Enum.Parse<LockKeyBehavior>(Str(k, "behavior", "Toggle")));
+    }
+    return new ConfigureLockKeySettings(Key("capsLock"), Key("numLock"), Key("scrollLock"));
+  }
+
+  static IEffects BuildEffects(JsonElement c)
+  {
+    JsonElement fx = Opt(c, "effects");
+    switch (Mode(fx))
+    {
+      case "bestAppearance": return new BestAppearanceEffects();
+      case "bestPerformance": return new BestPerformanceEffects();
+      case "custom":
+        JsonElement custom = Opt(fx, "custom");
+        var b = ImmutableDictionary.CreateBuilder<Effect, bool>();
+        foreach (Effect e in Enum.GetValues<Effect>())
+        {
+          b.Add(e, custom.ValueKind == JsonValueKind.Object && Bool(custom, e.ToString()));
+        }
+        return new CustomEffects(b.ToImmutable());
+      default: return new DefaultEffects();
+    }
+  }
+
+  static IDesktopIconSettings BuildDesktopIcons(UnattendGenerator gen, JsonElement c)
+  {
+    JsonElement di = Opt(c, "desktopIcons");
+    if (Mode(di) != "custom") return new DefaultDesktopIconSettings();
+    HashSet<string> show = Strings(di, "show");
+    return new CustomDesktopIconSettings(gen.DesktopIcons.Values.ToDictionary(i => i, i => show.Contains(i.Id)));
+  }
+
+  static IStartFolderSettings BuildStartFolders(UnattendGenerator gen, JsonElement c)
+  {
+    JsonElement sf = Opt(c, "startFolders");
+    if (Mode(sf) != "custom") return new DefaultStartFolderSettings();
+    HashSet<string> show = Strings(sf, "show");
+    return new CustomStartFolderSettings(gen.StartFolders.Values.ToDictionary(f => f, f => show.Contains(f.Id)));
+  }
+
+  static IColorSettings BuildColors(JsonElement c)
+  {
+    JsonElement col = Opt(c, "colors");
+    if (Mode(col) != "custom") return new DefaultColorSettings();
+    int rgb = int.Parse(Str(col, "accentColor", "#0078D4").TrimStart('#'), NumberStyles.HexNumber);
+    return new CustomColorSettings(
+      SystemTheme: Enum.Parse<ColorTheme>(Str(col, "systemTheme", "Dark")),
+      AppsTheme: Enum.Parse<ColorTheme>(Str(col, "appsTheme", "Light")),
+      EnableTransparency: Bool(col, "transparency"),
+      AccentColorOnStart: Bool(col, "accentOnStart"),
+      AccentColorOnBorders: Bool(col, "accentOnBorders"),
+      AccentColor: Color.FromArgb(255, (rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF)
+    );
+  }
+
   static JsonElement Obj(JsonElement o, string key)
   {
     return o.GetProperty(key);
@@ -277,6 +361,12 @@ static class Program
       HidePowerShellWindows = Bool(c, "hidePowerShellWindows"),
       KeepSensitiveFiles = Bool(c, "keepSensitiveFiles"),
       UseNarrator = Bool(c, "useNarrator"),
+      DeleteEdgeDesktopIcon = Bool(c, "deleteEdgeDesktopIcon"),
+      LockKeySettings = BuildLockKeys(c),
+      Effects = BuildEffects(c),
+      DesktopIcons = BuildDesktopIcons(gen, c),
+      StartFolderSettings = BuildStartFolders(gen, c),
+      ColorSettings = BuildColors(c),
     };
   }
 }
