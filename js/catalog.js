@@ -128,11 +128,17 @@
       reg: [
         { scope: 'machine', path: 'SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate', name: 'ExcludeWUDriversInQualityUpdate', type: 'DWord', value: 1 },
         { scope: 'machine', path: 'SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\DriverSearching', name: 'SearchOrderConfig', type: 'DWord', value: 0 }] },
-    { id: 'edgePolicies', cat: 'System', label: 'Edge: Erststart-Assistent und Startup-Boost aus',
+    /*  Frueher ein Tweak "edgePolicies" - loadProject() ersetzt ihn durch beide. */
+    { id: 'edgeFirstRun', cat: 'System', label: 'Edge: Erststart-Assistent ausblenden',
+      desc: 'Überspringt die Begrüßungs- und Einrichtungsdialoge beim ersten Start von Edge, samt der Frage nach personalisierter Werbung',
       reg: [
         { scope: 'machine', path: 'SOFTWARE\\Policies\\Microsoft\\Edge', name: 'HideFirstRunExperience', type: 'DWord', value: 1 },
-        { scope: 'machine', path: 'SOFTWARE\\Policies\\Microsoft\\Edge', name: 'StartupBoostEnabled', type: 'DWord', value: 0 },
         { scope: 'machine', path: 'SOFTWARE\\Policies\\Microsoft\\Edge', name: 'PersonalizationReportingEnabled', type: 'DWord', value: 0 }] },
+    { id: 'edgeStartupBoost', cat: 'System', label: 'Edge: Startup-Boost und Hintergrundmodus aus',
+      desc: 'Edge läuft nicht mehr ständig im Hintergrund. Als empfohlene Richtlinie gesetzt – in den Edge-Einstellungen wieder einschaltbar',
+      reg: [
+        { scope: 'machine', path: 'SOFTWARE\\Policies\\Microsoft\\Edge\\Recommended', name: 'StartupBoostEnabled', type: 'DWord', value: 0 },
+        { scope: 'machine', path: 'SOFTWARE\\Policies\\Microsoft\\Edge\\Recommended', name: 'BackgroundModeEnabled', type: 'DWord', value: 0 }] },
     { id: 'fixDisplayName', cat: 'System', label: 'Anzeigename des Benutzerkontos berichtigen',
       desc: 'Setzt den vollständigen Namen auf den Kontonamen, wenn dort ein Platzhalter wie „USER“ steht. Windows holt das meist von selbst nach – nur für Fälle, in denen der Platzhalter bleibt.',
       deferPs: true, deferReason: 'account', timeout: 60,

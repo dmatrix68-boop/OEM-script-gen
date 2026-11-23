@@ -1708,6 +1708,11 @@
     /* Projekte vor der Zielsystem-Auswahl: abgeschaltetes UseConfigurationSet hiess "alte Builds" */
     if (!hadMode) state.options.configSetMode = state.options.configSet === false ? 'old' : 'new';
     applyConfigSetMode();
+    /* Aufgeteilte Tweaks: aus einem alten Eintrag werden beide neuen */
+    const SPLIT_TWEAKS = { edgePolicies: ['edgeFirstRun', 'edgeStartupBoost'] };
+    if (Array.isArray(state.tweaks.selected)) {
+      state.tweaks.selected = [...new Set(state.tweaks.selected.flatMap((id) => SPLIT_TWEAKS[id] || [id]))];
+    }
     state.apps.items = (state.apps.items || []).map((p) => Importers.mkPkg(p));
     if (!state.unattend) state.unattend = { xml: null, name: '', info: null };
     state.files.items = (state.files.items || []).map((f) => ({

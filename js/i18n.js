@@ -593,7 +593,12 @@
     'Schutzstufe bleibt aktiv, nur der sichere Desktop entfällt':
       'The protection level stays on, only the secure desktop is skipped',
     'Keine Treiber über Windows Update': 'No drivers through Windows Update',
-    'Edge: Erststart-Assistent und Startup-Boost aus': 'Edge: turn off the first-run experience and startup boost',
+    'Edge: Erststart-Assistent ausblenden': 'Edge: hide the first-run experience',
+    'Überspringt die Begrüßungs- und Einrichtungsdialoge beim ersten Start von Edge, samt der Frage nach personalisierter Werbung':
+      'Skips the welcome and setup dialogs when Edge is started for the first time, including the question about personalized ads',
+    'Edge: Startup-Boost und Hintergrundmodus aus': 'Edge: turn off startup boost and background mode',
+    'Edge läuft nicht mehr ständig im Hintergrund. Als empfohlene Richtlinie gesetzt – in den Edge-Einstellungen wieder einschaltbar':
+      'Edge no longer keeps running in the background. Set as a recommended policy – can be switched back on in the Edge settings',
     'Anzeigename des Benutzerkontos berichtigen': 'Correct the display name of the user account',
     'Setzt den vollständigen Namen auf den Kontonamen, wenn dort ein Platzhalter wie „USER“ steht. Windows holt das meist von selbst nach – nur für Fälle, in denen der Platzhalter bleibt.':
       'Sets the full name to the account name where a placeholder such as "USER" is left. Windows usually corrects this by itself – this is for the cases where the placeholder stays.',
