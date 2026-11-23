@@ -3,5 +3,5 @@
     wenn der Release-Tag (v1.00) nicht zu ihr passt. */
 (function (global) {
   'use strict';
-  global.APP_VERSION = '1.2';
+  global.APP_VERSION = '2.0';
 })(window);
