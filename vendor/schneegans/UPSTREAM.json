@@ -111,7 +111,7 @@
     "modifier/Optimizations.cs": {
       "blob": "8b9af170474e3a9d6c9b53c98ae301e3052741f1",
       "port": "js/ug/modifiers.js",
-      "status": "bewusst nicht portiert – eigener Katalog (Tweaks-Seite); nur der Teil am Defender-Schalter (IsDefenderDisabled) ist uebernommen"
+      "status": "teilweise portiert – Defender-Teil (IsDefenderDisabled), Edge-Verknuepfung, Sperrtasten, visuelle Effekte, Desktopsymbole, Ordner im Startmenue; die uebrigen Schalter bewusst nicht (eigener Katalog, Tweaks-Seite)"
     },
     "modifier/Order.cs": {
       "blob": "c4d598afa2d9afddec01dce1da3e707fb9646a06",
@@ -125,8 +125,8 @@
     },
     "modifier/Personalization.cs": {
       "blob": "161d3a39043ae66d3d471452d0ec4ebc0f098741",
-      "port": "-",
-      "status": "nicht portiert – Schritt 3; Standardwerte erzeugen keine Ausgabe"
+      "port": "js/ug/modifiers.js",
+      "status": "teilweise portiert – Farben; Hintergrundbild und Sperrbildschirm noch nicht"
     },
     "modifier/Pretty.cs": {
       "blob": "45704db8a76a5bd1c4742a8ffb45816591b445cf",

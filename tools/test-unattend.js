@@ -87,6 +87,12 @@ const CASES = [
   { name: 'Fehler: kein Administrator', config: { account: { mode: 'unattended', accounts: [{ name: 'a', password: '', group: 'Users' }], autoLogon: 'none' } }, error: /at least one administrator/ },
   { name: 'Fehler: Loeschen ohne Autologon', config: { account: { mode: 'unattended', accounts: [{ name: 'a', password: '', group: 'Administrators' }], autoLogon: 'none' } }, error: /must let Windows log on/ },
   { name: 'Fehler: Computername', config: { computerName: { mode: 'custom', name: '12345' } }, error: /Computer name '12345' is invalid/ },
+  {
+    /* Erwartung aus dem Golden-Lauf gegen das Original (StartFolder.json hat kein Id-Feld) */
+    name: 'Ordner im Startmenue',
+    config: { startFolders: { mode: 'custom', show: ['Settings', 'FileExplorer'] } },
+    expect: [/FromBase64String\('vCSKFAzWiUKggG7Zu6JIgoYIc1KqUUNCn3sndlhGWdQ='\)/]
+  },
   { name: 'Fehler: reservierter Kontoname', config: { account: { mode: 'unattended', accounts: [{ name: 'Administrator', password: '', group: 'Administrators' }], autoLogon: 'own' } }, error: /Username 'Administrator' is invalid/ },
   { name: 'Fehler: Konto = Computername', config: { computerName: { mode: 'custom', name: 'PC1' }, account: { mode: 'unattended', accounts: [{ name: 'pc1', password: '', group: 'Administrators' }], autoLogon: 'own' } }, error: /must not be the same as the computer name/ },
   { name: 'Fehler: Produktschluessel', config: { edition: { mode: 'key', key: 'ABC' } }, error: /ill-formed/ },

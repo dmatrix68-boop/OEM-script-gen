@@ -907,7 +907,8 @@
     'ListviewAlphaSelect', 'DragFullWindows', 'ComboBoxAnimation', 'FontSmoothing', 'ListBoxSmoothScrolling', 'DropShadow'];
   /* ImmutableSortedDictionary nach Id (string.CompareTo) */
   const byId = (a, b) => a.Id.localeCompare(b.Id, 'en');
-  const startFolders = () => UG.list('StartFolder').map((f) => Object.assign({ Id: f.DisplayName.replace(/ /g, '') }, f)).sort(byId);
+  /* StartFolder.json hat kein Id-Feld - die Tabelle nach Id taugt hier nicht */
+  const startFolders = () => UG.res('StartFolder.json').map((f) => Object.assign({ Id: f.DisplayName.replace(/ /g, '') }, f)).sort(byId);
 
   const Optimizations = {
     name: 'Optimizations',

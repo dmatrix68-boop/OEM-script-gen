@@ -199,7 +199,25 @@
     ['ansPeCompact', 'answer.pe.compactOs', 'bool'],
     ['ansPeSkipCheck', 'answer.pe.skipIntegrityCheck', 'bool'],
     ['ansPePauseFormat', 'answer.pe.pauseBeforeFormatting', 'bool'],
-    ['ansPePauseReboot', 'answer.pe.pauseBeforeReboot', 'bool']
+    ['ansPePauseReboot', 'answer.pe.pauseBeforeReboot', 'bool'],
+    ['ansColMode', 'answer.colors.mode', 'text'],
+    ['ansColSystem', 'answer.colors.systemTheme', 'text'],
+    ['ansColApps', 'answer.colors.appsTheme', 'text'],
+    ['ansColAccent', 'answer.colors.accentColor', 'text'],
+    ['ansColOnStart', 'answer.colors.accentOnStart', 'bool'],
+    ['ansColOnBorders', 'answer.colors.accentOnBorders', 'bool'],
+    ['ansColTransparency', 'answer.colors.transparency', 'bool'],
+    ['ansLockKeysMode', 'answer.lockKeys.mode', 'text'],
+    ['ansCapsInit', 'answer.lockKeys.capsLock.initial', 'text'],
+    ['ansCapsBeh', 'answer.lockKeys.capsLock.behavior', 'text'],
+    ['ansNumInit', 'answer.lockKeys.numLock.initial', 'text'],
+    ['ansNumBeh', 'answer.lockKeys.numLock.behavior', 'text'],
+    ['ansScrollInit', 'answer.lockKeys.scrollLock.initial', 'text'],
+    ['ansScrollBeh', 'answer.lockKeys.scrollLock.behavior', 'text'],
+    ['ansFxMode', 'answer.effects.mode', 'text'],
+    ['ansIconsMode', 'answer.desktopIcons.mode', 'text'],
+    ['ansDeleteEdge', 'answer.deleteEdgeDesktopIcon', 'bool'],
+    ['ansFoldersMode', 'answer.startFolders.mode', 'text']
   ];
 
   function bindAll() {
@@ -465,6 +483,7 @@
     });
     renderAnsLocales();
     renderAnsAccounts();
+    renderAnsPersonalization();
     $$('.ans-arch').forEach((cb) => { cb.checked = (state.answer.architectures || []).includes(cb.value); });
     renderAnswer();
   }
@@ -533,6 +552,69 @@
       tr.querySelector('button').addEventListener('click', () => { acc.accounts.splice(i, 1); renderAnsAccounts(); renderAnswer(); refresh(); });
       body.appendChild(tr);
     });
+  }
+
+  /* Personalisierung: Checkbox-Listen fuer Effekte, Desktopsymbole und
+     Ordner im Startmenue. Bezeichnungen wie in den deutschen Windows-Dialogen;
+     gespeichert werden die Ids des Originals. */
+  const FX_LABELS = {
+    ControlAnimations: 'Steuerelemente und Elemente innerhalb von Fenstern animieren',
+    AnimateMinMax: 'Animation beim Minimieren und Maximieren von Fenstern',
+    TaskbarAnimations: 'Animationen in der Taskleiste',
+    DWMAeroPeekEnabled: 'Aero Peek aktivieren',
+    MenuAnimation: 'Menüs in Ansicht ein- oder ausblenden',
+    TooltipAnimation: 'QuickInfos in Ansicht ein- oder ausblenden',
+    SelectionFade: 'Menüelemente nach Aufruf ausblenden',
+    DWMSaveThumbnailEnabled: 'Vorschauen von Miniaturansichten der Taskleiste speichern',
+    CursorShadow: 'Schatten unter dem Mauszeiger anzeigen',
+    ListviewShadow: 'Schatten für Symbolbeschriftungen auf dem Desktop',
+    ThumbnailsOrIcon: 'Miniaturansichten anstelle von Symbolen anzeigen',
+    ListviewAlphaSelect: 'Durchsichtiges Auswahlrechteck anzeigen',
+    DragFullWindows: 'Fensterinhalt beim Ziehen anzeigen',
+    ComboBoxAnimation: 'Kombinationsfelder beim Öffnen einblenden',
+    FontSmoothing: 'Kanten der Bildschirmschriftarten verfeinern',
+    ListBoxSmoothScrolling: 'Bildlauf in Listenfeldern',
+    DropShadow: 'Fensterschatten anzeigen'
+  };
+  const PLACE_LABELS = {
+    Music: 'Musik', ThisPC: 'Dieser PC', Downloads: 'Downloads', Pictures: 'Bilder', ControlPanel: 'Systemsteuerung',
+    UserFiles: 'Benutzerdateien', RecycleBin: 'Papierkorb', Videos: 'Videos', Documents: 'Dokumente', Desktop: 'Desktop',
+    Gallery: 'Katalog', Network: 'Netzwerk', Home: 'Startseite', Settings: 'Einstellungen', FileExplorer: 'Explorer',
+    PersonalFolder: 'Persönlicher Ordner'
+  };
+  function ansCheckGrid(box, items, isOn, onChange) {
+    box.innerHTML = '';
+    for (const it of items) {
+      const l = document.createElement('label');
+      l.className = 'chk';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.value = it.id;
+      cb.checked = isOn(it.id);
+      cb.addEventListener('change', () => { onChange(it.id, cb.checked); renderAnswer(); refresh(); });
+      l.append(cb, ' ', document.createTextNode(it.label));
+      box.appendChild(l);
+    }
+  }
+  function renderAnsPersonalization() {
+    if (!$('#ansFxList')) return;
+    const a = state.answer;
+    const lbl = (map, id, fallback) => T(map[id] || fallback || id);
+    if (!a.effects.custom) a.effects.custom = {};
+    ansCheckGrid($('#ansFxList'), UG.EFFECTS.map((k) => ({ id: k, label: lbl(FX_LABELS, k) })),
+      (k) => !!a.effects.custom[k], (k, on) => { a.effects.custom[k] = on; });
+    const toggle = (list) => (id, on) => {
+      const i = list.indexOf(id);
+      if (on && i < 0) list.push(id);
+      if (!on && i >= 0) list.splice(i, 1);
+    };
+    const byLabel = (x, y) => x.label.localeCompare(y.label);
+    if (!Array.isArray(a.desktopIcons.show)) a.desktopIcons.show = [];
+    ansCheckGrid($('#ansIconList'), UG.list('DesktopIcon').map((d) => ({ id: d.Id, label: lbl(PLACE_LABELS, d.Id, d.DisplayName) })).sort(byLabel),
+      (id) => a.desktopIcons.show.includes(id), toggle(a.desktopIcons.show));
+    if (!Array.isArray(a.startFolders.show)) a.startFolders.show = [];
+    ansCheckGrid($('#ansFolderList'), UG.startFolders().map((f) => ({ id: f.Id, label: lbl(PLACE_LABELS, f.Id, f.DisplayName) })).sort(byLabel),
+      (id) => a.startFolders.show.includes(id), toggle(a.startFolders.show));
   }
 
   /* Sichtbarkeit (data-show="pfad=wert") und Pruefung */

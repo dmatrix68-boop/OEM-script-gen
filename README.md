@@ -371,8 +371,14 @@ einteilen (GPT/MBR nach Firmware, Wiederherstellungspartition, oder eigenes Skri
 `robocopy` kopieren, neu starten. **Die automatische Partitionierung löscht den Zieldatenträger
 ohne Rückfrage**; ist der Datenträger nicht eindeutig, hält Setup an.
 
-Noch nicht portiert: WLAN-Profil, Personalisierung, AppLocker, VM-Gasttools. Tweaks und
-Bloatware liefert der Generator selbst.
+Unter **Personalisierung** stehen Farben (Design, Akzentfarbe, Transparenz), Sperrtasten
+(Zustand beim Start, Taste ignorieren), visuelle Effekte, Desktopsymbole, „Edge-Verknüpfung
+löschen“ und die Ordner im Startmenü. Sie greifen für jedes neue Konto bei der ersten
+Anmeldung – auch ohne Aktivierung. Überschneidungen mit Tweaks (Dunkles Design,
+Desktopsymbole, NumLock) besser nur an einer Stelle wählen.
+
+Noch nicht portiert: WLAN-Profil, Hintergrundbild/Sperrbildschirm, AppLocker, VM-Gasttools.
+Tweaks und Bloatware liefert der Generator selbst.
 
 ### Änderungen im Original beobachten
 

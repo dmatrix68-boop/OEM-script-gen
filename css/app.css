@@ -289,3 +289,6 @@ body.dragging .dropzone{border-color:var(--acc)}
 #view-answer [hidden]{display:none !important}
 #ansAccounts input,#ansAccounts select{width:100%}
 #ansAccounts td:last-child{width:1%;white-space:nowrap}
+#view-answer .checkgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:4px 16px;margin:6px 0 10px}
+#view-answer .tbl select{width:100%}
+#view-answer .checkgrid + .row, #view-answer .chk + .row, #view-answer .chk + .checkgrid{margin-top:10px}

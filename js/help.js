@@ -469,6 +469,12 @@ MIT-Lizenz). Die Logik ist Datei für Datei übernommen; welcher Stand portiert 
     <code>robocopy</code> kopieren, neu starten. Dazu Compact OS, Auslagerungsdatei, 8.3-Namen, Defender. <b>Achtung:</b> Die
     automatische Partitionierung löscht den Zieldatenträger ohne Rückfrage. Bricht die Bestimmung des Datenträgers ab (kein
     oder mehrere Treffer), hält Setup an, statt etwas zu löschen.</dd>
+  <dt>Personalisierung</dt><dd>Farben (Design für Taskleiste/Start und Apps, Akzentfarbe, Akzent auf Start und Titelleisten,
+    Transparenz), Sperrtasten (Zustand beim Start, Taste ignorieren per <code>Scancode Map</code>), visuelle Effekte (optimale
+    Darstellung, optimale Leistung oder eigene Auswahl), Desktopsymbole, Edge-Verknüpfung löschen, Ordner im Startmenü. Das
+    wirkt für jedes neue Konto bei der ersten Anmeldung (<code>UserOnce.ps1</code>, danach startet der Explorer neu) – auch
+    ohne Aktivierung, wenn Windows die Einstellungen sperrt. Wer dieselbe Einstellung zusätzlich als Tweak wählt (z.&nbsp;B.
+    „Dunkles Design“, „Desktopsymbole“, „NumLock“), bekommt sie doppelt; besser nur eines.</dd>
 </dl>
 <p>Im pe.cmd-Modus kopiert das Skript <code>$OEM$</code> aus dem <b>Wurzelverzeichnis</b> des Mediums selbst –
 <code>UseConfigurationSet</code> spielt dann keine Rolle, die Ablage muss aber „Wurzelverzeichnis“ oder „beide Orte“ sein.
@@ -1059,6 +1065,12 @@ MIT licence). The logic is taken over file by file; the ported state is recorded
     <code>robocopy</code>, restart. Plus Compact OS, paging file, 8.3 names, Defender. <b>Careful:</b> automatic
     partitioning wipes the target disk without asking. If determining the disk fails (no or several matches), Setup halts
     instead of deleting anything.</dd>
+  <dt>Personalization</dt><dd>Colors (theme for taskbar/Start and apps, accent color, accent on Start and title bars,
+    transparency), lock keys (state at startup, ignore a key via <code>Scancode Map</code>), visual effects (best appearance,
+    best performance or own selection), desktop icons, delete the Edge shortcut, folders on Start. Applies to every new
+    account at its first sign-in (<code>UserOnce.ps1</code>, Explorer restarts afterwards) – also without activation, when
+    Windows locks these settings. Choosing the same setting again as a tweak (e.g. “Dark mode”, “Desktop icons”, “NumLock”)
+    applies it twice; better pick only one.</dd>
 </dl>
 <p>In pe.cmd mode the script copies <code>$OEM$</code> from the <b>root</b> of the medium itself –
 <code>UseConfigurationSet</code> does not matter then, but the location must be “root” or “both places”. Edition and hardware

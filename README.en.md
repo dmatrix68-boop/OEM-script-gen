@@ -358,7 +358,12 @@ determine the target disk (by criteria, fixed, asked or via VBScript), partition
 restart. **Automatic partitioning wipes the target disk without asking**; if the disk is not
 unique, Setup halts.
 
-Not ported yet: Wi-Fi profile, personalisation, AppLocker, VM guest tools. Tweaks and
+**Personalisation** covers colours (theme, accent colour, transparency), lock keys (state at
+startup, ignore a key), visual effects, desktop icons, “delete Edge shortcut” and the folders
+on Start. They apply to every new account at its first sign-in – also without activation.
+Where they overlap with tweaks (dark mode, desktop icons, NumLock), pick only one.
+
+Not ported yet: Wi-Fi profile, wallpaper/lock screen, AppLocker, VM guest tools. Tweaks and
 bloatware are provided by the generator itself.
 
 ### Watching the original for changes

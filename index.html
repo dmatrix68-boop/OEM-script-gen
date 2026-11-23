@@ -449,7 +449,7 @@
       <p class="lead" data-i18n="antwortdatei-lead">Erzeugt eine vollständige <code>autounattend.xml</code> – Sprache, Konten, Computername,
       Edition, OOBE –, in die der Generator anschließend seine Aufrufe einfügt. Der Designer ist eine Portierung des
       Generators von Christoph Schneegans (<a href="https://github.com/cschneegans/unattend-generator" target="_blank" rel="noopener noreferrer">unattend-generator</a>,
-      MIT-Lizenz); Partitionierung und weitere Bereiche folgen.</p>
+      MIT-Lizenz). Noch nicht übernommen: WLAN-Profil, Hintergrundbild, AppLocker, VM-Gasttools.</p>
       <p class="hint" id="answerStatus"></p>
 
       <div class="grid2">
@@ -655,6 +655,86 @@
         </div>
         <label class="field grow" data-show="answer.pe.mode=script"><span data-i18n="eigenes-pe-skript">Eigenes pe.cmd – ersetzt die windowsPE-Phase von Windows Setup</span>
           <textarea id="ansPeScript" rows="10" spellcheck="false"></textarea></label>
+      </div>
+
+      <div class="panel">
+        <h3 data-i18n="personalisierung">Personalisierung</h3>
+        <p class="hint" data-i18n="personalisierung-hinweis">Wirkt für jedes neue Benutzerkonto bei der ersten Anmeldung (danach startet der Explorer
+        einmal neu). Besonders nützlich, wenn Windows ohne Aktivierung laufen soll – dann sperrt Windows die Personalisierung in den
+        Einstellungen. Überschneidet sich teils mit Tweaks wie „Dunkles Design“ oder „Desktopsymbole“; dann nur eines von beiden wählen.</p>
+        <div class="grid2">
+          <div>
+            <div class="row wrap">
+              <label class="field grow"><span data-i18n="farben">Farben</span>
+                <select id="ansColMode">
+                  <option value="default" data-i18n="opt-windows-standard">Windows-Standard</option>
+                  <option value="custom" data-i18n="opt-eigenes-farbschema">eigenes Farbschema</option>
+                </select></label>
+            </div>
+            <div data-show="answer.colors.mode=custom">
+              <div class="row wrap">
+                <label class="field"><span data-i18n="taskleiste-und-start">Taskleiste und Start</span>
+                  <select id="ansColSystem"><option value="Dark" data-i18n="opt-dunkel">dunkel</option><option value="Light" data-i18n="opt-hell">hell</option></select></label>
+                <label class="field"><span data-i18n="apps">Apps</span>
+                  <select id="ansColApps"><option value="Dark" data-i18n="opt-dunkel">dunkel</option><option value="Light" data-i18n="opt-hell">hell</option></select></label>
+                <label class="field"><span data-i18n="akzentfarbe">Akzentfarbe</span><input type="color" id="ansColAccent"></label>
+              </div>
+              <label class="chk"><input type="checkbox" id="ansColOnStart"> <span data-i18n="akzent-start-taskleiste">Akzentfarbe auf Start und Taskleiste</span></label>
+              <label class="chk"><input type="checkbox" id="ansColOnBorders"> <span data-i18n="akzent-titelleisten">Akzentfarbe auf Titelleisten und Fensterrahmen</span></label>
+              <label class="chk"><input type="checkbox" id="ansColTransparency"> <span data-i18n="transparenz">Transparenzeffekte</span></label>
+            </div>
+          </div>
+          <div>
+            <div class="row wrap">
+              <label class="field grow"><span data-i18n="sperrtasten">Sperrtasten (gilt auch für den Anmeldebildschirm)</span>
+                <select id="ansLockKeysMode">
+                  <option value="default" data-i18n="opt-windows-standard">Windows-Standard</option>
+                  <option value="configure" data-i18n="opt-festlegen">festlegen</option>
+                </select></label>
+            </div>
+            <table class="tbl" data-show="answer.lockKeys.mode=configure">
+              <thead><tr><th data-i18n="taste">Taste</th><th data-i18n="beim-start">Beim Start</th><th data-i18n="beim-druecken">Beim Drücken</th></tr></thead>
+              <tbody>
+                <tr><td>Caps Lock</td>
+                  <td><select id="ansCapsInit"><option value="Off" data-i18n="opt-aus">aus</option><option value="On" data-i18n="opt-an">an</option></select></td>
+                  <td><select id="ansCapsBeh"><option value="Toggle" data-i18n="opt-umschalten">umschalten</option><option value="Ignore" data-i18n="opt-ignorieren">ignorieren</option></select></td></tr>
+                <tr><td>Num Lock</td>
+                  <td><select id="ansNumInit"><option value="Off" data-i18n="opt-aus">aus</option><option value="On" data-i18n="opt-an">an</option></select></td>
+                  <td><select id="ansNumBeh"><option value="Toggle" data-i18n="opt-umschalten">umschalten</option><option value="Ignore" data-i18n="opt-ignorieren">ignorieren</option></select></td></tr>
+                <tr><td>Scroll Lock</td>
+                  <td><select id="ansScrollInit"><option value="Off" data-i18n="opt-aus">aus</option><option value="On" data-i18n="opt-an">an</option></select></td>
+                  <td><select id="ansScrollBeh"><option value="Toggle" data-i18n="opt-umschalten">umschalten</option><option value="Ignore" data-i18n="opt-ignorieren">ignorieren</option></select></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="row wrap">
+          <label class="field grow"><span data-i18n="visuelle-effekte">Visuelle Effekte</span>
+            <select id="ansFxMode">
+              <option value="default" data-i18n="opt-windows-standard">Windows-Standard</option>
+              <option value="bestAppearance" data-i18n="opt-fx-darstellung">optimale Darstellung</option>
+              <option value="bestPerformance" data-i18n="opt-fx-leistung">optimale Leistung</option>
+              <option value="custom" data-i18n="opt-fx-eigene">eigene Auswahl</option>
+            </select></label>
+        </div>
+        <div class="checkgrid" id="ansFxList" data-show="answer.effects.mode=custom"></div>
+        <div class="row wrap">
+          <label class="field grow"><span data-i18n="desktopsymbole">Desktopsymbole</span>
+            <select id="ansIconsMode">
+              <option value="default" data-i18n="opt-windows-standard">Windows-Standard</option>
+              <option value="custom" data-i18n="opt-diese-anzeigen">diese anzeigen</option>
+            </select></label>
+        </div>
+        <div class="checkgrid" id="ansIconList" data-show="answer.desktopIcons.mode=custom"></div>
+        <label class="chk"><input type="checkbox" id="ansDeleteEdge"> <span data-i18n="edge-verknuepfung-loeschen">Edge-Verknüpfung auf dem Desktop löschen</span></label>
+        <div class="row wrap">
+          <label class="field grow"><span data-i18n="ordner-im-start">Ordner im Startmenü (neben dem Ein/Aus-Knopf)</span>
+            <select id="ansFoldersMode">
+              <option value="default" data-i18n="opt-windows-standard">Windows-Standard</option>
+              <option value="custom" data-i18n="opt-diese-anzeigen">diese anzeigen</option>
+            </select></label>
+        </div>
+        <div class="checkgrid" id="ansFolderList" data-show="answer.startFolders.mode=custom"></div>
       </div>
 
       <div class="panel">
