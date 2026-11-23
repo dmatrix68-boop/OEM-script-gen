@@ -12,7 +12,7 @@
   <div class="brand">
     <span class="logo" data-i18n="oem">$OEM$</span>
     <div>
-      <h1><span data-i18n="oem-script-generator">OEM Script Generator</span> <span class="version" id="appVersion">V1.2</span></h1>
+      <h1><span data-i18n="oem-script-generator">OEM Script Generator</span> <span class="version" id="appVersion">V2.0</span></h1>
       <p class="sub" data-i18n="installationsskripte-fuer-den-oem-ordner">Installationsskripte für den <code>$OEM$</code>-Ordner auf dem Windows-11-Installationsmedium</p>
     </div>
   </div>
@@ -21,6 +21,7 @@
     <button class="btn" id="btnLoadProject" data-i18n-title="projektdatei-oemproj-json-laden" title="Projektdatei (.oemproj.json) laden" data-i18n="projekt-laden">Projekt laden</button>
     <button class="btn" id="btnSaveProject" data-i18n-title="projektdatei-speichern" title="Projektdatei speichern" data-i18n="projekt-speichern">Projekt speichern</button>
     <button class="btn" id="btnExportFolder" data-i18n-title="in-ordner-exportieren-titel" title="Struktur direkt in einen Ordner schreiben – z. B. ins Wurzelverzeichnis des USB-Sticks. Ohne ZIP, nichts zu entpacken (Chrome, Edge)" data-i18n="in-ordner-exportieren">In Ordner exportieren</button>
+    <button class="btn" id="btnExportIso" data-i18n-title="iso-erzeugen-titel" title="Windows-ISO wählen – die erzeugten Dateien kommen hinzu, es entsteht eine neue, bootfähige ISO (BIOS und UEFI). Ohne Zusatzwerkzeuge" data-i18n="iso-erzeugen">ISO erzeugen</button>
     <button class="btn primary" id="btnExport" data-i18n-title="komplette-oem-struktur-als-zip" title="Komplette OEM-Struktur als ZIP herunterladen" data-i18n="zip-erzeugen">ZIP erzeugen</button>
     <div class="langswitch" role="group" aria-label="Sprache / Language"><button class="lang" id="langDe" data-lang="de" title="Deutsch">DE</button><button class="lang" id="langEn" data-lang="en" title="English">EN</button></div>
   </div>
@@ -40,10 +41,11 @@
     <button class="nav-item" data-view="drivers"><span class="ico">⌗</span><span data-i18n="nav-treiber">Treiber</span><span class="badge" id="badgeDrivers">0</span></button>
     <button class="nav-item" data-view="files"><span class="ico">🗀</span><span data-i18n="nav-eigene-dateien">Eigene Dateien</span><span class="badge" id="badgeFiles">0</span></button>
     <button class="nav-item" data-view="custom"><span class="ico">›_</span><span data-i18n="nav-eigene-befehle">Eigene Befehle</span></button>
+    <button class="nav-item" data-view="answer"><span class="ico">✎</span><span data-i18n="nav-antwortdatei">Antwortdatei</span></button>
     <button class="nav-item" data-view="settings"><span class="ico">⚒</span><span data-i18n="nav-einstellungen">Einstellungen</span></button>
     <button class="nav-item" data-view="preview"><span class="ico">◲</span><span data-i18n="nav-vorschau">Vorschau</span></button>
     <div class="sidebar-foot">
-      <div id="dropHint" class="drop-hint" data-i18n="dateien-irgendwo-ablegen-zum-importieren">Dateien irgendwo ablegen zum Importieren<br><small>.ubundle · .cmd · .ps1 · .xml · .json</small></div>
+      <div id="dropHint" class="drop-hint" data-i18n="dateien-irgendwo-ablegen-zum-importieren">Dateien irgendwo ablegen zum Importieren<br><small>.ubundle · .cmd · .ps1 · .reg · .xml · .json</small></div>
     </div>
   </nav>
 
@@ -73,13 +75,14 @@
     <section class="view" id="view-import">
       <h2 data-i18n="import-2">Import</h2>
       <p class="lead" data-i18n="bestehende-skripte-und-paketlisten-einlesen">Bestehende Skripte und Paketlisten einlesen. Erkannt werden UniGetUI-Bundles, winget-Exporte,
-      <code>SetupComplete.cmd</code>, ODT-<code>Configuration.xml</code>, PowerShell-Skripte und gespeicherte Projekte.</p>
+      <code>SetupComplete.cmd</code>, ODT-<code>Configuration.xml</code>, PowerShell-Skripte, <code>.reg</code>-Dateien,
+      <code>autounattend.xml</code>, AppLocker-Richtlinien, WLAN-Profile und gespeicherte Projekte.</p>
 
       <div class="dropzone" id="dropzone">
         <div class="dz-inner">
           <div class="dz-ico">↧</div>
           <div><span data-i18n="dateien-hierher-ziehen-oder"><b>Dateien hierher ziehen</b> oder </span><button class="btn small" id="btnPickFiles" data-i18n="auswaehlen">auswählen</button></div>
-          <div class="dz-types" data-i18n="ubundle-json-cmd-bat-ps1">.ubundle · .json · .cmd/.bat · .ps1 · autounattend.xml · .exe/.msi</div>
+          <div class="dz-types" data-i18n="ubundle-json-cmd-bat-ps1">.ubundle · .json · .yaml · .cmd/.bat · .ps1 · .reg · autounattend.xml · Configuration.xml · AppLocker.xml · WLAN-Profil.xml · .oemproj.json · .exe/.msi</div>
         </div>
         <input type="file" id="fileInput" multiple hidden>
       </div>
@@ -263,6 +266,19 @@
         </div>
         <div id="tweaksList" class="tweaks"></div>
       </div>
+
+      <div class="panel">
+        <h3 data-i18n="registry-dateien">Registry-Dateien (.reg)</h3>
+        <p class="hint" data-i18n="registry-dateien-hinweis">Exportierte <code>.reg</code>-Dateien werden Wert für Wert übernommen
+        und laufen mit den Tweaks in derselben Phase. <code>HKEY_CURRENT_USER</code> landet wie jeder Benutzer-Tweak im Default-Profil
+        (und auf Wunsch bei allen Benutzern) – ein <code>reg import</code> als SYSTEM schriebe dagegen ins Profil von SYSTEM.
+        <code>HKEY_CLASSES_ROOT</code> wird zu <code>HKLM\SOFTWARE\Classes</code>; <code>HKEY_USERS</code> wird übersprungen.</p>
+        <div id="regFilesBox"></div>
+        <div class="row">
+          <button class="btn small" id="btnRegImport" data-i18n="reg-datei-importieren">.reg-Datei importieren</button>
+          <input type="file" id="regInput" accept=".reg" multiple hidden>
+        </div>
+      </div>
     </section>
 
     <!-- BLOATWARE -->
@@ -427,6 +443,432 @@
       </div>
     </section>
 
+    <!-- ANTWORTDATEI -->
+    <section class="view" id="view-answer">
+      <h2 data-i18n="antwortdatei-2">Antwortdatei</h2>
+      <label class="switch"><input type="checkbox" id="answerEnabled"><span></span><span data-i18n="antwortdatei-designer-aktiv">Antwortdatei mit dem Designer erzeugen</span></label>
+      <p class="lead" data-i18n="antwortdatei-lead">Erzeugt eine vollständige <code>autounattend.xml</code> – Sprache, Konten, Computername,
+      Edition, OOBE –, in die der Generator anschließend seine Aufrufe einfügt. Der Designer ist eine Portierung des
+      Generators von Christoph Schneegans (<a href="https://github.com/cschneegans/unattend-generator" target="_blank" rel="noopener noreferrer">unattend-generator</a>,
+      MIT-Lizenz). Bloatware und weitere Optimierungen kommen aus den eigenen Katalogen des Generators.</p>
+      <p class="hint" id="answerStatus"></p>
+
+      <div class="grid2">
+      <div class="panel">
+        <h3 data-i18n="sprache-und-region">Sprache &amp; Region</h3>
+        <div class="row wrap">
+          <label class="field grow"><span data-i18n="sprache-einstellung">Sprache und Tastatur</span>
+            <select id="ansLangMode">
+              <option value="interactive" data-i18n="opt-interaktiv-setup-fragt">interaktiv – Setup fragt nach</option>
+              <option value="unattended" data-i18n="opt-vorgeben">vorgeben</option>
+            </select></label>
+        </div>
+        <div data-show="answer.language.mode=unattended">
+          <div class="row wrap">
+            <label class="field grow"><span data-i18n="sprache-des-images">Sprache des Windows-Images</span><select id="ansImageLang" data-list="ImageLanguage"></select></label>
+            <label class="field grow"><span data-i18n="standort">Standort (Home Location)</span><select id="ansGeo" data-list="GeoId"></select></label>
+          </div>
+          <div id="ansLocales"></div>
+        </div>
+        <div class="row wrap">
+          <label class="field grow"><span data-i18n="zeitzone">Zeitzone</span>
+            <select id="ansTzMode">
+              <option value="implicit" data-i18n="opt-zeitzone-implizit">aus Sprache/Region ableiten</option>
+              <option value="explicit" data-i18n="opt-vorgeben">vorgeben</option>
+            </select></label>
+          <label class="field grow" data-show="answer.timeZone.mode=explicit"><span>&nbsp;</span><select id="ansTz" data-list="TimeOffset"></select></label>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3 data-i18n="setup-und-edition">Setup &amp; Edition</h3>
+        <div class="row wrap">
+          <label class="field grow"><span data-i18n="edition-produktschluessel">Edition / Produktschlüssel</span>
+            <select id="ansEditionMode">
+              <option value="interactive" data-i18n="opt-edition-interaktiv">interaktiv – Setup fragt nach der Edition</option>
+              <option value="firmware" data-i18n="opt-edition-firmware">Schlüssel aus der Firmware (BIOS/UEFI)</option>
+              <option value="edition" data-i18n="opt-edition-generisch">Edition mit generischem Schlüssel</option>
+              <option value="key" data-i18n="opt-edition-schluessel">eigener Produktschlüssel</option>
+            </select></label>
+          <label class="field grow" data-show="answer.edition.mode=edition"><span data-i18n="edition">Edition</span><select id="ansEdition" data-list="WindowsEdition"></select></label>
+          <label class="field grow" data-show="answer.edition.mode=key"><span data-i18n="produktschluessel">Produktschlüssel</span><input type="text" id="ansKey" placeholder="XXXXX-XXXXX-XXXXX-XXXXX-XXXXX" spellcheck="false"></label>
+        </div>
+        <div class="row wrap">
+          <label class="field grow"><span data-i18n="aktivierungsschluessel">Schlüssel zur Aktivierung (optional)</span><input type="text" id="ansActivationKey" placeholder="XXXXX-XXXXX-XXXXX-XXXXX-XXXXX" spellcheck="false"></label>
+        </div>
+        <label class="chk"><input type="checkbox" id="ansBypassReq"> <span data-i18n="hardwarepruefung-umgehen">Hardwareprüfung umgehen (TPM, Secure Boot, RAM)</span></label>
+        <label class="chk"><input type="checkbox" id="ansBypassNet"> <span data-i18n="netzwerkzwang-umgehen">Einrichtung ohne Internetverbindung erlauben (BypassNRO)</span></label>
+        <label class="chk"><input type="checkbox" id="ansNarrator"> <span data-i18n="sprachausgabe">Sprachausgabe während der Installation</span></label>
+        <div class="row wrap" style="margin-top:8px">
+          <span class="muted" data-i18n="prozessorarchitekturen">Prozessorarchitekturen:</span>
+          <label class="chk"><input type="checkbox" class="ans-arch" value="amd64"> x64</label>
+          <label class="chk"><input type="checkbox" class="ans-arch" value="arm64"> ARM64</label>
+          <label class="chk"><input type="checkbox" class="ans-arch" value="x86"> x86</label>
+        </div>
+        <p class="hint" data-i18n="useconfigurationset-zielsystem-hinweis"><code>UseConfigurationSet</code> folgt dem Zielsystem unter Einstellungen → Auslöser.</p>
+      </div>
+
+      <div class="panel">
+        <h3 data-i18n="computername">Computername</h3>
+        <div class="row wrap">
+          <label class="field grow"><span data-i18n="computername">Computername</span>
+            <select id="ansCnMode">
+              <option value="random" data-i18n="opt-cn-zufaellig">zufällig (Windows vergibt ihn)</option>
+              <option value="custom" data-i18n="opt-cn-fest">fest vorgeben</option>
+              <option value="prompt" data-i18n="opt-cn-abfrage">bei der Installation abfragen</option>
+            </select></label>
+          <label class="field grow" data-show="answer.computerName.mode=custom"><span data-i18n="name">Name</span><input type="text" id="ansCnName" maxlength="15" spellcheck="false"></label>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3 data-i18n="oobe-und-sicherheit">OOBE &amp; Sicherheit</h3>
+        <div class="row wrap">
+          <label class="field grow"><span data-i18n="datenschutz-einstellungen">Datenschutz-Einstellungen</span>
+            <select id="ansExpress">
+              <option value="interactive" data-i18n="opt-interaktiv-setup-fragt">interaktiv – Setup fragt nach</option>
+              <option value="disableAll" data-i18n="opt-alle-aus">alle aus</option>
+              <option value="enableAll" data-i18n="opt-alle-an">alle an</option>
+            </select></label>
+          <label class="field grow"><span data-i18n="wlan">WLAN</span>
+            <select id="ansWifi">
+              <option value="interactive" data-i18n="opt-interaktiv-setup-fragt">interaktiv – Setup fragt nach</option>
+              <option value="skip" data-i18n="opt-wlan-ueberspringen">überspringen</option>
+              <option value="unattended" data-i18n="opt-wlan-einstellungen">mit diesen Einstellungen verbinden</option>
+              <option value="xml" data-i18n="opt-wlan-xml">WLAN-Profil (XML)</option>
+            </select></label>
+        </div>
+        <div data-show="answer.wifi.mode=unattended">
+          <div class="row wrap">
+            <label class="field grow"><span data-i18n="wlan-ssid">Netzwerkname (SSID)</span><input type="text" id="ansWifiName" maxlength="32" spellcheck="false"></label>
+            <label class="field grow"><span data-i18n="wlan-sicherheit">Sicherheit</span>
+              <select id="ansWifiAuth">
+                <option value="WPA2PSK">WPA2-Personal</option>
+                <option value="WPA3SAE">WPA3-Personal</option>
+                <option value="Open" data-i18n="opt-wlan-offen">offen (ohne Kennwort)</option>
+              </select></label>
+          </div>
+          <label class="field" data-show="answer.wifi.authentication!=Open"><span data-i18n="wlan-kennwort">Kennwort</span><input type="text" id="ansWifiPw" spellcheck="false" autocomplete="off"></label>
+          <label class="chk"><input type="checkbox" id="ansWifiAuto"> <span data-i18n="wlan-automatisch">automatisch verbinden</span></label>
+          <label class="chk"><input type="checkbox" id="ansWifiHidden"> <span data-i18n="wlan-verborgen">verborgenes Netzwerk (sendet seinen Namen nicht)</span></label>
+        </div>
+        <div data-show="answer.wifi.mode=xml">
+          <p class="hint" data-i18n="wlan-xml-hinweis">Profil eines Rechners exportieren, der schon verbunden ist:
+          <code>netsh wlan export profile name="NETZ" key=clear folder=.</code> – die Datei hier laden oder auf die Seite ziehen.</p>
+          <textarea id="ansWifiXml" class="code" rows="10" spellcheck="false" wrap="off"></textarea>
+          <div class="row wrap">
+            <button class="btn small" type="button" id="btnWifiLoad" data-i18n="wlan-laden">XML-Datei laden …</button>
+            <input type="file" id="wifiInput" accept=".xml,text/xml" hidden>
+          </div>
+        </div>
+        <p class="hint" data-show-not="answer.wifi.mode=interactive,skip" data-i18n="wlan-kennwort-hinweis">Das Kennwort steht im Klartext in der
+        Antwortdatei auf dem Medium. Auf dem Zielrechner wird <code>Wifi.xml</code> nach der ersten Anmeldung gelöscht, sofern
+        „unattend.xml nach der ersten Anmeldung behalten“ aus ist. Im specialize-Pass wartet Setup bis zu einer Minute auf den
+        WLAN-Dienst – ohne WLAN-Adapter geht es danach normal weiter.</p>
+        <div class="row wrap">
+          <label class="field grow"><span data-i18n="kontosperrung">Kontosperrung</span>
+            <select id="ansLockMode">
+              <option value="default" data-i18n="opt-windows-standard">Windows-Standard</option>
+              <option value="disabled" data-i18n="opt-aus">aus</option>
+              <option value="custom" data-i18n="opt-eigene-werte">eigene Werte</option>
+            </select></label>
+          <label class="field" data-show="answer.lockout.mode=custom"><span data-i18n="fehlversuche">Fehlversuche</span><input type="number" id="ansLockThreshold" min="0" max="999"></label>
+          <label class="field" data-show="answer.lockout.mode=custom"><span data-i18n="sperrdauer-min">Sperrdauer (min)</span><input type="number" id="ansLockDuration" min="1" max="99999"></label>
+          <label class="field" data-show="answer.lockout.mode=custom"><span data-i18n="zaehler-zuruecksetzen-min">Zähler zurücksetzen (min)</span><input type="number" id="ansLockWindow" min="1" max="99999"></label>
+        </div>
+        <div class="row wrap">
+          <label class="field grow"><span data-i18n="kennwortablauf">Kennwortablauf</span>
+            <select id="ansPwMode">
+              <option value="default" data-i18n="opt-pw-standard">Windows-Standard (42 Tage)</option>
+              <option value="unlimited" data-i18n="opt-pw-unbegrenzt">unbegrenzt</option>
+              <option value="custom" data-i18n="opt-eigene-werte">eigene Werte</option>
+            </select></label>
+          <label class="field" data-show="answer.passwordExpiration.mode=custom"><span data-i18n="tage">Tage</span><input type="number" id="ansPwAge" min="1" max="999"></label>
+        </div>
+        <label class="chk"><input type="checkbox" id="ansHidePs"> <span data-i18n="powershell-fenster-verbergen">PowerShell-Fenster der Antwortdatei verbergen</span></label>
+        <label class="chk"><input type="checkbox" id="ansKeepFiles"> <span data-i18n="sensible-dateien-behalten">unattend.xml nach der ersten Anmeldung behalten (enthält ggf. Kennwörter)</span></label>
+      </div>
+      </div>
+
+      <div class="panel">
+        <h3 data-i18n="installation-und-partitionierung">Installation &amp; Partitionierung</h3>
+        <div class="row wrap">
+          <label class="field grow"><span data-i18n="ablauf-der-installation">Ablauf der Installation</span>
+            <select id="ansPeMode">
+              <option value="default" data-i18n="opt-pe-standard">Windows Setup – Partitionen in Setup wählen (Standard)</option>
+              <option value="generate" data-i18n="opt-pe-generate">pe.cmd – Datenträger automatisch einteilen und Windows aufspielen</option>
+              <option value="script" data-i18n="opt-pe-script">eigenes pe.cmd</option>
+            </select></label>
+        </div>
+        <p class="hint" data-show="answer.pe.mode=generate" data-i18n="pe-hinweis">Statt Windows Setup übernimmt ein Skript die windowsPE-Phase: Zieldatenträger
+        bestimmen, mit <code>diskpart</code> einteilen, Image per <code>dism</code> aufspielen, <code>bcdboot</code>,
+        <code>$OEM$</code> per <code>robocopy</code> kopieren, neu starten. Edition und Hardwareprüfung aus „Setup &amp; Edition“
+        gelten dann nicht – es wird direkt das gewählte Image angewendet.</p>
+        <div data-show="answer.pe.mode=generate">
+          <div class="row wrap">
+            <label class="field grow"><span data-i18n="partitionierung">Partitionierung</span>
+              <select id="ansPartMode">
+                <option value="unattended" data-i18n="opt-part-automatisch">automatisch (Datenträger wird gelöscht)</option>
+                <option value="custom" data-i18n="opt-part-diskpart">eigenes diskpart-Skript</option>
+                <option value="interactive" data-i18n="opt-part-interaktiv">von Hand (Shift+F10, diskpart)</option>
+              </select></label>
+          </div>
+          <div data-show="answer.pe.partition.mode=unattended">
+            <div class="row wrap">
+              <label class="field"><span data-i18n="layout">Layout</span>
+                <select id="ansPartLayout">
+                  <option value="Automatic" data-i18n="opt-layout-auto">nach Firmware (UEFI: GPT, BIOS: MBR)</option>
+                  <option value="GPT">GPT</option>
+                  <option value="MBR">MBR</option>
+                </select></label>
+              <label class="field"><span data-i18n="systempartition-mb">Systempartition (MB)</span><input type="number" id="ansPartSystem" min="100"></label>
+              <label class="field"><span data-i18n="wiederherstellung">Wiederherstellung</span>
+                <select id="ansPartRecovery">
+                  <option value="Partition" data-i18n="opt-recovery-partition">eigene Partition</option>
+                  <option value="None" data-i18n="opt-recovery-keine">keine (winre.wim löschen)</option>
+                </select></label>
+              <label class="field" data-show="answer.pe.partition.recovery=Partition"><span data-i18n="groesse-mb">Größe (MB)</span><input type="number" id="ansPartRecoverySize" min="300"></label>
+            </div>
+            <div class="row wrap">
+              <label class="field grow"><span data-i18n="zieldatentraeger">Zieldatenträger</span>
+                <select id="ansTargetMode">
+                  <option value="generated" data-i18n="opt-ziel-kriterien">nach Kriterien bestimmen (bricht ab, wenn nicht eindeutig)</option>
+                  <option value="fixed" data-i18n="opt-ziel-fest">fester Index</option>
+                  <option value="interactive" data-i18n="opt-ziel-interaktiv">bei der Installation abfragen</option>
+                  <option value="script" data-i18n="opt-ziel-skript">eigenes VBScript</option>
+                </select></label>
+              <label class="field" data-show="answer.pe.partition.target.mode=fixed"><span data-i18n="index">Index</span><input type="number" id="ansTargetIndex" min="0"></label>
+            </div>
+            <div data-show="answer.pe.partition.target.mode=generated">
+              <div class="row wrap">
+                <label class="field"><span data-i18n="index">Index</span><input type="number" id="ansTargetIndexGen" min="0" data-i18n-ph="leer-beliebig" placeholder="leer = beliebig"></label>
+                <label class="field"><span data-i18n="mindestgroesse-gib">Mindestgröße (GiB)</span><input type="number" id="ansTargetMin" min="0" data-i18n-ph="leer-beliebig" placeholder="leer = beliebig"></label>
+                <label class="field"><span data-i18n="hoechstgroesse-gib">Höchstgröße (GiB)</span><input type="number" id="ansTargetMax" min="0" data-i18n-ph="leer-beliebig" placeholder="leer = beliebig"></label>
+              </div>
+              <label class="chk"><input type="checkbox" id="ansTargetEmpty"> <span data-i18n="ziel-ohne-partitionen">nur Datenträger ohne Partitionen</span></label>
+              <label class="chk"><input type="checkbox" id="ansTargetIface"> <span data-i18n="ziel-ide-scsi">nur IDE/SCSI (keine USB-Datenträger)</span></label>
+              <label class="chk"><input type="checkbox" id="ansTargetMedia"> <span data-i18n="ziel-festplatte">nur Festplatten („Fixed hard disk media“)</span></label>
+            </div>
+            <label class="field grow" data-show="answer.pe.partition.target.mode=script"><span data-i18n="vbscript-zieldatentraeger">VBScript – gibt den Index des Zieldatenträgers aus</span>
+              <textarea id="ansTargetScript" rows="5" spellcheck="false"></textarea></label>
+          </div>
+          <label class="field grow" data-show="answer.pe.partition.mode=custom"><span data-i18n="diskpart-skript">diskpart-Skript – muss die Buchstaben W (Windows) und S (System) vergeben</span>
+            <textarea id="ansPartCustom" rows="8" spellcheck="false"></textarea></label>
+          <div class="row wrap">
+            <label class="field grow"><span data-i18n="image-auswahl">Image</span>
+              <select id="ansInstMode">
+                <option value="edition" data-i18n="opt-inst-edition">nach Edition</option>
+                <option value="index" data-i18n="opt-inst-index">nach Index</option>
+                <option value="name" data-i18n="opt-inst-name">nach Name</option>
+                <option value="interactive" data-i18n="opt-inst-interaktiv">bei der Installation abfragen</option>
+              </select></label>
+            <label class="field grow" data-show="answer.pe.installFrom.mode=edition"><span data-i18n="edition">Edition</span><select id="ansInstEdition" data-list="WindowsEdition"></select></label>
+            <label class="field" data-show="answer.pe.installFrom.mode=index"><span data-i18n="index">Index</span><input type="number" id="ansInstIndex" min="1"></label>
+            <label class="field grow" data-show="answer.pe.installFrom.mode=name"><span data-i18n="name">Name</span><input type="text" id="ansInstName" placeholder="Windows 11 Pro"></label>
+          </div>
+          <div class="row wrap">
+            <label class="field grow"><span data-i18n="auslagerungsdatei">Auslagerungsdatei</span>
+              <select id="ansPagingMode">
+                <option value="automatic" data-i18n="opt-paging-auto">von Windows verwaltet</option>
+                <option value="none" data-i18n="opt-paging-keine">keine</option>
+                <option value="custom" data-i18n="opt-eigene-werte">eigene Werte</option>
+              </select></label>
+            <label class="field" data-show="answer.pe.pagingFile.mode=custom"><span data-i18n="anfang-mib">Anfang (MiB)</span><input type="number" id="ansPagingInitial" min="1"></label>
+            <label class="field" data-show="answer.pe.pagingFile.mode=custom"><span data-i18n="maximum-mib">Maximum (MiB)</span><input type="number" id="ansPagingMax" min="1"></label>
+          </div>
+          <label class="chk"><input type="checkbox" id="ansPeCompact"> <span data-i18n="compact-os">Compact OS (komprimiert, spart Platz)</span></label>
+          <label class="chk"><input type="checkbox" id="ansPeSkipCheck"> <span data-i18n="integritaet-ueberspringen">Integritätsprüfung des Images überspringen (schneller)</span></label>
+          <label class="chk"><input type="checkbox" id="ansPe83"> <span data-i18n="namen-83-aus">8.3-Dateinamen abschalten</span></label>
+          <label class="chk"><input type="checkbox" id="ansPeDefender"> <span data-i18n="defender-aus">Windows Defender abschalten</span></label>
+          <label class="chk"><input type="checkbox" id="ansPePauseFormat"> <span data-i18n="pause-vor-formatieren">vor dem Formatieren anhalten</span></label>
+          <label class="chk"><input type="checkbox" id="ansPePauseReboot"> <span data-i18n="pause-vor-neustart">vor dem Neustart anhalten</span></label>
+        </div>
+        <label class="field grow" data-show="answer.pe.mode=script"><span data-i18n="eigenes-pe-skript">Eigenes pe.cmd – ersetzt die windowsPE-Phase von Windows Setup</span>
+          <textarea id="ansPeScript" rows="10" spellcheck="false"></textarea></label>
+      </div>
+
+      <div class="panel">
+        <h3 data-i18n="personalisierung">Personalisierung</h3>
+        <p class="hint" data-i18n="personalisierung-hinweis">Wirkt für jedes neue Benutzerkonto bei der ersten Anmeldung (danach startet der Explorer
+        einmal neu). Besonders nützlich, wenn Windows ohne Aktivierung laufen soll – dann sperrt Windows die Personalisierung in den
+        Einstellungen. Überschneidet sich teils mit Tweaks wie „Dunkles Design“ oder „Desktopsymbole“; dann nur eines von beiden wählen.</p>
+        <div class="grid2">
+          <div>
+            <div class="row wrap">
+              <label class="field grow"><span data-i18n="farben">Farben</span>
+                <select id="ansColMode">
+                  <option value="default" data-i18n="opt-windows-standard">Windows-Standard</option>
+                  <option value="custom" data-i18n="opt-eigenes-farbschema">eigenes Farbschema</option>
+                </select></label>
+            </div>
+            <div data-show="answer.colors.mode=custom">
+              <div class="row wrap">
+                <label class="field"><span data-i18n="taskleiste-und-start">Taskleiste und Start</span>
+                  <select id="ansColSystem"><option value="Dark" data-i18n="opt-dunkel">dunkel</option><option value="Light" data-i18n="opt-hell">hell</option></select></label>
+                <label class="field"><span data-i18n="apps">Apps</span>
+                  <select id="ansColApps"><option value="Dark" data-i18n="opt-dunkel">dunkel</option><option value="Light" data-i18n="opt-hell">hell</option></select></label>
+                <label class="field"><span data-i18n="akzentfarbe">Akzentfarbe</span><input type="color" id="ansColAccent"></label>
+              </div>
+              <label class="chk"><input type="checkbox" id="ansColOnStart"> <span data-i18n="akzent-start-taskleiste">Akzentfarbe auf Start und Taskleiste</span></label>
+              <label class="chk"><input type="checkbox" id="ansColOnBorders"> <span data-i18n="akzent-titelleisten">Akzentfarbe auf Titelleisten und Fensterrahmen</span></label>
+              <label class="chk"><input type="checkbox" id="ansColTransparency"> <span data-i18n="transparenz">Transparenzeffekte</span></label>
+            </div>
+          </div>
+          <div>
+            <div class="row wrap">
+              <label class="field grow"><span data-i18n="sperrtasten">Sperrtasten (gilt auch für den Anmeldebildschirm)</span>
+                <select id="ansLockKeysMode">
+                  <option value="default" data-i18n="opt-windows-standard">Windows-Standard</option>
+                  <option value="configure" data-i18n="opt-festlegen">festlegen</option>
+                </select></label>
+            </div>
+            <table class="tbl" data-show="answer.lockKeys.mode=configure">
+              <thead><tr><th data-i18n="taste">Taste</th><th data-i18n="beim-start">Beim Start</th><th data-i18n="beim-druecken">Beim Drücken</th></tr></thead>
+              <tbody>
+                <tr><td>Caps Lock</td>
+                  <td><select id="ansCapsInit"><option value="Off" data-i18n="opt-aus">aus</option><option value="On" data-i18n="opt-an">an</option></select></td>
+                  <td><select id="ansCapsBeh"><option value="Toggle" data-i18n="opt-umschalten">umschalten</option><option value="Ignore" data-i18n="opt-ignorieren">ignorieren</option></select></td></tr>
+                <tr><td>Num Lock</td>
+                  <td><select id="ansNumInit"><option value="Off" data-i18n="opt-aus">aus</option><option value="On" data-i18n="opt-an">an</option></select></td>
+                  <td><select id="ansNumBeh"><option value="Toggle" data-i18n="opt-umschalten">umschalten</option><option value="Ignore" data-i18n="opt-ignorieren">ignorieren</option></select></td></tr>
+                <tr><td>Scroll Lock</td>
+                  <td><select id="ansScrollInit"><option value="Off" data-i18n="opt-aus">aus</option><option value="On" data-i18n="opt-an">an</option></select></td>
+                  <td><select id="ansScrollBeh"><option value="Toggle" data-i18n="opt-umschalten">umschalten</option><option value="Ignore" data-i18n="opt-ignorieren">ignorieren</option></select></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="grid2">
+          <div>
+            <label class="field"><span data-i18n="hintergrundbild">Hintergrundbild</span>
+              <select id="ansWpUi">
+                <option value="default" data-i18n="opt-windows-standard">Windows-Standard</option>
+                <option value="solid" data-i18n="opt-einfarbig">einfarbig</option>
+                <option value="image" data-i18n="opt-bild">Bild</option>
+                <option value="script" data-i18n="opt-bild-skript">Bild per eigenem PowerShell-Skript</option>
+              </select></label>
+            <label class="field" data-show="answer.wallpaper.ui=solid"><span data-i18n="farbe">Farbe</span><input type="color" id="ansWpColor"></label>
+            <div class="row wrap" data-show="answer.wallpaper.ui=image">
+              <button class="btn small" type="button" id="btnWpImage" data-i18n="bild-waehlen">Bild wählen …</button>
+              <span class="hint" id="ansWpInfo"></span>
+              <input type="file" id="wpInput" accept="image/jpeg,image/png,image/bmp" hidden>
+            </div>
+            <textarea id="ansWpScript" class="code" rows="4" spellcheck="false" wrap="off" data-show="answer.wallpaper.ui=script"></textarea>
+          </div>
+          <div>
+            <label class="field"><span data-i18n="sperrbildschirm">Sperrbildschirm</span>
+              <select id="ansLsUi">
+                <option value="default" data-i18n="opt-windows-standard">Windows-Standard</option>
+                <option value="image" data-i18n="opt-bild">Bild</option>
+                <option value="script" data-i18n="opt-bild-skript">Bild per eigenem PowerShell-Skript</option>
+              </select></label>
+            <div class="row wrap" data-show="answer.lockScreen.ui=image">
+              <button class="btn small" type="button" id="btnLsImage" data-i18n="bild-waehlen">Bild wählen …</button>
+              <span class="hint" id="ansLsInfo"></span>
+              <input type="file" id="lsInput" accept="image/jpeg,image/png" hidden>
+            </div>
+            <textarea id="ansLsScript" class="code" rows="4" spellcheck="false" wrap="off" data-show="answer.lockScreen.ui=script"></textarea>
+          </div>
+        </div>
+        <p class="hint" data-i18n="bild-hinweis">Ein Bild wird Base64-kodiert in die Antwortdatei eingebettet (rund ein Drittel größer als
+        die Datei) und im <code>specialize</code>-Pass nach <code>C:\Windows\Setup\Scripts</code> geschrieben – große Fotos also vorher
+        verkleinern. Ein eigenes Skript muss die Bilddaten als Bytes ausgeben, z.&nbsp;B.
+        <code>(Invoke-WebRequest -Uri 'https://…/bild.jpg' -UseBasicParsing).Content</code>; im <code>specialize</code>-Pass steht das
+        Netzwerk aber oft noch nicht bereit.</p>
+        <div class="row wrap">
+          <label class="field grow"><span data-i18n="visuelle-effekte">Visuelle Effekte</span>
+            <select id="ansFxMode">
+              <option value="default" data-i18n="opt-windows-standard">Windows-Standard</option>
+              <option value="bestAppearance" data-i18n="opt-fx-darstellung">optimale Darstellung</option>
+              <option value="bestPerformance" data-i18n="opt-fx-leistung">optimale Leistung</option>
+              <option value="custom" data-i18n="opt-fx-eigene">eigene Auswahl</option>
+            </select></label>
+        </div>
+        <div class="checkgrid" id="ansFxList" data-show="answer.effects.mode=custom"></div>
+        <div class="row wrap">
+          <label class="field grow"><span data-i18n="desktopsymbole">Desktopsymbole</span>
+            <select id="ansIconsMode">
+              <option value="default" data-i18n="opt-windows-standard">Windows-Standard</option>
+              <option value="custom" data-i18n="opt-diese-anzeigen">diese anzeigen</option>
+            </select></label>
+        </div>
+        <div class="checkgrid" id="ansIconList" data-show="answer.desktopIcons.mode=custom"></div>
+        <label class="chk"><input type="checkbox" id="ansDeleteEdge"> <span data-i18n="edge-verknuepfung-loeschen">Edge-Verknüpfung auf dem Desktop löschen</span></label>
+        <div class="row wrap">
+          <label class="field grow"><span data-i18n="ordner-im-start">Ordner im Startmenü (neben dem Ein/Aus-Knopf)</span>
+            <select id="ansFoldersMode">
+              <option value="default" data-i18n="opt-windows-standard">Windows-Standard</option>
+              <option value="custom" data-i18n="opt-diese-anzeigen">diese anzeigen</option>
+            </select></label>
+        </div>
+        <div class="checkgrid" id="ansFolderList" data-show="answer.startFolders.mode=custom"></div>
+      </div>
+
+      <div class="panel">
+        <h3 data-i18n="vm-gasterweiterungen">Gasterweiterungen für virtuelle Maschinen</h3>
+        <p class="hint" data-i18n="vm-hinweis">Installiert die Gasterweiterungen, wenn das passende Medium in der VM eingelegt ist –
+        durchsucht werden die Laufwerke D: bis Z:. Ohne Medium wird nur ein Hinweis protokolliert, die Installation läuft weiter.
+        Installiert wird bei der ersten Anmeldung, mit <code>pe.cmd</code> und abgeschaltetem Defender schon im
+        <code>specialize</code>-Pass. VirtIO lädt mit <code>pe.cmd</code> zusätzlich die Speicher- und Netzwerktreiber
+        (<code>vioscsi</code>, <code>viostor</code>, <code>NetKVM</code>) vom Medium.</p>
+        <label class="chk"><input type="checkbox" id="ansVmVbox"> <span>VirtualBox Guest Additions</span> <small class="muted" data-i18n="vm-vbox-medium">(Geräte → Gasterweiterungen einlegen)</small></label>
+        <label class="chk"><input type="checkbox" id="ansVmVmware"> <span>VMware Tools</span> <small class="muted" data-i18n="vm-vmware-medium">(windows.iso einbinden)</small></label>
+        <label class="chk"><input type="checkbox" id="ansVmVirtio"> <span>VirtIO Guest Tools</span> <small class="muted" data-i18n="vm-virtio-medium">(QEMU/KVM, Proxmox – virtio-win-*.iso einbinden)</small></label>
+        <label class="chk"><input type="checkbox" id="ansVmParallels"> <span>Parallels Tools</span> <small class="muted" data-i18n="vm-parallels-medium">(prl-tools-win-*.iso einbinden)</small></label>
+      </div>
+
+      <div class="panel">
+        <h3>AppLocker</h3>
+        <p class="hint" data-i18n="applocker-hinweis">Wendet eine AppLocker-Richtlinie im <code>specialize</code>-Pass mit
+        <code>Set-AppLockerPolicy</code> an und stellt den Dienst Anwendungsidentität (<code>AppIDSvc</code>) auf automatisch.
+        Die Richtlinie stammt z.&nbsp;B. von einem Referenzrechner: <code>Get-AppLockerPolicy -Local -Xml &gt; AppLocker.xml</code>
+        oder <code>secpol.msc</code> → Anwendungssteuerungsrichtlinien → AppLocker → Richtlinie exportieren. <b>Vorsicht:</b> Erzwungene
+        Regeln ohne die Standardregeln können Programme, Skripte und sogar die Anmeldung sperren – neue Regeln zuerst mit
+        „Nur überwachen“ (<code>AuditOnly</code>) testen. Ob die Edition (z.&nbsp;B. Pro) die Regeln durchsetzt, vorher in einer VM prüfen.</p>
+        <div class="row wrap">
+          <label class="field grow"><span data-i18n="applocker">AppLocker-Richtlinie</span>
+            <select id="ansAlMode">
+              <option value="skip" data-i18n="opt-al-skip">nicht ändern</option>
+              <option value="configure" data-i18n="opt-al-configure">diese Richtlinie anwenden</option>
+            </select></label>
+        </div>
+        <div data-show="answer.appLocker.mode=configure">
+          <textarea id="ansAlXml" class="code" rows="14" spellcheck="false" wrap="off"></textarea>
+          <div class="row wrap">
+            <button class="btn small" type="button" id="btnAlSample" data-i18n="al-beispiel">Beispiel einfügen (Standardregeln, nur überwachen)</button>
+            <button class="btn small" type="button" id="btnAlLoad" data-i18n="al-laden">XML-Datei laden …</button>
+            <input type="file" id="alInput" accept=".xml,text/xml" hidden>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3 data-i18n="benutzerkonten">Benutzerkonten</h3>
+        <div class="row wrap">
+          <label class="field grow"><span data-i18n="benutzerkonten">Benutzerkonten</span>
+            <select id="ansAccMode">
+              <option value="interactive-ms" data-i18n="opt-konto-ms">interaktiv – Microsoft-Konto</option>
+              <option value="interactive-local" data-i18n="opt-konto-lokal">interaktiv – lokales Konto</option>
+              <option value="unattended" data-i18n="opt-konto-vorgeben">Konten vorgeben</option>
+            </select></label>
+        </div>
+        <div data-show="answer.account.mode=unattended">
+          <div class="table-wrap"><table class="tbl" id="ansAccounts"></table></div>
+          <div class="row wrap">
+            <button class="btn small" id="btnAnsAddAccount" data-i18n="konto-hinzufuegen">Konto hinzufügen</button>
+            <label class="field grow"><span data-i18n="automatische-anmeldung">Automatische Anmeldung</span>
+              <select id="ansAutoLogon">
+                <option value="none" data-i18n="opt-autologon-keine">keine</option>
+                <option value="own" data-i18n="opt-autologon-erstes-admin">erstes Administratorkonto (einmal)</option>
+                <option value="builtin" data-i18n="opt-autologon-builtin">integriertes Administratorkonto</option>
+              </select></label>
+            <label class="field grow" data-show="answer.account.autoLogon=builtin"><span data-i18n="kennwort-administrator">Kennwort für „Administrator“</span><input type="text" id="ansBuiltinPw" spellcheck="false"></label>
+          </div>
+          <label class="chk"><input type="checkbox" id="ansObscure"> <span data-i18n="kennwoerter-verschleiern">Kennwörter verschleiern (Base64 wie Windows SIM – kein Schutz, nur nicht im Klartext lesbar)</span></label>
+        </div>
+      </div>
+    </section>
+
     <!-- EINSTELLUNGEN -->
     <section class="view" id="view-settings">
       <h2 data-i18n="einstellungen-2">Einstellungen</h2>
@@ -464,7 +906,16 @@
         Markengeräts. Betroffen sind Home und Pro, ausgenommen sind Enterprise und Windows Server. Die
         <code>autounattend.xml</code> ist davon unabhängig und startet Phase 1 im <code>specialize</code>-Pass sowie
         Phase 2 über <code>FirstLogonCommands</code>.</p>
-        <label class="chk"><input type="checkbox" id="setConfigSet" checked> <span data-i18n="useconfigurationset-setzen"><code>UseConfigurationSet=true</code> in die autounattend.xml schreiben – nötig, damit Windows Setup <code>$OEM$</code> kopiert (empfohlen)</span></label>
+        <div class="row wrap">
+        <label class="field grow">
+          <span><span data-i18n="zielsystem-useconfigurationset">Zielsystem – bestimmt <code>UseConfigurationSet</code> in der autounattend.xml</span></span>
+          <select id="setConfigSetMode">
+            <option value="new" data-i18n="ziel-24h2">Windows 11 24H2 und neuer – UseConfigurationSet=true (empfohlen)</option>
+            <option value="old" data-i18n="ziel-23h2">Windows 10 / Windows 11 bis 23H2 – UseConfigurationSet=false</option>
+            <option value="mixed" data-i18n="ziel-beide">Ein Medium für beide Generationen – true, mit Kopie des Mediums auf alten Builds</option>
+          </select>
+        </label>
+        </div>
         <p class="hint" id="configSetHint"></p>
         <div id="unattendBox" class="summary"></div>
         <div class="row">
@@ -499,6 +950,25 @@
           <label class="chk"><input type="checkbox" id="setKeepInstall"> <span class="mono-inline" id="setKeepInstallLabel"><span data-i18n="c-install">C:\Install</span></span> <span data-i18n="nach-abschluss-loeschen">nach Abschluss löschen</span></label>
           <label class="chk"><input type="checkbox" id="setToastOnFinish"> <span data-i18n="abschlussmeldung-im-explorer-anzeigen">Abschlussmeldung im Explorer anzeigen</span></label>
         </div>
+      </div>
+      <div class="panel">
+        <h3 data-i18n="iso-abbild">ISO-Abbild</h3>
+        <p class="hint" data-i18n="iso-abbild-hinweis"><b>ISO erzeugen</b> (oben) schreibt eine neue Windows-ISO: Inhalt der
+        Quell-ISO plus die erzeugten Dateien – <code>autounattend.xml</code>, <code>$OEM$</code>, <code>$WinPEDriver$</code>.
+        Vorhandene Ordner <code>$OEM$</code>, <code>sources\$OEM$</code> und <code>$WinPEDriver$</code> der Quelle werden ersetzt.
+        Die ISO bootet wie das Original per BIOS und UEFI; <code>install.wim</code> bzw. <code>install.esd</code> bleibt
+        unverändert. Gedacht für die Original-ISO von Microsoft.</p>
+        <div id="isoSourceBox" class="summary"></div>
+        <div class="row">
+          <button class="btn small" id="btnIsoPick" data-i18n="quell-iso-waehlen">Quell-ISO wählen</button>
+          <button class="btn small" id="btnIsoDrop" hidden data-i18n="quell-iso-verwerfen">Auswahl aufheben</button>
+          <input type="file" id="isoInput" accept=".iso" hidden>
+        </div>
+        <label class="chk"><input type="checkbox" id="isoNoPrompt"> <span data-i18n="iso-ohne-press-any-key">Ohne „Press any key to boot from CD or DVD“ starten
+        (<code>efisys_noprompt.bin</code>, ohne <code>bootfix.bin</code>) – nur für VMs und Automatisierung</span></label>
+        <p class="hint" data-i18n="iso-ohne-press-any-key-hinweis">Vorsicht: Ohne Rückfrage startet Windows Setup bei jedem
+        Neustart erneut, solange die ISO eingelegt ist – mit einer <code>autounattend.xml</code>, die Datenträger einteilt, wird
+        der Rechner dann immer wieder neu installiert.</p>
       </div>
       <div class="panel">
         <h3 data-i18n="projekt">Projekt</h3>
@@ -546,6 +1016,10 @@
 <script src="js/version.js"></script>
 <script src="js/i18n.js"></script>
 <script src="js/zip.js"></script>
+<script src="js/iso.js"></script>
+<script src="js/ug/resources.js"></script>
+<script src="js/ug/core.js"></script>
+<script src="js/ug/modifiers.js"></script>
 <script src="js/catalog.js"></script>
 <script src="js/importers.js"></script>
 <script src="js/templates.js"></script>

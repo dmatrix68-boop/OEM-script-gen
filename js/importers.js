@@ -399,6 +399,17 @@
         applied.push('windowsPE / UseConfigurationSet = true');
       }
     }
+    /*  Zielsystem bis 23H2: true wuerde das ganze Medium nach ConfigSetRoot
+        kopieren - einen vorhandenen Wert deshalb auf false setzen. */
+    if (opts && opts.configSet === false) {
+      const pe = Array.from(doc.getElementsByTagNameNS('*', 'settings')).find((x) => x.getAttribute('pass') === 'windowsPE');
+      const comp = pe && Array.from(pe.getElementsByTagNameNS('*', 'component')).find((x) => x.getAttribute('name') === 'Microsoft-Windows-Setup');
+      const ucs = comp && child(comp, 'UseConfigurationSet');
+      if (ucs && ucs.textContent.trim().toLowerCase() === 'true') {
+        ucs.textContent = 'false';
+        applied.push('windowsPE / UseConfigurationSet = false');
+      }
+    }
 
     if (commands.setup) {
       const comp = getComponent(getSettings('specialize'), 'Microsoft-Windows-Deployment');
@@ -420,6 +431,13 @@
 
     let out = new XMLSerializer().serializeToString(doc);
     if (!/^\s*<\?xml/.test(out)) out = '<?xml version="1.0" encoding="utf-8"?>\n' + out;
+    /*  Windows Setup erwartet utf-8 im Kopf, verarbeitet aber nur ASCII
+        zuverlaessig (so auch der Generator von Christoph Schneegans): alles
+        andere als Zeichenreferenz. In CDATA-Abschnitten wirken Referenzen
+        nicht - dort bleibt der Text unveraendert. */
+    if (out.indexOf('<![CDATA[') < 0) {
+      out = out.replace(/[^\x00-\x7F]/gu, (c) => '&#x' + c.codePointAt(0).toString(16).toUpperCase() + ';');
+    }
     return { xml: out.replace(/\r?\n/g, '\r\n'), applied: applied };
   }
 
@@ -433,10 +451,13 @@
     if (n.endsWith('.ubundle')) return 'bundle';
     if (n.endsWith('.cmd') || n.endsWith('.bat')) return 'cmd';
     if (n.endsWith('.ps1')) return 'ps1';
+    if (n.endsWith('.reg') || /^(Windows Registry Editor Version 5\.00|REGEDIT4)\s*$/im.test(t.slice(0, 80))) return 'reg';
     if (t.startsWith('<')) {
       if (/<Configuration[\s>]/i.test(t)) return 'officexml';
       if (/<Package[\s>]/i.test(t)) return 'bundle';
       if (/<unattend[\s>]/i.test(t)) return 'unattend';
+      if (/<AppLockerPolicy[\s>/]/.test(t)) return 'applocker';
+      if (/<WLANProfile[\s>/]/.test(t)) return 'wlan';
       return 'xml';
     }
     if (t.startsWith('{') || t.startsWith('[')) {
@@ -447,8 +468,182 @@
     return 'text';
   }
 
+
+  /* ---------- .reg-Dateien (Registrierungs-Editor) ----------
+
+     Unterstützt REGEDIT4 (ANSI) und "Windows Registry Editor Version 5.00"
+     (UTF-16), Zeilenfortsetzung mit "\", Kommentare, den Standardwert "@",
+     Löschungen von Werten ("Name"=-) und Schlüsseln ([-Schlüssel]) sowie die
+     Typen REG_SZ, REG_EXPAND_SZ, REG_MULTI_SZ, REG_DWORD, REG_QWORD und
+     REG_BINARY. Seltene Typen (REG_NONE, Big-Endian ...) werden als Binärwert
+     übernommen - mit Warnung, weil sich der Typ dabei ändert.
+
+     Ziel ist das Modell der Tweaks: scope 'machine' oder 'user' plus Pfad
+     relativ zum Zweig. HKCU landet damit wie jeder Benutzer-Tweak im
+     Default-Profil bzw. bei allen Benutzern - ein schlichtes "reg import" als
+     SYSTEM schriebe dagegen in das Profil von SYSTEM.  */
+
+  /* Bytes einer .reg-Datei in Text: BOM entscheidet, sonst UTF-8, notfalls ANSI. */
+  function decodeRegBytes(bytes) {
+    if (bytes.length >= 2 && bytes[0] === 0xFF && bytes[1] === 0xFE) return new TextDecoder('utf-16le').decode(bytes.subarray(2));
+    if (bytes.length >= 2 && bytes[0] === 0xFE && bytes[1] === 0xFF) return new TextDecoder('utf-16be').decode(bytes.subarray(2));
+    if (bytes.length >= 3 && bytes[0] === 0xEF && bytes[1] === 0xBB && bytes[2] === 0xBF) return new TextDecoder('utf-8').decode(bytes.subarray(3));
+    try { return new TextDecoder('utf-8', { fatal: true }).decode(bytes); }
+    catch (e) { return new TextDecoder('windows-1252').decode(bytes); }
+  }
+
+  const REG_HIVES = {
+    HKEY_LOCAL_MACHINE: 'HKLM', HKLM: 'HKLM',
+    HKEY_CURRENT_USER: 'HKCU', HKCU: 'HKCU',
+    HKEY_CLASSES_ROOT: 'HKCR', HKCR: 'HKCR',
+    HKEY_CURRENT_CONFIG: 'HKCC', HKCC: 'HKCC',
+    HKEY_USERS: 'HKU', HKU: 'HKU'
+  };
+
+  /* Vollständigen Schlüssel auf scope + Pfad abbilden; null + Grund, wenn nicht übertragbar. */
+  function mapRegKey(full) {
+    const parts = full.split('\\').filter(Boolean);
+    const hive = REG_HIVES[(parts.shift() || '').toUpperCase()];
+    const rest = parts.join('\\');
+    if (!hive) return { skip: 'unbekannter Zweig' };
+    if (hive === 'HKLM') return rest ? { scope: 'machine', path: rest, hive } : { skip: 'Wurzel von HKLM' };
+    if (hive === 'HKCU') return rest ? { scope: 'user', path: rest, hive } : { skip: 'Wurzel von HKCU' };
+    if (hive === 'HKCR') return { scope: 'machine', path: 'SOFTWARE\\Classes' + (rest ? '\\' + rest : ''), hive };
+    if (hive === 'HKCC') return { scope: 'machine', path: 'SYSTEM\\CurrentControlSet\\Hardware Profiles\\Current' + (rest ? '\\' + rest : ''), hive };
+    if (parts[0] && parts[0].toUpperCase() === '.DEFAULT') return { skip: 'HKEY_USERS\\.DEFAULT ist das Profil des SYSTEM-Kontos' };
+    return { skip: 'HKEY_USERS mit Benutzer-SID – auf einem neuen System nicht übertragbar' };
+  }
+
+  function regUnescape(s) { return s.replace(/\\(["\\])/g, '$1'); }
+
+  /* Ab pos eine Zeichenkette in Anführungszeichen lesen: [Wert, Ende] */
+  function regQuoted(line, pos) {
+    let out = '', i = pos + 1;
+    for (; i < line.length; i++) {
+      const c = line[i];
+      if (c === '\\' && i + 1 < line.length) { out += line[i + 1]; i++; continue; }
+      if (c === '"') return [out, i + 1];
+      out += c;
+    }
+    return null;
+  }
+
+  function hexBytes(s) {
+    const t = s.replace(/[\s\\]/g, '');
+    if (!t) return [];
+    return t.split(',').filter((x) => x !== '').map((x) => {
+      if (!/^[0-9a-f]{1,2}$/i.test(x)) throw new Error('ungültiges Byte "' + x + '"');
+      return parseInt(x, 16);
+    });
+  }
+
+  function bytesToString(bytes, unicode) {
+    const u8 = new Uint8Array(bytes);
+    const txt = unicode ? new TextDecoder('utf-16le').decode(u8) : new TextDecoder('windows-1252').decode(u8);
+    return txt;
+  }
+
+  function parseReg(text, filename) {
+    const src = String(text || '').replace(/^\uFEFF/, '');
+    const raw = src.split(/\r\n|\r|\n/);
+    let i = 0;
+    while (i < raw.length && !raw[i].trim()) i++;
+    const header = (raw[i] || '').trim();
+    let unicode;
+    if (/^Windows Registry Editor Version 5\.00$/i.test(header)) unicode = true;
+    else if (/^REGEDIT4$/i.test(header)) unicode = false;
+    else throw new Error('Keine .reg-Datei (Kopfzeile „Windows Registry Editor Version 5.00“ bzw. „REGEDIT4“ fehlt).');
+
+    /* Logische Zeilen: Fortsetzung mit "\" am Zeilenende */
+    const lines = [];
+    let buf = null, start = 0;
+    for (i = i + 1; i < raw.length; i++) {
+      const l = raw[i];
+      if (buf !== null) {
+        const t = l.trim();
+        if (/\\$/.test(t)) { buf += t.slice(0, -1); continue; }
+        lines.push([buf + t, start]); buf = null; continue;
+      }
+      const t = l.replace(/^\s+/, '');
+      if (/^[^;[].*\\$/.test(t.trimEnd()) && /=\s*hex/i.test(t)) { buf = t.trimEnd().slice(0, -1); start = i + 1; continue; }
+      lines.push([l, i + 1]);
+    }
+    if (buf !== null) lines.push([buf, start]);
+
+    const entries = [], warnings = [];
+    let key = null;   // { full, map, del }
+    const warn = (ln, msg) => warnings.push((filename ? filename + ', ' : '') + 'Zeile ' + ln + ': ' + msg);
+
+    for (const [line, ln] of lines) {
+      const t = line.trim();
+      if (!t || t.startsWith(';')) continue;
+      if (t.startsWith('[')) {
+        const m = t.match(/^\[(-?)\s*([^\]]+?)\s*\]$/);
+        if (!m) { warn(ln, 'ungültige Schlüsselzeile'); key = null; continue; }
+        const map = mapRegKey(m[2]);
+        key = { full: m[2], map, del: !!m[1] };
+        if (map.skip) { warn(ln, m[2] + ' übersprungen – ' + map.skip); continue; }
+        if (key.del) {
+          if (map.path.split('\\').length < 2) { warn(ln, 'Löschen von ' + m[2] + ' verweigert – Schlüssel zu weit oben'); key.map = { skip: 'gesperrt' }; continue; }
+          entries.push({ op: 'delkey', scope: map.scope, path: map.path, hive: map.hive, line: ln, enabled: true });
+        }
+        continue;
+      }
+      if (!key) { warn(ln, 'Wert ohne Schlüssel übersprungen'); continue; }
+      if (key.map.skip) continue;
+      if (key.del) { warn(ln, 'Wert unter einem zu löschenden Schlüssel ignoriert'); continue; }
+
+      let name, pos;
+      if (t.startsWith('@')) { name = '(Default)'; pos = 1; }
+      else if (t.startsWith('"')) {
+        const q = regQuoted(t, 0);
+        if (!q) { warn(ln, 'Name ohne schließendes Anführungszeichen'); continue; }
+        name = q[0]; pos = q[1];
+      } else { warn(ln, 'unbekannte Zeile übersprungen'); continue; }
+      const rest = t.slice(pos).replace(/^\s*=\s*/, '');
+      if (rest === t.slice(pos)) { warn(ln, 'Gleichheitszeichen fehlt'); continue; }
+
+      const base = { scope: key.map.scope, path: key.map.path, hive: key.map.hive, name, line: ln, enabled: true };
+      try {
+        if (rest === '-') { entries.push(Object.assign(base, { op: 'delvalue' })); continue; }
+        if (rest.startsWith('"')) {
+          const q = regQuoted(rest, 0);
+          if (!q) throw new Error('Zeichenkette ohne schließendes Anführungszeichen');
+          entries.push(Object.assign(base, { op: 'set', type: 'String', value: q[0] }));
+          continue;
+        }
+        let m = rest.match(/^dword:([0-9a-f]{1,8})$/i);
+        if (m) { entries.push(Object.assign(base, { op: 'set', type: 'DWord', value: parseInt(m[1], 16) })); continue; }
+        m = rest.match(/^hex(?:\(([0-9a-f]+)\))?:(.*)$/i);
+        if (!m) throw new Error('unbekanntes Datenformat');
+        const kind = m[1] === undefined ? 3 : parseInt(m[1], 16);
+        const bytes = hexBytes(m[2]);
+        if (kind === 1 || kind === 2) {
+          const sv = bytesToString(bytes, unicode).replace(/\u0000+$/, '');
+          entries.push(Object.assign(base, { op: 'set', type: kind === 1 ? 'String' : 'ExpandString', value: sv }));
+        } else if (kind === 7) {
+          const parts = bytesToString(bytes, unicode).split('\u0000');
+          while (parts.length && parts[parts.length - 1] === '') parts.pop();
+          entries.push(Object.assign(base, { op: 'set', type: 'MultiString', value: parts }));
+        } else if (kind === 4 && bytes.length === 4) {
+          entries.push(Object.assign(base, { op: 'set', type: 'DWord', value: (bytes[0] | (bytes[1] << 8) | (bytes[2] << 16)) + bytes[3] * 0x1000000 }));
+        } else if (kind === 0xb && bytes.length === 8) {
+          let v = 0n;
+          for (let k = 7; k >= 0; k--) v = (v << 8n) | BigInt(bytes[k]);
+          entries.push(Object.assign(base, { op: 'set', type: 'QWord', value: v.toString() }));
+        } else {
+          if (kind !== 3) warn(ln, name + ': Typ hex(' + m[1] + ') wird als REG_BINARY geschrieben');
+          entries.push(Object.assign(base, { op: 'set', type: 'Binary', value: bytes }));
+        }
+      } catch (e) {
+        warn(ln, name + ': ' + e.message);
+      }
+    }
+    return { entries, warnings, unicode };
+  }
+
   global.Importers = {
     parseBundle, parseSetupComplete, parseOfficeConfig, parseUnattend, patchUnattend,
-    ensureSilentDisplay, detectType, normManager, mkPkg, dedupe
+    ensureSilentDisplay, detectType, normManager, mkPkg, dedupe, parseReg, decodeRegBytes
   };
 })(window);

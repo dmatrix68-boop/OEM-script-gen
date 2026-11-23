@@ -8,7 +8,12 @@
             Cmdlets, deshalb laeuft er dort erst in Phase 2. Der reg-Teil bleibt
             in der gewaehlten Phase. Solche ps-Bloecke duerfen keine Funktionen
             aus OEM-Common.ps1 verwenden - sie laufen in einem eigenen Runspace.
-   timeout: Sekunden, nach denen der ps-Teil abgebrochen wird. */
+   timeout: Sekunden, nach denen der ps-Teil abgebrochen wird.
+   perUser: Windows setzt den Wert bei der ersten Anmeldung jedes Benutzers
+            selbst neu - ein Wert im Default-Profil wird dabei ueberschrieben.
+            Die user-Werte werden deshalb zusaetzlich per RunOnce bei der ersten
+            Anmeldung gesetzt, danach startet der Explorer neu (wie im Generator
+            von Christoph Schneegans, Optimizations.cs). */
 (function (global) {
   'use strict';
 
@@ -39,8 +44,11 @@
     /* ---------- Taskleiste ---------- */
     { id: 'taskbarLeft', cat: 'Taskleiste', label: 'Taskleiste linksbündig ausrichten',
       reg: [{ scope: 'user', path: 'Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced', name: 'TaskbarAl', type: 'DWord', value: 0 }] },
+    /* SearchboxTaskbarMode: 0 = ausgeblendet, 1 = nur Symbol, 2 = Suchfeld, 3 = Symbol mit Beschriftung */
     { id: 'taskbarSearch', cat: 'Taskleiste', label: 'Suchfeld ausblenden (nur Symbol)',
-      reg: [{ scope: 'user', path: 'Software\\Microsoft\\Windows\\CurrentVersion\\Search', name: 'SearchboxTaskbarMode', type: 'DWord', value: 0 }] },
+      desc: 'Wird bei der ersten Anmeldung jedes Benutzers gesetzt – der Explorer startet dabei einmal kurz neu',
+      perUser: true,
+      reg: [{ scope: 'user', path: 'Software\\Microsoft\\Windows\\CurrentVersion\\Search', name: 'SearchboxTaskbarMode', type: 'DWord', value: 1 }] },
     { id: 'taskbarWidgets', cat: 'Taskleiste', label: 'Widgets ausblenden',
       reg: [
         { scope: 'user', path: 'Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced', name: 'TaskbarDa', type: 'DWord', value: 0 },
@@ -112,7 +120,13 @@
     { id: 'timezone', cat: 'System', label: 'Zeitzone auf „W. Europe Standard Time“ setzen',
       ps: 'tzutil.exe /s "W. Europe Standard Time"' },
     { id: 'execPolicy', cat: 'System', label: 'PowerShell-Ausführungsrichtlinie auf RemoteSigned',
-      ps: 'Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope LocalMachine -Force' },
+      /*  Laeuft der Aufrufer mit -ExecutionPolicy Bypass, meldet Set-ExecutionPolicy
+          eine SecurityException ("ueberschrieben durch spezifischeren Bereich"),
+          obwohl der Wert gesetzt ist - massgeblich ist die Kontrolle danach. */
+      ps: [
+        'try { Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope LocalMachine -Force -ErrorAction Stop } catch [System.Security.SecurityException] { }',
+        "if ((Get-ExecutionPolicy -Scope LocalMachine) -ne 'RemoteSigned') { throw 'Ausfuehrungsrichtlinie LocalMachine ist nicht RemoteSigned.' }"
+      ].join('\n') },
     { id: 'uacSecureDesktop', cat: 'System', label: 'UAC ohne abgedunkelten Desktop',
       desc: 'Schutzstufe bleibt aktiv, nur der sichere Desktop entfällt',
       reg: [{ scope: 'machine', path: 'SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System', name: 'PromptOnSecureDesktop', type: 'DWord', value: 0 }] },
@@ -120,11 +134,17 @@
       reg: [
         { scope: 'machine', path: 'SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate', name: 'ExcludeWUDriversInQualityUpdate', type: 'DWord', value: 1 },
         { scope: 'machine', path: 'SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\DriverSearching', name: 'SearchOrderConfig', type: 'DWord', value: 0 }] },
-    { id: 'edgePolicies', cat: 'System', label: 'Edge: Erststart-Assistent und Startup-Boost aus',
+    /*  Frueher ein Tweak "edgePolicies" - loadProject() ersetzt ihn durch beide. */
+    { id: 'edgeFirstRun', cat: 'System', label: 'Edge: Erststart-Assistent ausblenden',
+      desc: 'Überspringt die Begrüßungs- und Einrichtungsdialoge beim ersten Start von Edge, samt der Frage nach personalisierter Werbung',
       reg: [
         { scope: 'machine', path: 'SOFTWARE\\Policies\\Microsoft\\Edge', name: 'HideFirstRunExperience', type: 'DWord', value: 1 },
-        { scope: 'machine', path: 'SOFTWARE\\Policies\\Microsoft\\Edge', name: 'StartupBoostEnabled', type: 'DWord', value: 0 },
         { scope: 'machine', path: 'SOFTWARE\\Policies\\Microsoft\\Edge', name: 'PersonalizationReportingEnabled', type: 'DWord', value: 0 }] },
+    { id: 'edgeStartupBoost', cat: 'System', label: 'Edge: Startup-Boost und Hintergrundmodus aus',
+      desc: 'Edge läuft nicht mehr ständig im Hintergrund. Als empfohlene Richtlinie gesetzt – in den Edge-Einstellungen wieder einschaltbar',
+      reg: [
+        { scope: 'machine', path: 'SOFTWARE\\Policies\\Microsoft\\Edge\\Recommended', name: 'StartupBoostEnabled', type: 'DWord', value: 0 },
+        { scope: 'machine', path: 'SOFTWARE\\Policies\\Microsoft\\Edge\\Recommended', name: 'BackgroundModeEnabled', type: 'DWord', value: 0 }] },
     { id: 'fixDisplayName', cat: 'System', label: 'Anzeigename des Benutzerkontos berichtigen',
       desc: 'Setzt den vollständigen Namen auf den Kontonamen, wenn dort ein Platzhalter wie „USER“ steht. Windows holt das meist von selbst nach – nur für Fälle, in denen der Platzhalter bleibt.',
       deferPs: true, deferReason: 'account', timeout: 60,
@@ -340,5 +360,27 @@
     powershell: { label: 'PowerShell Gallery', cmd: 'powershell', install: (p) => p.id }
   };
 
-  global.Catalog = { TWEAKS, BLOAT, FEATURES, MANAGERS };
+  /*  Vorlagen fuer bekannte Setup-Dateien unter "Eigene Dateien": passt der
+      Dateiname, werden Parameter und Phase vorbelegt. note erscheint in der
+      Tabelle; Platzhalter gibt es keine (Sprache waehlt der Installer selbst). */
+  const INSTALLERS = [
+    { id: 'rightclicktools', name: 'Right-Click Tools (Les Ferch)', match: /^RightClickTools-Setup.*\.exe$/i,
+      run: '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-', phase: 'firstlogon',
+      url: 'https://github.com/LesFerch/RightClickTools',
+      note: 'Inno Setup. Phase 2, damit Kontextmenü und Privileg-Aufgabe beim ersten Benutzer landen (als SYSTEM gibt es noch keinen). ' +
+        'Still installiert gilt immer: Windows 11 – Kontextmenü-Handler (modern + klassisch), Privileg-Aufgabe an. ' +
+        'Ohne Privileg-Aufgabe: unter Eigene Befehle → PowerShell (Phase 2) ' +
+        '& \'C:\\Program Files\\RightClickTools\\RightClickTools.exe\' /TaskRemoveQuiet. ' +
+        'Weitere Benutzer starten C:\\Program Files\\RightClickTools\\RightClickTools.msix selbst.' }
+  ];
+
+  /*  Installer-Typ am Dateianfang erkennen (erstes MB genuegt fuer die
+      Kennungen der Installer-Baukaesten) und passende Standardschalter. */
+  const INSTALLER_TYPES = [
+    { name: 'Inno Setup', re: /Inno Setup Setup Data|<description>Inno Setup<\/description>/, run: '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-' },
+    { name: 'NSIS', re: /Nullsoft Install System|NullsoftInst/, run: '/S' },
+    { name: 'WiX Burn', re: /\.wixburn/, run: '/quiet /norestart' }
+  ];
+
+  global.Catalog = { TWEAKS, BLOAT, FEATURES, MANAGERS, INSTALLERS, INSTALLER_TYPES };
 })(window);

@@ -1,0 +1,1660 @@
+[
+ {
+  "name": "standard",
+  "config": {}
+ },
+ {
+  "name": "sprache-de-en",
+  "config": {
+   "language": {
+    "mode": "unattended",
+    "image": "de-DE",
+    "locales": [
+     {
+      "locale": "de-DE",
+      "keyboard": "00000407"
+     },
+     {
+      "locale": "en-US",
+      "keyboard": "00000409"
+     }
+    ],
+    "geo": "94"
+   }
+  }
+ },
+ {
+  "name": "sprache-standort-abweichend",
+  "config": {
+   "language": {
+    "mode": "unattended",
+    "image": "en-US",
+    "locales": [
+     {
+      "locale": "de-CH",
+      "keyboard": "00000807"
+     }
+    ],
+    "geo": "244"
+   }
+  }
+ },
+ {
+  "name": "sprache-ime-und-lcid1000",
+  "config": {
+   "language": {
+    "mode": "unattended",
+    "image": "ja-JP",
+    "locales": [
+     {
+      "locale": "ja-JP",
+      "keyboard": "0411:{03B5835F-F03C-411B-9CE2-AA23E1171E36}{A76C93D9-5523-4E90-AAFA-4DB112F9AC76}"
+     },
+     {
+      "locale": "aa-DJ",
+      "keyboard": "00000409"
+     }
+    ],
+    "geo": "122"
+   }
+  }
+ },
+ {
+  "name": "konten-autologon-verschleiert",
+  "config": {
+   "account": {
+    "mode": "unattended",
+    "accounts": [
+     {
+      "name": "Jörg",
+      "displayName": "Jörg Müller",
+      "password": "geheim",
+      "group": "Administrators"
+     },
+     {
+      "name": "Kind",
+      "displayName": "",
+      "password": "",
+      "group": "Users"
+     }
+    ],
+    "autoLogon": "own",
+    "obscure": true
+   }
+  }
+ },
+ {
+  "name": "konten-builtin-klartext",
+  "config": {
+   "account": {
+    "mode": "unattended",
+    "accounts": [
+     {
+      "name": "Anna",
+      "displayName": "Anna",
+      "password": "pw",
+      "group": "Users"
+     }
+    ],
+    "autoLogon": "builtin",
+    "builtinPassword": "Adm1n!",
+    "obscure": false
+   }
+  }
+ },
+ {
+  "name": "konto-lokal-interaktiv",
+  "config": {
+   "account": {
+    "mode": "interactive-local"
+   }
+  }
+ },
+ {
+  "name": "computername-fest-zeitzone",
+  "config": {
+   "computerName": {
+    "mode": "custom",
+    "name": "BUERO-PC"
+   },
+   "timeZone": {
+    "mode": "explicit",
+    "id": "W. Europe Standard Time"
+   }
+  }
+ },
+ {
+  "name": "computername-abfrage",
+  "config": {
+   "computerName": {
+    "mode": "prompt"
+   }
+  }
+ },
+ {
+  "name": "edition-generisch-aktivierung",
+  "config": {
+   "edition": {
+    "mode": "edition",
+    "edition": "pro"
+   },
+   "activationKey": "VK7JG-NPHTM-C97JM-9MPGT-3V66T"
+  }
+ },
+ {
+  "name": "edition-firmware",
+  "config": {
+   "edition": {
+    "mode": "firmware"
+   }
+  }
+ },
+ {
+  "name": "edition-eigener-schluessel",
+  "config": {
+   "edition": {
+    "mode": "key",
+    "key": "nppr9-fwdcx-d2c8j-h872k-2yt43"
+   }
+  }
+ },
+ {
+  "name": "setup-schalter",
+  "config": {
+   "bypassRequirements": false,
+   "bypassNetwork": true,
+   "useConfigurationSet": true,
+   "useNarrator": true,
+   "hidePowerShellWindows": true,
+   "expressSettings": "enableAll",
+   "wifi": {
+    "mode": "skip"
+   }
+  }
+ },
+ {
+  "name": "sicherheit",
+  "config": {
+   "lockout": {
+    "mode": "custom",
+    "threshold": 5,
+    "duration": 30,
+    "window": 15
+   },
+   "passwordExpiration": {
+    "mode": "custom",
+    "maxAge": 90
+   }
+  }
+ },
+ {
+  "name": "sicherheit-aus",
+  "config": {
+   "lockout": {
+    "mode": "disabled"
+   },
+   "passwordExpiration": {
+    "mode": "unlimited"
+   },
+   "expressSettings": "interactive",
+   "keepSensitiveFiles": true
+  }
+ },
+ {
+  "name": "architekturen",
+  "config": {
+   "architectures": [
+    "arm64",
+    "amd64",
+    "x86"
+   ]
+  }
+ },
+ {
+  "name": "fehler-kein-admin",
+  "config": {
+   "account": {
+    "mode": "unattended",
+    "accounts": [
+     {
+      "name": "a",
+      "displayName": "",
+      "password": "",
+      "group": "Users"
+     }
+    ],
+    "autoLogon": "none"
+   }
+  }
+ },
+ {
+  "name": "fehler-loeschen-ohne-autologon",
+  "config": {
+   "account": {
+    "mode": "unattended",
+    "accounts": [
+     {
+      "name": "a",
+      "displayName": "",
+      "password": "",
+      "group": "Administrators"
+     }
+    ],
+    "autoLogon": "none"
+   }
+  }
+ },
+ {
+  "name": "fehler-computername",
+  "config": {
+   "computerName": {
+    "mode": "custom",
+    "name": "12345"
+   }
+  }
+ },
+ {
+  "name": "fehler-kontoname",
+  "config": {
+   "account": {
+    "mode": "unattended",
+    "accounts": [
+     {
+      "name": "Administrator",
+      "displayName": "",
+      "password": "",
+      "group": "Administrators"
+     }
+    ],
+    "autoLogon": "own"
+   }
+  }
+ },
+ {
+  "name": "fehler-doppelter-kontoname",
+  "config": {
+   "account": {
+    "mode": "unattended",
+    "accounts": [
+     {
+      "name": "Max",
+      "displayName": "",
+      "password": "",
+      "group": "Administrators"
+     },
+     {
+      "name": "max",
+      "displayName": "",
+      "password": "",
+      "group": "Users"
+     }
+    ],
+    "autoLogon": "own"
+   }
+  }
+ },
+ {
+  "name": "fehler-produktschluessel",
+  "config": {
+   "edition": {
+    "mode": "key",
+    "key": "ABC"
+   }
+  }
+ },
+ {
+  "name": "fehler-sperrfenster",
+  "config": {
+   "lockout": {
+    "mode": "custom",
+    "threshold": 5,
+    "duration": 10,
+    "window": 20
+   }
+  }
+ },
+ {
+  "name": "fehler-kennwortalter",
+  "config": {
+   "passwordExpiration": {
+    "mode": "custom",
+    "maxAge": 1000
+   }
+  }
+ },
+ {
+  "name": "pe-automatisch-defender",
+  "config": {
+   "language": {
+    "mode": "unattended",
+    "image": "de-DE",
+    "locales": [
+     {
+      "locale": "de-DE",
+      "keyboard": "00000407"
+     }
+    ],
+    "geo": "94"
+   },
+   "timeZone": {
+    "mode": "explicit",
+    "id": "W. Europe Standard Time"
+   },
+   "pe": {
+    "mode": "generate",
+    "script": "",
+    "partition": {
+     "mode": "unattended",
+     "layout": "Automatic",
+     "recovery": "Partition",
+     "systemSize": 300,
+     "recoverySize": 1000,
+     "customScript": "",
+     "target": {
+      "mode": "generated",
+      "index": 0,
+      "minSizeGiB": 100,
+      "maxSizeGiB": 4000,
+      "assertNoPartitions": true,
+      "assertInterfaceType": false,
+      "assertMediaType": false,
+      "script": ""
+     }
+    },
+    "installFrom": {
+     "mode": "edition",
+     "edition": "pro",
+     "index": 1,
+     "name": ""
+    },
+    "pagingFile": {
+     "mode": "automatic",
+     "initialSizeMiB": 1024,
+     "maxSizeMiB": 4096
+    },
+    "disableDefender": true,
+    "disable8Dot3Names": false,
+    "pauseBeforeFormatting": false,
+    "pauseBeforeReboot": false,
+    "compactOs": false,
+    "skipIntegrityCheck": false
+   }
+  }
+ },
+ {
+  "name": "pe-gpt-fest-ohne-recovery",
+  "config": {
+   "pe": {
+    "mode": "generate",
+    "script": "",
+    "partition": {
+     "mode": "unattended",
+     "layout": "GPT",
+     "recovery": "None",
+     "systemSize": 512,
+     "recoverySize": 1000,
+     "customScript": "",
+     "target": {
+      "mode": "fixed",
+      "index": 1,
+      "minSizeGiB": 100,
+      "maxSizeGiB": 4000,
+      "assertNoPartitions": true,
+      "assertInterfaceType": false,
+      "assertMediaType": false,
+      "script": ""
+     }
+    },
+    "installFrom": {
+     "mode": "index",
+     "edition": "pro",
+     "index": 6,
+     "name": ""
+    },
+    "pagingFile": {
+     "mode": "custom",
+     "initialSizeMiB": 2048,
+     "maxSizeMiB": 8192
+    },
+    "disableDefender": false,
+    "disable8Dot3Names": true,
+    "pauseBeforeFormatting": true,
+    "pauseBeforeReboot": true,
+    "compactOs": true,
+    "skipIntegrityCheck": true
+   }
+  }
+ },
+ {
+  "name": "pe-mbr-zielplatte-interaktiv",
+  "config": {
+   "pe": {
+    "mode": "generate",
+    "script": "",
+    "partition": {
+     "mode": "unattended",
+     "layout": "MBR",
+     "recovery": "Partition",
+     "systemSize": 300,
+     "recoverySize": 1000,
+     "customScript": "",
+     "target": {
+      "mode": "interactive",
+      "index": 0,
+      "minSizeGiB": 100,
+      "maxSizeGiB": 4000,
+      "assertNoPartitions": true,
+      "assertInterfaceType": false,
+      "assertMediaType": false,
+      "script": ""
+     }
+    },
+    "installFrom": {
+     "mode": "name",
+     "edition": "pro",
+     "index": 1,
+     "name": "Windows 11 Pro"
+    },
+    "pagingFile": {
+     "mode": "none",
+     "initialSizeMiB": 1024,
+     "maxSizeMiB": 4096
+    },
+    "disableDefender": false,
+    "disable8Dot3Names": false,
+    "pauseBeforeFormatting": false,
+    "pauseBeforeReboot": false,
+    "compactOs": false,
+    "skipIntegrityCheck": false
+   }
+  }
+ },
+ {
+  "name": "pe-zielplatte-eigenes-skript",
+  "config": {
+   "pe": {
+    "mode": "generate",
+    "script": "",
+    "partition": {
+     "mode": "unattended",
+     "layout": "GPT",
+     "recovery": "Partition",
+     "systemSize": 300,
+     "recoverySize": 1000,
+     "customScript": "",
+     "target": {
+      "mode": "script",
+      "index": 0,
+      "minSizeGiB": 100,
+      "maxSizeGiB": 4000,
+      "assertNoPartitions": true,
+      "assertInterfaceType": false,
+      "assertMediaType": false,
+      "script": "WScript.Echo \"0\"\nWScript.Quit 0"
+     }
+    },
+    "installFrom": {
+     "mode": "edition",
+     "edition": "pro",
+     "index": 1,
+     "name": ""
+    },
+    "pagingFile": {
+     "mode": "automatic",
+     "initialSizeMiB": 1024,
+     "maxSizeMiB": 4096
+    },
+    "disableDefender": false,
+    "disable8Dot3Names": false,
+    "pauseBeforeFormatting": false,
+    "pauseBeforeReboot": false,
+    "compactOs": false,
+    "skipIntegrityCheck": false
+   }
+  }
+ },
+ {
+  "name": "pe-zielplatte-kriterien",
+  "config": {
+   "useNarrator": true,
+   "pe": {
+    "mode": "generate",
+    "script": "",
+    "partition": {
+     "mode": "unattended",
+     "layout": "Automatic",
+     "recovery": "Partition",
+     "systemSize": 300,
+     "recoverySize": 1000,
+     "customScript": "",
+     "target": {
+      "mode": "generated",
+      "index": null,
+      "minSizeGiB": null,
+      "maxSizeGiB": 4000,
+      "assertNoPartitions": false,
+      "assertInterfaceType": true,
+      "assertMediaType": true,
+      "script": ""
+     }
+    },
+    "installFrom": {
+     "mode": "interactive",
+     "edition": "pro",
+     "index": 1,
+     "name": ""
+    },
+    "pagingFile": {
+     "mode": "automatic",
+     "initialSizeMiB": 1024,
+     "maxSizeMiB": 4096
+    },
+    "disableDefender": false,
+    "disable8Dot3Names": false,
+    "pauseBeforeFormatting": false,
+    "pauseBeforeReboot": false,
+    "compactOs": false,
+    "skipIntegrityCheck": false
+   }
+  }
+ },
+ {
+  "name": "pe-eigenes-diskpart",
+  "config": {
+   "pe": {
+    "mode": "generate",
+    "script": "",
+    "partition": {
+     "mode": "custom",
+     "layout": "Automatic",
+     "recovery": "Partition",
+     "systemSize": 300,
+     "recoverySize": 1000,
+     "customScript": "SELECT DISK=0\nCLEAN\nCONVERT GPT\nCREATE PARTITION EFI SIZE=300\nFORMAT QUICK FS=FAT32 LABEL=\"System\"\nASSIGN LETTER=S\nCREATE PARTITION MSR SIZE=16\nCREATE PARTITION PRIMARY\nFORMAT QUICK FS=NTFS LABEL=\"Windows\"\nassign letter = \"W\"\nCREATE PARTITION PRIMARY SIZE=1000\nFORMAT QUICK FS=NTFS LABEL=\"Recovery\"",
+     "target": {
+      "mode": "generated",
+      "index": 0,
+      "minSizeGiB": 100,
+      "maxSizeGiB": 4000,
+      "assertNoPartitions": true,
+      "assertInterfaceType": false,
+      "assertMediaType": false,
+      "script": ""
+     }
+    },
+    "installFrom": {
+     "mode": "edition",
+     "edition": "pro",
+     "index": 1,
+     "name": ""
+    },
+    "pagingFile": {
+     "mode": "automatic",
+     "initialSizeMiB": 1024,
+     "maxSizeMiB": 4096
+    },
+    "disableDefender": false,
+    "disable8Dot3Names": false,
+    "pauseBeforeFormatting": false,
+    "pauseBeforeReboot": false,
+    "compactOs": false,
+    "skipIntegrityCheck": false
+   }
+  }
+ },
+ {
+  "name": "pe-partition-interaktiv",
+  "config": {
+   "language": {
+    "mode": "unattended",
+    "image": "de-DE",
+    "locales": [
+     {
+      "locale": "de-DE",
+      "keyboard": "00000407"
+     }
+    ],
+    "geo": "94"
+   },
+   "pe": {
+    "mode": "generate",
+    "script": "",
+    "partition": {
+     "mode": "interactive",
+     "layout": "Automatic",
+     "recovery": "Partition",
+     "systemSize": 300,
+     "recoverySize": 1000,
+     "customScript": "",
+     "target": {
+      "mode": "generated",
+      "index": 0,
+      "minSizeGiB": 100,
+      "maxSizeGiB": 4000,
+      "assertNoPartitions": true,
+      "assertInterfaceType": false,
+      "assertMediaType": false,
+      "script": ""
+     }
+    },
+    "installFrom": {
+     "mode": "edition",
+     "edition": "pro",
+     "index": 1,
+     "name": ""
+    },
+    "pagingFile": {
+     "mode": "automatic",
+     "initialSizeMiB": 1024,
+     "maxSizeMiB": 4096
+    },
+    "disableDefender": false,
+    "disable8Dot3Names": false,
+    "pauseBeforeFormatting": false,
+    "pauseBeforeReboot": false,
+    "compactOs": false,
+    "skipIntegrityCheck": false
+   }
+  }
+ },
+ {
+  "name": "pe-eigenes-pe-skript",
+  "config": {
+   "pe": {
+    "mode": "script",
+    "script": "@echo off\necho Eigener Ablauf\nwpeutil.exe reboot"
+   }
+  }
+ },
+ {
+  "name": "fehler-diskpart-ohne-systembuchstabe",
+  "config": {
+   "pe": {
+    "mode": "generate",
+    "script": "",
+    "partition": {
+     "mode": "custom",
+     "layout": "Automatic",
+     "recovery": "Partition",
+     "systemSize": 300,
+     "recoverySize": 1000,
+     "customScript": "SELECT DISK=0\nCLEAN\nASSIGN LETTER=W",
+     "target": {
+      "mode": "generated",
+      "index": 0,
+      "minSizeGiB": 100,
+      "maxSizeGiB": 4000,
+      "assertNoPartitions": true,
+      "assertInterfaceType": false,
+      "assertMediaType": false,
+      "script": ""
+     }
+    },
+    "installFrom": {
+     "mode": "edition",
+     "edition": "pro",
+     "index": 1,
+     "name": ""
+    },
+    "pagingFile": {
+     "mode": "automatic",
+     "initialSizeMiB": 1024,
+     "maxSizeMiB": 4096
+    },
+    "disableDefender": false,
+    "disable8Dot3Names": false,
+    "pauseBeforeFormatting": false,
+    "pauseBeforeReboot": false,
+    "compactOs": false,
+    "skipIntegrityCheck": false
+   }
+  }
+ },
+ {
+  "name": "fehler-zielplatte-min-max",
+  "config": {
+   "pe": {
+    "mode": "generate",
+    "script": "",
+    "partition": {
+     "mode": "unattended",
+     "layout": "Automatic",
+     "recovery": "Partition",
+     "systemSize": 300,
+     "recoverySize": 1000,
+     "customScript": "",
+     "target": {
+      "mode": "generated",
+      "index": 0,
+      "minSizeGiB": 500,
+      "maxSizeGiB": 100,
+      "assertNoPartitions": true,
+      "assertInterfaceType": false,
+      "assertMediaType": false,
+      "script": ""
+     }
+    },
+    "installFrom": {
+     "mode": "edition",
+     "edition": "pro",
+     "index": 1,
+     "name": ""
+    },
+    "pagingFile": {
+     "mode": "automatic",
+     "initialSizeMiB": 1024,
+     "maxSizeMiB": 4096
+    },
+    "disableDefender": false,
+    "disable8Dot3Names": false,
+    "pauseBeforeFormatting": false,
+    "pauseBeforeReboot": false,
+    "compactOs": false,
+    "skipIntegrityCheck": false
+   }
+  }
+ },
+ {
+  "name": "farben",
+  "config": {
+   "colors": {
+    "mode": "custom",
+    "systemTheme": "Dark",
+    "appsTheme": "Light",
+    "accentColor": "#0078D4",
+    "accentOnStart": true,
+    "accentOnBorders": true,
+    "transparency": true
+   }
+  }
+ },
+ {
+  "name": "farben-hell-ohne-akzent",
+  "config": {
+   "colors": {
+    "mode": "custom",
+    "systemTheme": "Light",
+    "appsTheme": "Dark",
+    "accentColor": "#c42b1c",
+    "accentOnStart": false,
+    "accentOnBorders": false,
+    "transparency": false
+   }
+  }
+ },
+ {
+  "name": "sperrtasten-ignorieren",
+  "config": {
+   "lockKeys": {
+    "mode": "configure",
+    "capsLock": {
+     "initial": "Off",
+     "behavior": "Ignore"
+    },
+    "numLock": {
+     "initial": "On",
+     "behavior": "Toggle"
+    },
+    "scrollLock": {
+     "initial": "Off",
+     "behavior": "Ignore"
+    }
+   }
+  }
+ },
+ {
+  "name": "sperrtasten-nur-status",
+  "config": {
+   "lockKeys": {
+    "mode": "configure",
+    "capsLock": {
+     "initial": "On",
+     "behavior": "Toggle"
+    },
+    "numLock": {
+     "initial": "On",
+     "behavior": "Toggle"
+    },
+    "scrollLock": {
+     "initial": "On",
+     "behavior": "Toggle"
+    }
+   }
+  }
+ },
+ {
+  "name": "effekte-beste-darstellung",
+  "config": {
+   "effects": {
+    "mode": "bestAppearance",
+    "custom": {}
+   }
+  }
+ },
+ {
+  "name": "effekte-beste-leistung",
+  "config": {
+   "effects": {
+    "mode": "bestPerformance",
+    "custom": {}
+   }
+  }
+ },
+ {
+  "name": "effekte-eigene",
+  "config": {
+   "effects": {
+    "mode": "custom",
+    "custom": {
+     "FontSmoothing": true,
+     "DragFullWindows": true,
+     "ThumbnailsOrIcon": true,
+     "ListviewAlphaSelect": true
+    }
+   }
+  }
+ },
+ {
+  "name": "desktopsymbole",
+  "config": {
+   "desktopIcons": {
+    "mode": "custom",
+    "show": [
+     "ThisPC",
+     "RecycleBin",
+     "UserFiles",
+     "ControlPanel"
+    ]
+   }
+  }
+ },
+ {
+  "name": "startordner",
+  "config": {
+   "startFolders": {
+    "mode": "custom",
+    "show": [
+     "Settings",
+     "FileExplorer",
+     "Downloads",
+     "PersonalFolder"
+    ]
+   }
+  }
+ },
+ {
+  "name": "startordner-leer",
+  "config": {
+   "startFolders": {
+    "mode": "custom",
+    "show": []
+   }
+  }
+ },
+ {
+  "name": "edge-verknuepfung",
+  "config": {
+   "deleteEdgeDesktopIcon": true
+  }
+ },
+ {
+  "name": "personalisierung-kombiniert",
+  "config": {
+   "language": {
+    "mode": "unattended",
+    "image": "de-DE",
+    "locales": [
+     {
+      "locale": "de-DE",
+      "keyboard": "00000407"
+     }
+    ],
+    "geo": "94"
+   },
+   "colors": {
+    "mode": "custom",
+    "systemTheme": "Dark",
+    "appsTheme": "Light",
+    "accentColor": "#107C10",
+    "accentOnStart": true,
+    "accentOnBorders": true,
+    "transparency": true
+   },
+   "desktopIcons": {
+    "mode": "custom",
+    "show": [
+     "ThisPC"
+    ]
+   },
+   "effects": {
+    "mode": "bestPerformance",
+    "custom": {}
+   },
+   "lockKeys": {
+    "mode": "configure",
+    "capsLock": {
+     "initial": "Off",
+     "behavior": "Ignore"
+    },
+    "numLock": {
+     "initial": "On",
+     "behavior": "Toggle"
+    },
+    "scrollLock": {
+     "initial": "Off",
+     "behavior": "Toggle"
+    }
+   },
+   "deleteEdgeDesktopIcon": true,
+   "startFolders": {
+    "mode": "custom",
+    "show": [
+     "Settings",
+     "FileExplorer"
+    ]
+   }
+  }
+ },
+ {
+  "name": "applocker-beispiel",
+  "config": {
+   "appLocker": {
+    "mode": "configure",
+    "policyXml": "<AppLockerPolicy Version=\"1\">\n  <RuleCollection Type=\"Exe\" EnforcementMode=\"AuditOnly\">\n    <FilePathRule Id=\"921cc481-6e17-4653-8f75-050b80acca20\" Name=\"(Standardregel) Alle Dateien im Ordner &quot;Programme&quot;\" Description=\"\" UserOrGroupSid=\"S-1-1-0\" Action=\"Allow\">\n      <Conditions>\n        <FilePathCondition Path=\"%PROGRAMFILES%\\*\" />\n      </Conditions>\n    </FilePathRule>\n    <FilePathRule Id=\"a61c8b2c-a319-4cd0-9690-d2177cad7b51\" Name=\"(Standardregel) Alle Dateien im Ordner &quot;Windows&quot;\" Description=\"\" UserOrGroupSid=\"S-1-1-0\" Action=\"Allow\">\n      <Conditions><FilePathCondition Path=\"%WINDIR%\\*\"/></Conditions>\n    </FilePathRule>\n    <FilePathRule Id=\"fd686d83-a829-4351-8ff4-27c7de5755d2\" Name=\"(Standardregel) Alle Dateien\" Description=\"Administratoren &lt;alle&gt;\" UserOrGroupSid=\"S-1-5-32-544\" Action=\"Allow\">\n      <Conditions>\n        <FilePathCondition Path=\"*\"></FilePathCondition>\n      </Conditions>\n    </FilePathRule>\n  </RuleCollection>\n  <!-- Kommentar -->\n  <RuleCollection Type=\"Msi\" EnforcementMode=\"NotConfigured\" />\n</AppLockerPolicy>\n"
+   }
+  }
+ },
+ {
+  "name": "applocker-export",
+  "config": {
+   "appLocker": {
+    "mode": "configure",
+    "policyXml": "<?xml version=\"1.0\" encoding=\"utf-16\"?>\r\n<AppLockerPolicy Version=\"1\">\r\n  <RuleCollection Type=\"Appx\" EnforcementMode=\"Enabled\">\r\n    <FilePublisherRule Id=\"a9e18c21-ff8f-43cf-b9fc-db40eed693ba\" Name=\"(Default Rule) All signed packaged apps\" Description=\"Allows members of the Everyone group to run packaged apps that are signed.\" UserOrGroupSid=\"S-1-1-0\" Action=\"Allow\">\r\n      <Conditions>\r\n        <FilePublisherCondition PublisherName=\"*\" ProductName=\"*\" BinaryName=\"*\">\r\n          <BinaryVersionRange LowSection=\"0.0.0.0\" HighSection=\"*\" />\r\n        </FilePublisherCondition>\r\n      </Conditions>\r\n    </FilePublisherRule>\r\n    <RuleCollectionExtensions>\r\n      <ThresholdExtensions>\r\n        <Services EnforcementMode=\"Enabled\" />\r\n      </ThresholdExtensions>\r\n      <RedstoneExtensions>\r\n        <SystemApps Allow=\"Enabled\" />\r\n      </RedstoneExtensions>\r\n    </RuleCollectionExtensions>\r\n  </RuleCollection>\r\n  <RuleCollection Type=\"Exe\" EnforcementMode=\"AuditOnly\">\r\n    <FileHashRule Id=\"0bb2e4a5-6f6e-4c39-9d3f-5d0f2a7b1c11\" Name=\"Tool &amp; Co\" Description=\"Zeile1&#10;Zeile2&#9;Tab &gt; &apos;x&apos;\" UserOrGroupSid=\"S-1-5-21-1-2-3-1001\" Action=\"Deny\">\r\n      <Conditions>\r\n        <FileHashCondition>\r\n          <FileHash Type=\"SHA256\" Data=\"0xABABABABABABABABABABABABABABABABABABABABABABABABABABABABABABABAB\" SourceFileName=\"tool.exe\" SourceFileLength=\"12345\" />\r\n        </FileHashCondition>\r\n      </Conditions>\r\n    </FileHashRule>\r\n    <FilePublisherRule Id=\"5b1c3c0e-2f3a-4d4b-8c9e-1a2b3c4d5e6f\" Name=\"Gemischt\" Description=\"\" UserOrGroupSid=\"S-1-1-0\" Action=\"Allow\">\r\n      <Conditions><FilePublisherCondition PublisherName=\"O=MICROSOFT CORPORATION, L=REDMOND, S=WASHINGTON, C=US\" ProductName=\"\" BinaryName=\"\"><BinaryVersionRange LowSection=\"10.0.0.0\" HighSection=\"*\"/></FilePublisherCondition></Conditions>\r\n      <Exceptions>\r\n        <FilePathCondition Path=\"%OSDRIVE%\\Temp\\*\" />\r\n        <FileHashCondition><FileHash Type=\"SHA1\" Data=\"0x0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f\"/></FileHashCondition>\r\n      </Exceptions>\r\n    </FilePublisherRule>\r\n  </RuleCollection>\r\n  <?ug test?>\r\n</AppLockerPolicy>"
+   }
+  }
+ },
+ {
+  "name": "applocker-einzeilig",
+  "config": {
+   "appLocker": {
+    "mode": "configure",
+    "policyXml": "<AppLockerPolicy Version=\"1.0\"><RuleCollection Type=\"Script\" EnforcementMode=\"NotConfigured\"></RuleCollection><RuleCollection Type=\"Dll\"/></AppLockerPolicy>"
+   }
+  }
+ },
+ {
+  "name": "applocker-mit-pe",
+  "config": {
+   "language": {
+    "mode": "unattended",
+    "image": "de-DE",
+    "locales": [
+     {
+      "locale": "de-DE",
+      "keyboard": "00000407"
+     }
+    ],
+    "geo": "94"
+   },
+   "timeZone": {
+    "mode": "explicit",
+    "id": "W. Europe Standard Time"
+   },
+   "pe": {
+    "mode": "generate",
+    "script": "",
+    "partition": {
+     "mode": "unattended",
+     "layout": "Automatic",
+     "recovery": "Partition",
+     "systemSize": 300,
+     "recoverySize": 1000,
+     "customScript": "",
+     "target": {
+      "mode": "generated",
+      "index": 0,
+      "minSizeGiB": 100,
+      "maxSizeGiB": 4000,
+      "assertNoPartitions": true,
+      "assertInterfaceType": false,
+      "assertMediaType": false,
+      "script": ""
+     }
+    },
+    "installFrom": {
+     "mode": "edition",
+     "edition": "pro",
+     "index": 1,
+     "name": ""
+    },
+    "pagingFile": {
+     "mode": "automatic",
+     "initialSizeMiB": 1024,
+     "maxSizeMiB": 4096
+    },
+    "disableDefender": true,
+    "disable8Dot3Names": false,
+    "pauseBeforeFormatting": false,
+    "pauseBeforeReboot": false,
+    "compactOs": false,
+    "skipIntegrityCheck": false
+   },
+   "appLocker": {
+    "mode": "configure",
+    "policyXml": "<AppLockerPolicy Version=\"1.0\"><RuleCollection Type=\"Script\" EnforcementMode=\"NotConfigured\"></RuleCollection><RuleCollection Type=\"Dll\"/></AppLockerPolicy>"
+   }
+  }
+ },
+ {
+  "name": "fehler-applocker-namespace",
+  "config": {
+   "appLocker": {
+    "mode": "configure",
+    "policyXml": "<AppLockerPolicy xmlns=\"urn:x\" Version=\"1\"/>"
+   }
+  }
+ },
+ {
+  "name": "fehler-applocker-wurzel",
+  "errorPrefix": "AppLocker policy XML is invalid:",
+  "config": {
+   "appLocker": {
+    "mode": "configure",
+    "policyXml": "<Foo Version=\"1\"/>"
+   }
+  }
+ },
+ {
+  "name": "fehler-applocker-kaputt",
+  "errorPrefix": "AppLocker policy XML is invalid:",
+  "config": {
+   "appLocker": {
+    "mode": "configure",
+    "policyXml": "<AppLockerPolicy Version=\"1\">"
+   }
+  }
+ },
+ {
+  "name": "fehler-applocker-leer",
+  "errorPrefix": "AppLocker policy XML is invalid:",
+  "config": {
+   "appLocker": {
+    "mode": "configure",
+    "policyXml": ""
+   }
+  }
+ },
+ {
+  "name": "fehler-applocker-doppelter-typ",
+  "errorPrefix": "AppLocker policy XML is invalid:",
+  "config": {
+   "appLocker": {
+    "mode": "configure",
+    "policyXml": "<AppLockerPolicy Version=\"1\"><RuleCollection Type=\"Exe\"/><RuleCollection Type=\"Exe\"/></AppLockerPolicy>"
+   }
+  }
+ },
+ {
+  "name": "fehler-applocker-sid",
+  "errorPrefix": "AppLocker policy XML is invalid:",
+  "config": {
+   "appLocker": {
+    "mode": "configure",
+    "policyXml": "<AppLockerPolicy Version=\"1\">\n  <RuleCollection Type=\"Exe\" EnforcementMode=\"AuditOnly\">\n    <FilePathRule Id=\"921cc481-6e17-4653-8f75-050b80acca20\" Name=\"(Standardregel) Alle Dateien im Ordner &quot;Programme&quot;\" Description=\"\" UserOrGroupSid=\"S-1\" Action=\"Allow\">\n      <Conditions>\n        <FilePathCondition Path=\"%PROGRAMFILES%\\*\" />\n      </Conditions>\n    </FilePathRule>\n    <FilePathRule Id=\"a61c8b2c-a319-4cd0-9690-d2177cad7b51\" Name=\"(Standardregel) Alle Dateien im Ordner &quot;Windows&quot;\" Description=\"\" UserOrGroupSid=\"S-1-1-0\" Action=\"Allow\">\n      <Conditions><FilePathCondition Path=\"%WINDIR%\\*\"/></Conditions>\n    </FilePathRule>\n    <FilePathRule Id=\"fd686d83-a829-4351-8ff4-27c7de5755d2\" Name=\"(Standardregel) Alle Dateien\" Description=\"Administratoren &lt;alle&gt;\" UserOrGroupSid=\"S-1-5-32-544\" Action=\"Allow\">\n      <Conditions>\n        <FilePathCondition Path=\"*\"></FilePathCondition>\n      </Conditions>\n    </FilePathRule>\n  </RuleCollection>\n  <!-- Kommentar -->\n  <RuleCollection Type=\"Msi\" EnforcementMode=\"NotConfigured\" />\n</AppLockerPolicy>\n"
+   }
+  }
+ },
+ {
+  "name": "fehler-applocker-modus",
+  "errorPrefix": "AppLocker policy XML is invalid:",
+  "config": {
+   "appLocker": {
+    "mode": "configure",
+    "policyXml": "<AppLockerPolicy Version=\"1\"><RuleCollection Type=\"Exe\" EnforcementMode=\"On\"/></AppLockerPolicy>"
+   }
+  }
+ },
+ {
+  "name": "fehler-applocker-reihenfolge",
+  "errorPrefix": "AppLocker policy XML is invalid:",
+  "config": {
+   "appLocker": {
+    "mode": "configure",
+    "policyXml": "<AppLockerPolicy Version=\"1\"><PolicyExtensions><ThresholdExtensions/></PolicyExtensions><RuleCollection Type=\"Exe\"/></AppLockerPolicy>"
+   }
+  }
+ },
+ {
+  "name": "fehler-applocker-ohne-bedingung",
+  "errorPrefix": "AppLocker policy XML is invalid:",
+  "config": {
+   "appLocker": {
+    "mode": "configure",
+    "policyXml": "<AppLockerPolicy Version=\"1\"><RuleCollection Type=\"Exe\"><FilePathRule Id=\"921cc481-6e17-4653-8f75-050b80acca20\" Name=\"a\" Description=\"\" UserOrGroupSid=\"S-1-1-0\" Action=\"Allow\"/></RuleCollection></AppLockerPolicy>"
+   }
+  }
+ },
+ {
+  "name": "fehler-applocker-doppelte-id",
+  "errorPrefix": "AppLocker policy XML is invalid:",
+  "config": {
+   "appLocker": {
+    "mode": "configure",
+    "policyXml": "<AppLockerPolicy Version=\"1\"><RuleCollection Type=\"Exe\"><FilePathRule Id=\"921cc481-6e17-4653-8f75-050b80acca20\" Name=\"a\" Description=\"\" UserOrGroupSid=\"S-1-1-0\" Action=\"Allow\"><Conditions><FilePathCondition Path=\"*\"/></Conditions></FilePathRule></RuleCollection><RuleCollection Type=\"Msi\"><FilePathRule Id=\"921cc481-6e17-4653-8f75-050b80acca20\" Name=\"b\" Description=\"\" UserOrGroupSid=\"S-1-1-0\" Action=\"Allow\"><Conditions><FilePathCondition Path=\"*\"/></Conditions></FilePathRule></RuleCollection></AppLockerPolicy>"
+   }
+  }
+ },
+ {
+  "name": "fehler-applocker-text",
+  "errorPrefix": "AppLocker policy XML is invalid:",
+  "config": {
+   "appLocker": {
+    "mode": "configure",
+    "policyXml": "<AppLockerPolicy Version=\"1\">Text</AppLockerPolicy>"
+   }
+  }
+ },
+ {
+  "name": "fehler-applocker-attribut",
+  "errorPrefix": "AppLocker policy XML is invalid:",
+  "config": {
+   "appLocker": {
+    "mode": "configure",
+    "policyXml": "<AppLockerPolicy Version=\"1\" Foo=\"x\"/>"
+   }
+  }
+ },
+ {
+  "name": "wlan-wpa2-auto",
+  "config": {
+   "wifi": {
+    "mode": "unattended",
+    "name": "Heimnetz",
+    "password": "geheim123",
+    "authentication": "WPA2PSK",
+    "connectAutomatically": true,
+    "nonBroadcast": false,
+    "xml": ""
+   }
+  }
+ },
+ {
+  "name": "wlan-wpa3-versteckt-manuell",
+  "config": {
+   "wifi": {
+    "mode": "unattended",
+    "name": "Büro \"5G\" & <Gäste>",
+    "password": "p&ss<w>rd\"",
+    "authentication": "WPA3SAE",
+    "connectAutomatically": false,
+    "nonBroadcast": true,
+    "xml": ""
+   }
+  }
+ },
+ {
+  "name": "wlan-offen-versteckt",
+  "config": {
+   "wifi": {
+    "mode": "unattended",
+    "name": "Café",
+    "password": "",
+    "authentication": "Open",
+    "connectAutomatically": true,
+    "nonBroadcast": true,
+    "xml": ""
+   }
+  }
+ },
+ {
+  "name": "wlan-leeres-kennwort",
+  "config": {
+   "wifi": {
+    "mode": "unattended",
+    "name": "X",
+    "password": "",
+    "authentication": "WPA2PSK",
+    "connectAutomatically": true,
+    "nonBroadcast": false,
+    "xml": ""
+   }
+  }
+ },
+ {
+  "name": "wlan-mit-pe-und-applocker",
+  "config": {
+   "language": {
+    "mode": "unattended",
+    "image": "de-DE",
+    "locales": [
+     {
+      "locale": "de-DE",
+      "keyboard": "00000407"
+     }
+    ],
+    "geo": "94"
+   },
+   "timeZone": {
+    "mode": "explicit",
+    "id": "W. Europe Standard Time"
+   },
+   "pe": {
+    "mode": "generate",
+    "script": "",
+    "partition": {
+     "mode": "unattended",
+     "layout": "Automatic",
+     "recovery": "Partition",
+     "systemSize": 300,
+     "recoverySize": 1000,
+     "customScript": "",
+     "target": {
+      "mode": "generated",
+      "index": 0,
+      "minSizeGiB": 100,
+      "maxSizeGiB": 4000,
+      "assertNoPartitions": true,
+      "assertInterfaceType": false,
+      "assertMediaType": false,
+      "script": ""
+     }
+    },
+    "installFrom": {
+     "mode": "edition",
+     "edition": "pro",
+     "index": 1,
+     "name": ""
+    },
+    "pagingFile": {
+     "mode": "automatic",
+     "initialSizeMiB": 1024,
+     "maxSizeMiB": 4096
+    },
+    "disableDefender": true,
+    "disable8Dot3Names": false,
+    "pauseBeforeFormatting": false,
+    "pauseBeforeReboot": false,
+    "compactOs": false,
+    "skipIntegrityCheck": false
+   },
+   "wifi": {
+    "mode": "unattended",
+    "name": "Heimnetz",
+    "password": "geheim123",
+    "authentication": "WPA2PSK",
+    "connectAutomatically": true,
+    "nonBroadcast": false,
+    "xml": ""
+   },
+   "appLocker": {
+    "mode": "configure",
+    "policyXml": "<AppLockerPolicy Version=\"1\"/>"
+   }
+  }
+ },
+ {
+  "name": "wlan-xml-export",
+  "config": {
+   "wifi": {
+    "mode": "xml",
+    "name": "",
+    "password": "",
+    "authentication": "WPA2PSK",
+    "connectAutomatically": true,
+    "nonBroadcast": false,
+    "xml": "<?xml version=\"1.0\"?>\r\n<WLANProfile xmlns=\"http://www.microsoft.com/networking/WLAN/profile/v1\">\r\n\t<name>Heimnetz &amp; Gäste</name>\r\n\t<SSIDConfig>\r\n\t\t<SSID>\r\n\t\t\t<hex>4865696D6E65747A20262047C3A4737465</hex>\r\n\t\t\t<name>Heimnetz &amp; Gäste</name>\r\n\t\t</SSID>\r\n\t</SSIDConfig>\r\n\t<connectionType>ESS</connectionType>\r\n\t<connectionMode>auto</connectionMode>\r\n\t<MSM>\r\n\t\t<security>\r\n\t\t\t<authEncryption>\r\n\t\t\t\t<authentication>WPA2PSK</authentication>\r\n\t\t\t\t<encryption>AES</encryption>\r\n\t\t\t\t<useOneX>false</useOneX>\r\n\t\t\t</authEncryption>\r\n\t\t\t<sharedKey>\r\n\t\t\t\t<keyType>passPhrase</keyType>\r\n\t\t\t\t<protected>false</protected>\r\n\t\t\t\t<keyMaterial>geheim&lt;123&gt;</keyMaterial>\r\n\t\t\t</sharedKey>\r\n\t\t</security>\r\n\t</MSM>\r\n\t<MacRandomization xmlns=\"http://www.microsoft.com/networking/WLAN/profile/v3\">\r\n\t\t<enableRandomization>false</enableRandomization>\r\n\t\t<randomizationSeed>1451755948</randomizationSeed>\r\n\t</MacRandomization>\r\n</WLANProfile>"
+   }
+  }
+ },
+ {
+  "name": "wlan-xml-manuell-wpa3",
+  "config": {
+   "wifi": {
+    "mode": "xml",
+    "name": "",
+    "password": "",
+    "authentication": "WPA2PSK",
+    "connectAutomatically": true,
+    "nonBroadcast": false,
+    "xml": "<WLANProfile xmlns=\"http://www.microsoft.com/networking/WLAN/profile/v1\"><name>Firma</name><SSIDConfig><SSID><name>Firma</name></SSID><nonBroadcast>true</nonBroadcast></SSIDConfig><connectionType>ESS</connectionType><connectionMode>manual</connectionMode><MSM><security><authEncryption><authentication>WPA3SAE</authentication><encryption>AES</encryption><useOneX>false</useOneX><transitionMode xmlns=\"http://www.microsoft.com/networking/WLAN/profile/v4\">true</transitionMode></authEncryption><sharedKey><keyType>passPhrase</keyType><protected>false</protected><keyMaterial></keyMaterial></sharedKey></security></MSM></WLANProfile>"
+   }
+  }
+ },
+ {
+  "name": "wlan-xml-ohne-verbindungsmodus",
+  "config": {
+   "wifi": {
+    "mode": "xml",
+    "name": "",
+    "password": "",
+    "authentication": "WPA2PSK",
+    "connectAutomatically": true,
+    "nonBroadcast": false,
+    "xml": "<WLANProfile xmlns=\"http://www.microsoft.com/networking/WLAN/profile/v1\">\n  <name>Offen</name>\n  <SSIDConfig><SSID><hex>4F6666656E</hex></SSID></SSIDConfig>\n  <connectionType>ESS</connectionType>\n  <MSM><security><authEncryption><authentication>open</authentication><encryption>none</encryption><useOneX>false</useOneX></authEncryption></security></MSM>\n  <!-- ohne connectionMode -->\n</WLANProfile>"
+   }
+  }
+ },
+ {
+  "name": "fehler-wlan-namespace",
+  "config": {
+   "wifi": {
+    "mode": "xml",
+    "name": "",
+    "password": "",
+    "authentication": "WPA2PSK",
+    "connectAutomatically": true,
+    "nonBroadcast": false,
+    "xml": "<WLANProfile><name>A</name></WLANProfile>"
+   }
+  }
+ },
+ {
+  "name": "fehler-wlan-kaputt",
+  "errorPrefix": "WLAN profile XML is invalid:",
+  "config": {
+   "wifi": {
+    "mode": "xml",
+    "name": "",
+    "password": "",
+    "authentication": "WPA2PSK",
+    "connectAutomatically": true,
+    "nonBroadcast": false,
+    "xml": "<WLANProfile xmlns=\"http://www.microsoft.com/networking/WLAN/profile/v1\">"
+   }
+  }
+ },
+ {
+  "name": "fehler-wlan-ohne-name",
+  "errorPrefix": "WLAN profile XML is invalid:",
+  "config": {
+   "wifi": {
+    "mode": "xml",
+    "name": "",
+    "password": "",
+    "authentication": "WPA2PSK",
+    "connectAutomatically": true,
+    "nonBroadcast": false,
+    "xml": "<WLANProfile xmlns=\"http://www.microsoft.com/networking/WLAN/profile/v1\"><SSIDConfig><SSID><name>A</name></SSID></SSIDConfig><connectionType>ESS</connectionType></WLANProfile>"
+   }
+  }
+ },
+ {
+  "name": "fehler-wlan-authentifizierung",
+  "errorPrefix": "WLAN profile XML is invalid:",
+  "config": {
+   "wifi": {
+    "mode": "xml",
+    "name": "",
+    "password": "",
+    "authentication": "WPA2PSK",
+    "connectAutomatically": true,
+    "nonBroadcast": false,
+    "xml": "<WLANProfile xmlns=\"http://www.microsoft.com/networking/WLAN/profile/v1\"><name>Firma</name><SSIDConfig><SSID><name>Firma</name></SSID><nonBroadcast>true</nonBroadcast></SSIDConfig><connectionType>ESS</connectionType><connectionMode>manual</connectionMode><MSM><security><authEncryption><authentication>WPA4</authentication><encryption>AES</encryption><useOneX>false</useOneX><transitionMode xmlns=\"http://www.microsoft.com/networking/WLAN/profile/v4\">true</transitionMode></authEncryption><sharedKey><keyType>passPhrase</keyType><protected>false</protected><keyMaterial></keyMaterial></sharedKey></security></MSM></WLANProfile>"
+   }
+  }
+ },
+ {
+  "name": "fehler-wlan-reihenfolge",
+  "errorPrefix": "WLAN profile XML is invalid:",
+  "config": {
+   "wifi": {
+    "mode": "xml",
+    "name": "",
+    "password": "",
+    "authentication": "WPA2PSK",
+    "connectAutomatically": true,
+    "nonBroadcast": false,
+    "xml": "<WLANProfile xmlns=\"http://www.microsoft.com/networking/WLAN/profile/v1\"><name>A</name><connectionType>ESS</connectionType><SSIDConfig><SSID><name>A</name></SSID></SSIDConfig></WLANProfile>"
+   }
+  }
+ },
+ {
+  "name": "fehler-wlan-hex",
+  "errorPrefix": "WLAN profile XML is invalid:",
+  "config": {
+   "wifi": {
+    "mode": "xml",
+    "name": "",
+    "password": "",
+    "authentication": "WPA2PSK",
+    "connectAutomatically": true,
+    "nonBroadcast": false,
+    "xml": "<WLANProfile xmlns=\"http://www.microsoft.com/networking/WLAN/profile/v1\">\n  <name>Offen</name>\n  <SSIDConfig><SSID><hex>4F6</hex></SSID></SSIDConfig>\n  <connectionType>ESS</connectionType>\n  <MSM><security><authEncryption><authentication>open</authentication><encryption>none</encryption><useOneX>false</useOneX></authEncryption></security></MSM>\n  <!-- ohne connectionMode -->\n</WLANProfile>"
+   }
+  }
+ },
+ {
+  "name": "fehler-wlan-unbekanntes-element",
+  "errorPrefix": "WLAN profile XML is invalid:",
+  "config": {
+   "wifi": {
+    "mode": "xml",
+    "name": "",
+    "password": "",
+    "authentication": "WPA2PSK",
+    "connectAutomatically": true,
+    "nonBroadcast": false,
+    "xml": "<WLANProfile xmlns=\"http://www.microsoft.com/networking/WLAN/profile/v1\">\n  <name>Offen</name>\n  <SSIDConfig><SSID><hex>4F6666656E</hex></SSID></SSIDConfig>\n  <foo/><connectionType>ESS</connectionType>\n  <MSM><security><authEncryption><authentication>open</authentication><encryption>none</encryption><useOneX>false</useOneX></authEncryption></security></MSM>\n  <!-- ohne connectionMode -->\n</WLANProfile>"
+   }
+  }
+ },
+ {
+  "name": "fehler-wlan-bool",
+  "errorPrefix": "WLAN profile XML is invalid:",
+  "config": {
+   "wifi": {
+    "mode": "xml",
+    "name": "",
+    "password": "",
+    "authentication": "WPA2PSK",
+    "connectAutomatically": true,
+    "nonBroadcast": false,
+    "xml": "<WLANProfile xmlns=\"http://www.microsoft.com/networking/WLAN/profile/v1\"><name>Firma</name><SSIDConfig><SSID><name>Firma</name></SSID><nonBroadcast>ja</nonBroadcast></SSIDConfig><connectionType>ESS</connectionType><connectionMode>manual</connectionMode><MSM><security><authEncryption><authentication>WPA3SAE</authentication><encryption>AES</encryption><useOneX>false</useOneX><transitionMode xmlns=\"http://www.microsoft.com/networking/WLAN/profile/v4\">true</transitionMode></authEncryption><sharedKey><keyType>passPhrase</keyType><protected>false</protected><keyMaterial></keyMaterial></sharedKey></security></MSM></WLANProfile>"
+   }
+  }
+ },
+ {
+  "name": "hintergrund-farbe",
+  "config": {
+   "wallpaper": {
+    "mode": "solid",
+    "color": "#1e3a5f",
+    "script": ""
+   }
+  }
+ },
+ {
+  "name": "hintergrund-bild",
+  "config": {
+   "wallpaper": {
+    "mode": "script",
+    "color": "#000000",
+    "script": "# Bild: bild.png (1 KB)\nreturn ,[System.Convert]::FromBase64String('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==');"
+   }
+  }
+ },
+ {
+  "name": "sperrbildschirm-bild",
+  "config": {
+   "lockScreen": {
+    "mode": "script",
+    "script": "# Bild: bild.png (1 KB)\nreturn ,[System.Convert]::FromBase64String('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==');"
+   }
+  }
+ },
+ {
+  "name": "hintergrund-sperrbildschirm-farben",
+  "config": {
+   "colors": {
+    "mode": "custom",
+    "systemTheme": "Dark",
+    "appsTheme": "Dark",
+    "accentColor": "#FF8800",
+    "accentOnStart": true,
+    "accentOnBorders": false,
+    "transparency": false
+   },
+   "wallpaper": {
+    "mode": "script",
+    "color": "#000000",
+    "script": "$url = 'https://example.com/bild.jpg';\r\n(Invoke-WebRequest -Uri $url -UseBasicParsing).Content;"
+   },
+   "lockScreen": {
+    "mode": "script",
+    "script": "# Bild: bild.png (1 KB)\nreturn ,[System.Convert]::FromBase64String('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==');"
+   }
+  }
+ },
+ {
+  "name": "vm-virtualbox-vmware-parallels",
+  "config": {
+   "vmTools": {
+    "virtualBox": true,
+    "vmware": true,
+    "virtIo": false,
+    "parallels": true
+   }
+  }
+ },
+ {
+  "name": "vm-virtio-ohne-pe",
+  "config": {
+   "vmTools": {
+    "virtualBox": false,
+    "vmware": false,
+    "virtIo": true,
+    "parallels": false
+   }
+  }
+ },
+ {
+  "name": "vm-alle-pe-defender-aus",
+  "config": {
+   "language": {
+    "mode": "unattended",
+    "image": "de-DE",
+    "locales": [
+     {
+      "locale": "de-DE",
+      "keyboard": "00000407"
+     }
+    ],
+    "geo": "94"
+   },
+   "timeZone": {
+    "mode": "explicit",
+    "id": "W. Europe Standard Time"
+   },
+   "pe": {
+    "mode": "generate",
+    "script": "",
+    "partition": {
+     "mode": "unattended",
+     "layout": "Automatic",
+     "recovery": "Partition",
+     "systemSize": 300,
+     "recoverySize": 1000,
+     "customScript": "",
+     "target": {
+      "mode": "generated",
+      "index": 0,
+      "minSizeGiB": 100,
+      "maxSizeGiB": 4000,
+      "assertNoPartitions": true,
+      "assertInterfaceType": false,
+      "assertMediaType": false,
+      "script": ""
+     }
+    },
+    "installFrom": {
+     "mode": "edition",
+     "edition": "pro",
+     "index": 1,
+     "name": ""
+    },
+    "pagingFile": {
+     "mode": "automatic",
+     "initialSizeMiB": 1024,
+     "maxSizeMiB": 4096
+    },
+    "disableDefender": true,
+    "disable8Dot3Names": false,
+    "pauseBeforeFormatting": false,
+    "pauseBeforeReboot": false,
+    "compactOs": false,
+    "skipIntegrityCheck": false
+   },
+   "vmTools": {
+    "virtualBox": true,
+    "vmware": true,
+    "virtIo": true,
+    "parallels": true
+   }
+  }
+ },
+ {
+  "name": "vm-virtio-pe-defender-an",
+  "config": {
+   "language": {
+    "mode": "unattended",
+    "image": "de-DE",
+    "locales": [
+     {
+      "locale": "de-DE",
+      "keyboard": "00000407"
+     }
+    ],
+    "geo": "94"
+   },
+   "timeZone": {
+    "mode": "explicit",
+    "id": "W. Europe Standard Time"
+   },
+   "pe": {
+    "mode": "generate",
+    "script": "",
+    "partition": {
+     "mode": "unattended",
+     "layout": "Automatic",
+     "recovery": "Partition",
+     "systemSize": 300,
+     "recoverySize": 1000,
+     "customScript": "",
+     "target": {
+      "mode": "generated",
+      "index": 0,
+      "minSizeGiB": 100,
+      "maxSizeGiB": 4000,
+      "assertNoPartitions": true,
+      "assertInterfaceType": false,
+      "assertMediaType": false,
+      "script": ""
+     }
+    },
+    "installFrom": {
+     "mode": "edition",
+     "edition": "pro",
+     "index": 1,
+     "name": ""
+    },
+    "pagingFile": {
+     "mode": "automatic",
+     "initialSizeMiB": 1024,
+     "maxSizeMiB": 4096
+    },
+    "disableDefender": false,
+    "disable8Dot3Names": false,
+    "pauseBeforeFormatting": false,
+    "pauseBeforeReboot": false,
+    "compactOs": false,
+    "skipIntegrityCheck": false
+   },
+   "vmTools": {
+    "virtualBox": false,
+    "vmware": true,
+    "virtIo": true,
+    "parallels": false
+   }
+  }
+ }
+]

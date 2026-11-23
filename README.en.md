@@ -52,6 +52,10 @@ unpack the ZIP and open `index.html`. Inside the package the screenshots are lin
   network. User-scoped values are written to `C:\Users\Default\NTUSER.DAT` in phase 1
   and therefore apply to new accounts. Settings that need a running network or
   service stack are automatically deferred to phase 2 (see below).
+* **Registry files** – `.reg` exports (REGEDIT4 and 5.00, UTF-16) are taken over value
+  by value and run with the tweaks. `HKCU` goes into the default profile or to all users
+  instead of – as with `reg import` as SYSTEM – the SYSTEM profile; `HKCR` becomes
+  `HKLM\SOFTWARE\Classes`, `HKEY_USERS` is skipped.
 * **Bloatware** – pick pre-installed AppX packages, provisioning removal included.
 * **Windows components** – turn on Windows Sandbox, Hyper-V, WSL, .NET 3.5, OpenSSH,
   RSAT and other features along the way (see below).
@@ -60,9 +64,16 @@ unpack the ZIP and open `index.html`. Inside the package the screenshots are lin
 * **Custom files** – ship installers and scripts, either to `Install\Files` (where
   they are executed) or next to `SetupComplete.cmd` in `Setup\Scripts` (reachable
   via `%~dp0`).
+  Known setup files get their parameters from a template catalog (`Catalog.INSTALLERS`,
+  e.g. Right-Click Tools); for other `.exe` files the generator detects Inno Setup, NSIS
+  and WiX Burn from the file header and suggests the default switches. An installer without
+  parameters is only copied – the table points that out.
 * **autounattend.xml** – generated as a trigger or, if you already use an answer
   file, imported and **extended rather than replaced**: the calls are inserted into
   the existing blocks with a continuing `<Order>`.
+* **Answer file designer** – creates a complete `autounattend.xml` (language, accounts,
+  computer name, edition, OOBE) as a port of Christoph Schneegans' generator; the generator
+  inserts its calls (see below).
 * **Diagnose.ps1** – ships inside the generated package and answers, after the
   installation, why nothing ran.
 * **Help on every page** – the *Help* button in the page header (or <kbd>F1</kbd>)
@@ -72,6 +83,8 @@ unpack the ZIP and open `index.html`. Inside the package the screenshots are lin
   working, ZIP export (ZIP64 from 4 GB on) or (Chrome, Edge) **export straight into a
   folder** or onto the USB stick. Chrome and Edge ask for the target with a "Save as"
   dialog; Firefox and Safari download the file.
+* **Create ISO** – pick a Windows ISO, the generated files are added and a new bootable
+  ISO (BIOS and UEFI) is written – without oscdimg, ADK or admin rights (see below).
 
 ## Two-phase model
 
@@ -150,19 +163,29 @@ reason why nothing gets copied at all:
 |---|---|
 | `<UseConfigurationSet>true</UseConfigurationSet>` (set by the generator) | `<medium>\$OEM$\…` (root directory) |
 | no answer file | `<medium>\sources\$OEM$\…` |
-| answer file with `UseConfigurationSet=false` | on current Windows 11 builds possibly **not copied at all** |
+| answer file with `UseConfigurationSet=false` | up to 23H2 `<medium>\sources\$OEM$\…`; from 24H2 on **not copied at all** |
 
-With `UseConfigurationSet=true` Setup looks for the configuration set **next to the
-answer file**. Without this value Windows Setup (Windows 11, build 26300) did not
-copy `$OEM$` at all in a test – neither from `sources\` nor from the root; there was
-no installation folder and no phase 2. The generator therefore writes
-`UseConfigurationSet=true` into the generated and into an imported answer file
-(*Settings → Trigger*, can be turned off) and sets the location to "both places" –
-Setup only evaluates the matching one, the other folder is ignored.
+Which value is right depends on the Windows build:
 
-With `true` Setup copies the folder of the answer file to `C:\Windows\ConfigSetRoot`.
-On a normal installation medium that is harmless; on multi-boot sticks such as
-Ventoy it can get very large.
+| Target system | `UseConfigurationSet` | Setup behaviour |
+|---|---|---|
+| Windows 11 24H2 and later | `true` | copies `$OEM$`; no `ConfigSetRoot` |
+| Windows 11 24H2 and later | `false` | does **not** copy `$OEM$` – no installation folder, no phase 2 (own test with build 26300) |
+| Windows 10, Windows 11 up to 23H2 | `false` | copies `sources\$OEM$` |
+| Windows 10, Windows 11 up to 23H2 | `true` | copies `$OEM$`, but also **everything next to the answer file** to `C:\Windows\ConfigSetRoot` – the whole medium, with Ventoy the whole data partition |
+
+The source for the older builds is the discussion in Christoph Schneegans' project
+([unattend-generator#474](https://github.com/cschneegans/unattend-generator/issues/474)),
+which no longer sets `true` unconditionally for this reason.
+
+The generator therefore asks for the **target system** under *Settings → Trigger* and
+writes the matching value into the generated and into an imported answer file. An
+imported file with `true` is set to `false` for "up to 23H2". For a medium meant to
+install both generations there is "both": `true` with a clear note about the copy.
+When a source ISO is chosen (*Create ISO*), the generator reads the build from
+`install.wim`/`.esd` and sets the target system accordingly. The location "both
+places" serves every case – Setup only evaluates the matching folder, the other one is
+ignored.
 
 ### Office needs a network
 
@@ -316,6 +339,85 @@ the App Installer is an MSIX package that is not in the search path under SYSTEM
 packages that install per user only fail without a user profile. That is why phase 2
 is preselected for applications.
 
+## Answer file designer
+
+The **Answer file** page creates a complete `autounattend.xml`: image language, up to three
+locales with keyboard, location, time zone, edition or product key, hardware-check bypass,
+setup without internet, computer name (fixed or asked during installation), local accounts
+with automatic sign-in, privacy and Wi-Fi pages, account lockout and password expiration.
+The generator then inserts its calls – as with an imported file – and sets
+`UseConfigurationSet` according to the target system.
+
+The designer is a **port** of the generator by Christoph Schneegans
+([unattend-generator](https://github.com/cschneegans/unattend-generator), MIT licence,
+licence text in `vendor/schneegans/LICENSE.txt`). The logic is carried over to JavaScript
+file by file (`js/ug/core.js`, `js/ug/modifiers.js`, one section per modifier with the same
+name); the original's data tables and scripts are taken over unchanged (`js/ug/resources.js`,
+generated). Deviations are marked `PORT:` in the code.
+
+With **Installation & partitioning → pe.cmd** a script handles the windowsPE phase:
+determine the target disk (by criteria, fixed, asked or via VBScript), partition it with
+`diskpart` (GPT/MBR by firmware, recovery partition, or an own script), apply the image via
+`dism`, `bcdboot`, drivers from `$WinPEDriver$`, copy `$OEM$` from the root via `robocopy`,
+restart. **Automatic partitioning wipes the target disk without asking**; if the disk is not
+unique, Setup halts.
+
+**Personalisation** covers colours (theme, accent colour, transparency), lock keys (state at
+startup, ignore a key), visual effects, desktop icons, “delete Edge shortcut” and the folders
+on Start. They apply to every new account at its first sign-in – also without activation.
+Where they overlap with tweaks (dark mode, desktop icons, NumLock), pick only one.
+
+**AppLocker** takes a policy as XML (export of `Get-AppLockerPolicy -Local -Xml` or from
+`secpol.msc`; drag & drop works too, UTF-16 included), checks it against the original's
+`AppLocker.xsd` and applies it in the `specialize` pass via `Set-AppLockerPolicy`. The schema
+check is rebuilt in the port because browsers have no XSD support; its messages therefore
+differ from the original's, and the golden test compares only the prefix there.
+
+**Wi-Fi** connects with network name, password and security (WPA2, WPA3, open, hidden too) or
+takes a profile from `netsh wlan export profile key=clear` (checked against
+`WLAN_profile_v1.xsd`, also rebuilt). The password is stored in plain text in the answer file.
+
+**Wallpaper and lock screen** take a color, an uploaded image (Base64 in the answer file) or an own
+PowerShell script that delivers the image data. **Guest additions** for VirtualBox, VMware, VirtIO
+(QEMU/KVM, Proxmox) and Parallels are installed if the medium is inserted in the VM; with `pe.cmd`,
+VirtIO also loads storage and network drivers.
+
+That covers every modifier of the original – except bloatware and the remaining optimizations,
+for which the generator has its own catalogs (pages *Bloatware* and *Tweaks*). Tweaks and
+bloatware are provided by the generator itself.
+
+### Watching the original for changes
+
+`vendor/schneegans/UPSTREAM.json` records the commit the port is based on and, per file,
+the Git blob id, the target in the port and the porting status. The *Schneegans beobachten*
+workflow clones the original every week, compares and opens an issue on changes – with the
+new commits, the affected files and their target module, a diff link and changed scripts
+verbatim (they run as SYSTEM on the target machines). Nothing is taken over automatically.
+After review and porting:
+
+```bash
+git clone https://github.com/cschneegans/unattend-generator.git ../unattend-generator
+node tools/sync-schneegans.js ../unattend-generator --resources --write
+```
+
+`--resources` regenerates `js/ug/resources.js`, `--write` sets the port state. Without
+these switches the tool only prints the report.
+
+### Golden test against the original
+
+`tools/test-golden.js` checks whether the port produces the same as the original: for every
+case in `tools/golden/cases.json` the port creates the answer file in Chromium, and a small
+C# program (`tools/golden`) compiles the **unchanged** sources of the original, translates
+the same configuration into its `Configuration` and writes its result. The comparison is
+byte by byte (only `<Build>` with the respective commit hash is masked), for error cases the
+message as well. The *Tests* workflow compares against the port state, the *Schneegans
+beobachten* workflow compares against the latest state on changes and adds the result to the
+issue. Locally (needs .NET 8 and Playwright; runs the original's code):
+
+```bash
+node tools/test-golden.js --upstream ../unattend-generator
+```
+
 ## Generated structure
 
 ```
@@ -355,6 +457,39 @@ points out. File types Chrome does not write to folders (above all `.dll`, plus 
 `.cfg`, `.manifest`) end up on the stick as `*.oemrename`;
 `Install.ps1` renames them back before the first module. That does not work for drivers
 under `$WinPEDriver$` – use the ZIP for those.
+
+### Create ISO
+
+If you need the medium as an ISO anyway – for VMs, Ventoy or Rufus – **Create ISO** saves
+unpacking and rewriting with oscdimg, AnyBurn & co.:
+
+1. Click **Create ISO** (or beforehand *Settings → ISO image → Choose source ISO*) and pick
+   the original ISO from Microsoft. The summary shows the label, image, boot entries and
+   what gets replaced.
+2. Pick the destination – done. Chrome and Edge ask via "Save as" and show the progress in
+   the button; Firefox downloads.
+
+The new ISO holds the whole content of the source plus `autounattend.xml`, `$OEM$`,
+`$WinPEDriver$`, `README.txt` and the project file. Existing `$OEM$`, `sources\$OEM$`
+and `$WinPEDriver$` folders of the source are replaced. If the source brings its own
+`autounattend.xml` and none is imported, the generator asks once whether to adopt and
+extend it or to replace it. `install.wim`/`install.esd` and `boot.wim` stay unchanged.
+Unlike the folder export, `.dll` files arrive under their own name – under
+`$WinPEDriver$` too.
+
+Layout as with Microsoft (`oscdimg -u2 -udfver102`): UDF 1.02 with the whole content,
+ISO 9660 only as a shell with one `README.TXT`, El Torito boot catalogue with the source's
+entries (BIOS `etfsboot.com`, UEFI `efisys.bin`). Files over 4 GB span several extents;
+every file starts on a 4 KB boundary. The source ISO is not loaded into memory – its files
+go into the result as slices of the file.
+
+*Start without "Press any key"* (settings) uses `efisys_noprompt.bin` and leaves out
+`boot\bootfix.bin`. Handy for VMs, but careful: if the ISO stays inserted, the
+installation starts over after every restart.
+
+Not supported are ISOs from burning software with UDF 2.x (metadata partition) or
+hard-disk emulation in the boot catalogue – use the original ISO instead. An ISO over
+4 GB does not fit on a FAT32 drive.
 
 Large packages fit into the ZIP as well: from 4 GB or 65,535 files on the generator
 writes **ZIP64** automatically, which Windows Explorer (Windows 10 and later) and 7-Zip
@@ -440,6 +575,36 @@ for it:
 node tools/check-i18n.js
 ```
 
+The answer file designer (`js/ug`) needs DOM and XPath; its test therefore runs in
+Chromium and requires Playwright (without Playwright it reports "skipped"):
+
+```bash
+node tools/test-unattend.js
+```
+
+The *Tests* workflow checks the generated PowerShell scripts on every push and pull request
+on a Windows runner: syntax and PSScriptAnalyzer under Windows PowerShell 5.1 and
+PowerShell 7, plus functional tests under 5.1 – the tweak module really writes the values
+from `samples/Beispiel.reg` into the registry (including the default profile) and reads them
+back, and `Diagnose.ps1` has to run through. Locally (only on a throwaway system, the tweaks
+change the system):
+
+```bash
+node tools/emit-scripts.js out
+```
+
+```bash
+powershell -ExecutionPolicy Bypass -File tools/test-powershell.ps1 -Root out -Functional
+```
+
+The ISO writer (`js/iso.js`) can be checked without a browser: the test tool builds a
+synthetic Windows ISO, reads it back, rewrites it the way the interface does and compares –
+with `udfinfo` and 7-Zip, if installed, against independent UDF implementations too:
+
+```bash
+node tools/test-iso.js
+```
+
 Processes are started through `ProcessStartInfo`, not through
 `Start-Process -PassThru`: that process object returns an empty `ExitCode` after
 `WaitForExit()`, because PowerShell does not keep the handle open. It made the
@@ -456,6 +621,10 @@ js/version.js     version number (the only place)
 js/help.js        help texts per page (German/English)
 js/i18n.js        German/English dictionary and language switching
 js/zip.js         ZIP writer (deflate via CompressionStream, otherwise "stored")
+js/iso.js         reads and rewrites ISO images (UDF 1.02, El Torito)
+js/ug/            answer file designer (port of the Schneegans generator):
+                  core.js, modifiers.js, resources.js (generated)
+vendor/schneegans/ licence and port state (UPSTREAM.json) of the original
 js/catalog.js     catalog of tweaks, bloatware and Windows components, package managers
 js/importers.js   parsers for bundles, SetupComplete.cmd and ODT XML
 js/templates.js   generation of every script
@@ -463,6 +632,14 @@ js/app.js         state, interface, import/export
 samples/          sample files for testing the import function
 tools/            check-escapes.js – checks the template literals for swallowed escapes
                   check-i18n.js    – checks the dictionary against the interface
+                  test-iso.js      – checks the ISO writer
+                  test-reg.js      – checks the .reg import
+                  test-unattend.js – checks the answer file designer (Playwright)
+                  sync-schneegans.js – compares with the original, generates resources.js
+                  test-golden.js   – port against the C# original (golden/: harness, cases)
+                  emit-scripts.js  – generates the scripts of several test profiles without a browser
+                  test-powershell.ps1 – checks them on Windows (syntax, PSScriptAnalyzer,
+                                     registry functional test, Diagnose.ps1)
                   build-release.js – builds the release package
 docs/screenshots/ images for the README (not in the release package)
 docs/releases/    release notes per version
@@ -479,5 +656,5 @@ same tag. Adjust the version number in `js/version.js` first – the build scrip
 stops if it does not match the tag.
 
 ```bash
-git tag v1.2 && git push origin v1.2
+git tag v2.0 && git push origin v2.0
 ```

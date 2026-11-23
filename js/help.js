@@ -29,11 +29,11 @@ Anwendungen.</p>
     (<a data-help="settings">Einstellungen</a>).</li>
   <li><b>Prüfen</b> – in der <a data-help="preview">Vorschau</a> jede erzeugte Datei ansehen.</li>
   <li><b>ZIP erzeugen</b> und den Inhalt in das <b>Wurzelverzeichnis</b> des Mediums kopieren – oder in Chrome und Edge
-    <b>In Ordner exportieren</b> und gleich das Wurzelverzeichnis des USB-Sticks wählen. Die <code>LIESMICH.txt</code>
-    listet auf, was noch von Hand ergänzt werden muss.</li>
+    <b>In Ordner exportieren</b> und gleich das Wurzelverzeichnis des USB-Sticks wählen – oder mit <b>ISO erzeugen</b>
+    eine fertige Windows-ISO schreiben. Die <code>LIESMICH.txt</code> listet auf, was noch von Hand ergänzt werden muss.</li>
 </ol>
 
-<h3>ZIP oder Ordner?</h3>
+<h3>ZIP, Ordner oder ISO?</h3>
 <p><b>ZIP erzeugen</b> funktioniert in jedem Browser. Ab 4 GB oder 65535 Dateien schreibt der Generator automatisch
 ZIP64 – das entpackt der Windows-Explorer ab Windows 10 ebenso wie 7-Zip; sehr alte Werkzeuge kennen es unter Umständen
 nicht. Installer und Treiber über 128 MB kommen unkomprimiert ins ZIP (sie sind meist ohnehin schon gepackt), dafür ohne
@@ -47,7 +47,11 @@ würde ersetzt – auch darauf weist die Rückfrage hin.</p>
 und Verknüpfungen – schreibt Chrome aus Sicherheitsgründen nicht unter ihrem Namen in Ordner. Der Export legt sie mit der
 Zusatzendung <code>.oemrename</code> ab;
 <code>Install.ps1</code> sucht danach und gibt ihnen bei der Installation vor allen Modulen den Namen zurück. Für Treiber unter
-<code>$WinPEDriver$</code> geht das nicht, weil dort kein Skript läuft – solche Pakete per ZIP ausliefern.</p>
+<code>$WinPEDriver$</code> geht das nicht, weil dort kein Skript läuft – solche Pakete per ZIP oder ISO ausliefern.</p>
+<p><b>ISO erzeugen</b> nimmt eine Windows-ISO (die Original-ISO von Microsoft), fügt die erzeugten Dateien ein und
+schreibt eine neue, bootfähige ISO – BIOS und UEFI wie beim Original, ohne oscdimg, AnyBurn oder Adminrechte. Das ist der
+Weg für VMs, Ventoy und Rufus. Die Quell-ISO wird dabei nicht in den Speicher geladen; ihre Dateien werden direkt von der
+Platte übernommen. Einzelheiten unter <a data-help="settings">Einstellungen → ISO-Abbild</a>.</p>
 
 <h3>Das Zwei-Phasen-Modell</h3>
 <table>
@@ -99,6 +103,11 @@ auf die Fläche ziehen oder auswählen – auch mehrere auf einmal, auch irgendw
       <td>Wird <b>ergänzt statt ersetzt</b> (siehe <a data-help="settings">Einstellungen → Auslöser</a>). Bei
       <code>UseConfigurationSet=true</code> stellt der Generator die Ablage auf „beide Orte“.</td></tr>
   <tr><td><code>.ps1</code></td><td>Wird als Datei mitgeliefert, der Aufruf wird unter Eigene Befehle → PowerShell ergänzt.</td></tr>
+  <tr><td><code>.reg</code></td><td>Landet unter <a data-help="tweaks">Tweaks → Registry-Dateien</a> (REGEDIT4 und 5.00, auch UTF-16).</td></tr>
+  <tr><td>AppLocker-Richtlinie (<code>.xml</code> mit <code>&lt;AppLockerPolicy&gt;</code>)</td>
+      <td>Wird in den <a data-help="answer">Antwortdatei-Designer</a> übernommen (Abschnitt AppLocker).</td></tr>
+  <tr><td>WLAN-Profil (<code>.xml</code> mit <code>&lt;WLANProfile&gt;</code>, aus <code>netsh wlan export profile</code>)</td>
+      <td>Wird in den <a data-help="answer">Antwortdatei-Designer</a> übernommen (OOBE → WLAN).</td></tr>
   <tr><td><code>.exe</code>, <code>.msi</code> und andere Binärdateien</td><td>Landen unter <a data-help="files">Eigene Dateien</a>.</td></tr>
   <tr><td><code>.oemproj.json</code></td><td>Lädt ein gespeichertes Projekt komplett.</td></tr>
 </table>
@@ -210,6 +219,26 @@ optionale Features) oder ein angelegtes Benutzerkonto. Solche Cmdlets können in
 Setup wartet mit. Der Generator legt diese Anteile deshalb automatisch in ein zweites Modul
 <code>Set-Tweaks-Spaet.ps1</code>, das in Phase 2 läuft; der Hinweis oben nennt die betroffenen Tweaks. Jeder dieser
 Aufrufe hat eine eigene Zeitgrenze.</p>
+
+<h3>Registry-Dateien (.reg)</h3>
+<p>Mit <b>.reg-Datei importieren</b> (oder per Drag &amp; Drop auf der Import-Seite) werden exportierte
+Registry-Dateien Wert für Wert übernommen und laufen mit den Tweaks in derselben Phase. Gelesen werden
+<code>REGEDIT4</code> und <code>Windows Registry Editor Version 5.00</code> (UTF-16, wie <code>regedit</code> exportiert),
+alle üblichen Werttypen, der Standardwert <code>@</code> sowie Löschungen (<code>"Wert"=-</code>,
+<code>[-Schlüssel]</code>).</p>
+<table>
+  <tr><th>Zweig in der Datei</th><th>Ziel</th></tr>
+  <tr><td><code>HKEY_LOCAL_MACHINE</code></td><td>Rechner</td></tr>
+  <tr><td><code>HKEY_CURRENT_USER</code></td><td>Default-Profil (und auf Wunsch alle Benutzer) – wie die Benutzer-Tweaks</td></tr>
+  <tr><td><code>HKEY_CLASSES_ROOT</code></td><td><code>HKLM\SOFTWARE\Classes</code></td></tr>
+  <tr><td><code>HKEY_CURRENT_CONFIG</code></td><td><code>HKLM\SYSTEM\CurrentControlSet\Hardware Profiles\Current</code></td></tr>
+  <tr><td><code>HKEY_USERS</code></td><td>übersprungen – <code>.DEFAULT</code> ist das Profil von SYSTEM, SIDs gibt es auf einem neuen System nicht</td></tr>
+</table>
+<p>Ein schlichtes <code>reg import</code> im Skript wäre falsch: Es läuft als SYSTEM und schriebe <code>HKCU</code> ins
+Profil von SYSTEM. Jeder Eintrag lässt sich einzeln abwählen; Hinweise (übersprungene Zweige, seltene Typen, die als
+<code>REG_BINARY</code> geschrieben werden) stehen über der Tabelle. Das Löschen sehr weit oben liegender Schlüssel
+(etwa <code>[-HKEY_LOCAL_MACHINE\SOFTWARE]</code>) verweigert der Import. Eine Datei gleichen Namens ersetzt die
+vorherige; die Werte stehen in der Projektdatei.</p>
 
 <h3>Tipps</h3>
 <ul>
@@ -367,7 +396,10 @@ Lizenzdateien. Auf Wunsch werden Installer mit Silent-Parametern ausgeführt.</p
   <dd>Parameter für die unbeaufsichtigte Installation. <b>Leer = nur kopieren.</b> <code>.msi</code> wird über
   <code>msiexec /i</code> gestartet (Vorgabe <code>/qn /norestart</code>). Übliche Schalter für <code>.exe</code>:
   <code>/S</code> (NSIS), <code>/VERYSILENT /NORESTART</code> (Inno Setup), <code>/quiet /norestart</code>
-  (WiX/Burn), <code>/s /v"/qn"</code> (InstallShield). Im Zweifel hilft <code>setup.exe /?</code>.</dd>
+  (WiX/Burn), <code>/s /v"/qn"</code> (InstallShield). Im Zweifel hilft <code>setup.exe /?</code>.
+  <br>Beim Hinzufügen füllt der Generator das Feld selbst: Für bekannte Programme gibt es Vorlagen (z.&nbsp;B.
+  Right-Click Tools, mit Hinweisen zur Phase), bei anderen <code>.exe</code> erkennt er Inno Setup, NSIS und WiX Burn am
+  Dateianfang. Bleibt ein Installer ohne Parameter, steht in der Tabelle ein Warnhinweis – er würde nur kopiert.</dd>
   <dt>Phase</dt><dd>Phase 1 (SYSTEM, vor der Anmeldung) oder Phase 2 (nach der ersten Anmeldung).</dd>
 </dl>
 <p>Als Erfolg gelten die Exitcodes <code>0</code>, <code>3010</code> und <code>1641</code>.</p>
@@ -416,6 +448,81 @@ powercfg /setactive SCHEME_MIN
 Write-Log 'Energiesparplan gesetzt'</pre>`
     },
 
+    answer: {
+      title: 'Antwortdatei-Designer',
+      html: `
+<p>Der Designer erzeugt eine vollständige <code>autounattend.xml</code>. Der Generator fügt danach wie bei einer importierten
+Datei seine Aufrufe ein (Phase 1 im <code>specialize</code>-Pass, Phase 2 über <code>FirstLogonCommands</code>) und setzt
+<code>UseConfigurationSet</code> nach dem Zielsystem unter <a data-help="settings">Einstellungen</a>.</p>
+<p>Der Designer ist eine Portierung des Generators von Christoph Schneegans
+(<a href="https://github.com/cschneegans/unattend-generator" target="_blank" rel="noopener noreferrer">unattend-generator</a>,
+MIT-Lizenz). Die Logik ist Datei für Datei übernommen; welcher Stand portiert ist, steht in
+<code>vendor/schneegans/UPSTREAM.json</code>. Ein GitHub-Workflow meldet wöchentlich Änderungen im Original.</p>
+
+<h3>Was der Designer kann</h3>
+<dl>
+  <dt>Sprache &amp; Region</dt><dd>Sprache des Images, bis zu drei Gebietsschemas mit Tastatur, Standort, Zeitzone. „interaktiv“
+    lässt Setup danach fragen.</dd>
+  <dt>Setup &amp; Edition</dt><dd>Edition per generischem Schlüssel, eigener Schlüssel oder Schlüssel aus der Firmware; optional ein
+    Aktivierungsschlüssel. Hardwareprüfung umgehen (TPM, Secure Boot, RAM) und Einrichtung ohne Internet (<code>BypassNRO</code>).</dd>
+  <dt>Computername</dt><dd>zufällig, fest oder bei der Installation abfragen (Eingabefenster im <code>specialize</code>-Pass).</dd>
+  <dt>Benutzerkonten</dt><dd>interaktiv (Microsoft- oder lokales Konto) oder vorgegebene lokale Konten mit Gruppe und Kennwort, dazu
+    automatische Anmeldung. „Verschleiern“ speichert Kennwörter Base64-kodiert wie Windows SIM – das ist <b>kein</b> Schutz.</dd>
+  <dt>OOBE &amp; Sicherheit</dt><dd>Datenschutzseiten, WLAN-Seite, Kontosperrung, Kennwortablauf.</dd>
+  <dt>WLAN</dt><dd>Interaktiv, überspringen, mit Netzwerkname/Kennwort/Sicherheit (WPA2, WPA3, offen; auch verborgene Netze)
+    oder als Profil-XML aus <code>netsh wlan export profile key=clear</code>. Das Profil wird im <code>specialize</code>-Pass mit
+    <code>netsh wlan add profile</code> für alle Benutzer angelegt, auf Wunsch wird gleich verbunden – die WLAN-Seite in OOBE
+    entfällt dann. Das Kennwort steht im Klartext in der Antwortdatei.</dd>
+  <dt>Installation &amp; Partitionierung</dt><dd><b>Windows Setup</b> (Standard): Partitionen wählt man in Setup.
+    <b>pe.cmd</b>: Ein Skript übernimmt die windowsPE-Phase – Zieldatenträger bestimmen (nach Kriterien wie Größe, Index,
+    „ohne Partitionen“, fest, abgefragt oder per eigenem VBScript), mit <code>diskpart</code> einteilen (GPT/MBR passend zur
+    Firmware, mit oder ohne Wiederherstellungspartition, oder eigenes diskpart-Skript), Image per <code>dism</code> aufspielen
+    (nach Edition, Index oder Name), <code>bcdboot</code>, Treiber aus <code>$WinPEDriver$</code>, <code>$OEM$</code> per
+    <code>robocopy</code> kopieren, neu starten. Dazu Compact OS, Auslagerungsdatei, 8.3-Namen, Defender. <b>Achtung:</b> Die
+    automatische Partitionierung löscht den Zieldatenträger ohne Rückfrage. Bricht die Bestimmung des Datenträgers ab (kein
+    oder mehrere Treffer), hält Setup an, statt etwas zu löschen.</dd>
+  <dt>Personalisierung</dt><dd>Farben (Design für Taskleiste/Start und Apps, Akzentfarbe, Akzent auf Start und Titelleisten,
+    Transparenz), Sperrtasten (Zustand beim Start, Taste ignorieren per <code>Scancode Map</code>), visuelle Effekte (optimale
+    Darstellung, optimale Leistung oder eigene Auswahl), Desktopsymbole, Edge-Verknüpfung löschen, Ordner im Startmenü. Das
+    wirkt für jedes neue Konto bei der ersten Anmeldung (<code>UserOnce.ps1</code>, danach startet der Explorer neu) – auch
+    ohne Aktivierung, wenn Windows die Einstellungen sperrt. Wer dieselbe Einstellung zusätzlich als Tweak wählt (z.&nbsp;B.
+    „Dunkles Design“, „Desktopsymbole“, „NumLock“), bekommt sie doppelt; besser nur eines.</dd>
+  <dt>Hintergrundbild &amp; Sperrbildschirm</dt><dd>Einfarbiger Hintergrund oder ein Bild – entweder hochgeladen (wird
+    Base64-kodiert in die Antwortdatei eingebettet, große Fotos also vorher verkleinern) oder von einem eigenen PowerShell-Skript
+    geliefert, das die Bilddaten als Bytes ausgibt. Das Bild wird im <code>specialize</code>-Pass geschrieben; den Hintergrund setzt
+    das Einmal-Skript je Benutzer, den Sperrbildschirm <code>PersonalizationCSP</code> für alle.</dd>
+  <dt>Gasterweiterungen</dt><dd>VirtualBox Guest Additions, VMware Tools, VirtIO Guest Tools (QEMU/KVM, Proxmox) und Parallels
+    Tools werden installiert, wenn das passende Medium in der VM eingelegt ist (Laufwerk D: bis Z:). Mit <code>pe.cmd</code> lädt
+    VirtIO außerdem die Speicher- und Netzwerktreiber vom Medium – damit findet Setup auch eine VirtIO-SCSI-Platte.</dd>
+  <dt>AppLocker</dt><dd>Eine Richtlinie als XML – exportiert mit <code>Get-AppLockerPolicy -Local -Xml</code> oder aus
+    <code>secpol.msc</code>, per Knopf geladen oder einfach auf die Seite gezogen (UTF-16 wie von PowerShell 5.1 geht auch).
+    Der Designer prüft sie gegen das Schema des Originals und meldet Fehler sofort; im <code>specialize</code>-Pass wird der
+    Dienst <code>AppIDSvc</code> auf automatisch gestellt und die Richtlinie mit <code>Set-AppLockerPolicy</code> angewendet.
+    Neue Regeln zuerst mit <code>AuditOnly</code> testen – erzwungene Regeln ohne Standardregeln können die Anmeldung sperren.</dd>
+</dl>
+<p>Im pe.cmd-Modus kopiert das Skript <code>$OEM$</code> aus dem <b>Wurzelverzeichnis</b> des Mediums selbst –
+<code>UseConfigurationSet</code> spielt dann keine Rolle, die Ablage muss aber „Wurzelverzeichnis“ oder „beide Orte“ sein.
+Edition und Hardwareprüfung aus „Setup &amp; Edition“ gelten in diesem Modus nicht.</p>
+
+<h3>Prüfung</h3>
+<p>Jede Änderung läuft durch dieselben Prüfregeln wie im Original (Kontonamen, Computername, Produktschlüssel, mindestens ein
+Administrator …). Ist die Konfiguration nicht erzeugbar, steht der Grund oben auf der Seite; im Paket liegt dann statt der
+Antwortdatei <code>autounattend-FEHLER.txt</code>.</p>
+
+<h3>Wichtig</h3>
+<ul>
+  <li>Wie im Original löscht ein Skript bei der ersten Anmeldung <code>C:\\Windows\\Panther\\unattend.xml</code>, weil darin
+    Kennwörter stehen können. Wer das nicht will: „unattend.xml behalten“. Werden Konten vorgegeben, braucht das Löschen eine
+    automatische Anmeldung.</li>
+  <li>Ist der Designer aktiv, wird eine importierte <code>autounattend.xml</code> nicht verwendet.</li>
+  <li>Noch nicht portiert: WLAN-Profil, Personalisierung, AppLocker, VM-Gasttools. Tweaks und Bloatware liefert der Generator
+    ohnehin selbst.</li>
+  <li>Ein Golden-Test vergleicht den Port bei jedem Push Byte für Byte mit dem C#-Original (<code>tools/test-golden.js</code>).</li>
+  <li>Nicht-ASCII-Zeichen (Umlaute in Anzeigenamen) schreibt der Generator als Zeichenreferenz – Windows Setup verarbeitet nur ASCII
+    zuverlässig.</li>
+</ul>`
+    },
+
     settings: {
       title: 'Einstellungen',
       html: `
@@ -440,11 +547,18 @@ Write-Log 'Energiesparplan gesetzt'</pre>`
 verwendet wird – etwa der im BIOS/UEFI hinterlegte Schlüssel eines Markengeräts (Home und Pro). Die
 <code>autounattend.xml</code> ist davon unabhängig: Phase 1 läuft im <code>specialize</code>-Pass, Phase 2 über
 <code>FirstLogonCommands</code>. Deshalb ist <b>beides</b> voreingestellt; doppelte Läufe werden erkannt.</p>
-<p><b><code>UseConfigurationSet=true</code> schreiben</b> – ohne diesen Wert hat Windows Setup (Windows 11, Build 26300)
-<code>$OEM$</code> im Test gar nicht kopiert: kein Installationsordner, keine Phase 2. Der Generator setzt ihn deshalb in der
-erzeugten und in einer importierten Antwortdatei. Setup kopiert dann den Ordner der Antwortdatei nach
-<code>C:\\Windows\\ConfigSetRoot</code> – auf einem normalen Medium unkritisch, auf Multiboot-Sticks wie Ventoy kann das
-sehr groß werden.</p>
+<p><b>Zielsystem</b> – bestimmt <code>UseConfigurationSet</code> in der erzeugten und in einer importierten Antwortdatei:</p>
+<table>
+  <tr><th>Auswahl</th><th>Wert</th><th>Folge</th></tr>
+  <tr><td>Windows 11 24H2 und neuer</td><td><code>true</code></td><td>Setup kopiert <code>$OEM$</code> nur mit diesem Wert
+    (ohne ihn im Test mit Build 26300: kein Installationsordner, keine Phase 2); ein <code>ConfigSetRoot</code> entsteht nicht.</td></tr>
+  <tr><td>Windows 10 / Windows 11 bis 23H2</td><td><code>false</code></td><td>Setup kopiert <code>sources\\$OEM$</code>. Eine
+    importierte Datei mit <code>true</code> wird auf <code>false</code> gesetzt.</td></tr>
+  <tr><td>beide Generationen</td><td><code>true</code></td><td>funktioniert überall, aber bis 23H2 kopiert Setup alles neben der
+    Antwortdatei nach <code>C:\\Windows\\ConfigSetRoot</code> – das ganze Medium, bei Ventoy die ganze Datenpartition.</td></tr>
+</table>
+<p>Beim Wählen einer Quell-ISO liest der Generator den Build aus <code>install.wim</code>/<code>.esd</code> und stellt das
+Zielsystem passend ein (außer bei „beide“).</p>
 <p><b>Vorhandene autounattend.xml importieren</b> – etwa aus dem Generator von schneegans.de. Sie wird
 <b>ergänzt statt ersetzt</b>: die Aufrufe kommen mit fortlaufender <code>&lt;Order&gt;</code> in die vorhandenen
 Blöcke, frühere Einträge des Generators werden ersetzt. Die Übersicht darunter zeigt Passes, Befehle,
@@ -464,6 +578,30 @@ Blöcke, frühere Einträge des Generators werden ersetzt. Die Übersicht darunt
   <dt>Installationsordner nach Abschluss löschen</dt><dd>Entfernt Skripte, Installer und <code>Diagnose.ps1</code>; der Ordner <code>Logs</code> bleibt erhalten.</dd>
   <dt>Abschlussmeldung anzeigen</dt><dd>Zeigt am Ende ein Meldungsfenster mit dem Pfad der Protokolle. Sichtbar nur, wenn Phase 2 im Benutzerkontext läuft (RunOnce oder FirstLogonCommands) – als SYSTEM kann Windows kein Fenster auf den Desktop bringen.</dd>
 </dl>
+
+<h3>ISO-Abbild</h3>
+<p><b>ISO erzeugen</b> in der Kopfzeile schreibt eine neue Windows-ISO aus der Quell-ISO und den erzeugten Dateien.
+Die Quelle lässt sich vorab hier über <b>Quell-ISO wählen</b> festlegen; sonst fragt der Knopf beim ersten Klick danach.
+Die Übersicht zeigt Bezeichnung, Abbild (<code>install.wim</code>/<code>.esd</code>), Booteinträge und was ersetzt wird.</p>
+<ul>
+  <li><b>Was hinzukommt:</b> alles, was auch im ZIP steht – <code>autounattend.xml</code>, <code>$OEM$</code> (je nach
+    Ablage an einem oder beiden Orten), <code>$WinPEDriver$</code>, <code>LIESMICH.txt</code> und die Projektdatei.
+    Vorhandene Ordner <code>$OEM$</code>, <code>sources\$OEM$</code> und <code>$WinPEDriver$</code> der Quelle werden ersetzt.
+    Anders als beim Ordner-Export kommen auch <code>.dll</code>-Dateien unter ihrem Namen an.</li>
+  <li><b>Vorhandene autounattend.xml:</b> Bringt die Quell-ISO eine eigene mit und ist keine importiert, fragt der Generator
+    einmal, ob sie übernommen und um seine Aufrufe ergänzt oder ersetzt werden soll.</li>
+  <li><b>Unverändert:</b> <code>install.wim</code>/<code>install.esd</code>, <code>boot.wim</code> und alle übrigen Dateien.
+    Bezeichnung und Bootkatalog (BIOS und UEFI) werden übernommen.</li>
+  <li><b>Aufbau</b> wie bei Microsoft (<code>oscdimg -u2</code>): UDF 1.02 mit dem gesamten Inhalt, ISO 9660 nur als Hülle
+    mit einer <code>README.TXT</code>. Dateien über 4 GB sind damit kein Problem.</li>
+  <li><b>Speicherort:</b> Chrome und Edge fragen per „Speichern unter“, Firefox lädt herunter. Eine ISO über 4 GB passt nicht
+    auf ein FAT32-Laufwerk.</li>
+  <li><b>Nicht unterstützt:</b> ISOs von Brennprogrammen mit UDF 2.x (Metadaten-Partition) oder Festplatten-Emulation –
+    dafür die Original-ISO verwenden.</li>
+</ul>
+<p><b>Ohne „Press any key“ starten</b> nimmt für UEFI <code>efisys_noprompt.bin</code> und lässt für BIOS
+<code>boot\bootfix.bin</code> weg – Setup startet dann ohne Tastendruck. Praktisch für VMs, aber gefährlich: Bleibt die ISO
+eingelegt, beginnt die Installation nach jedem Neustart von vorn.</p>
 
 <h3>Fehlersuche auf dem Zielrechner</h3>
 <pre>powershell -ExecutionPolicy Bypass -File C:\\Install\\Diagnose.ps1
@@ -517,11 +655,11 @@ automatically: drivers, settings, bloatware, Windows components, Office and appl
     (<a data-help="settings">Settings</a>).</li>
   <li><b>Check</b> – look at every generated file in the <a data-help="preview">Preview</a>.</li>
   <li><b>Create ZIP</b> and copy its contents into the <b>root</b> of the medium – or, in Chrome and Edge, use
-    <b>Export to folder</b> and pick the root of the USB stick straight away. The <code>README.txt</code> lists what
-    still has to be added by hand.</li>
+    <b>Export to folder</b> and pick the root of the USB stick straight away – or write a ready-made Windows ISO with
+    <b>Create ISO</b>. The <code>README.txt</code> lists what still has to be added by hand.</li>
 </ol>
 
-<h3>ZIP or folder?</h3>
+<h3>ZIP, folder or ISO?</h3>
 <p><b>Create ZIP</b> works in every browser. From 4 GB or 65535 files on the generator writes ZIP64 automatically –
 Windows Explorer unpacks that from Windows 10 on, as does 7-Zip; very old tools may not know it. Installers and drivers
 over 128 MB go into the ZIP uncompressed (they are usually compressed already), but without weighing on memory.
@@ -533,7 +671,11 @@ drivers) get installed; everything else, such as <code>sources\install.wim</code
 and shortcuts – Chrome does not write to folders under their own name for security reasons. The export stores them with
 the extra extension <code>.oemrename</code>;
 <code>Install.ps1</code> looks for them and gives them their names back during installation, before any module. That is not possible for
-drivers under <code>$WinPEDriver$</code> because no script runs there – deliver such packages as ZIP.</p>
+drivers under <code>$WinPEDriver$</code> because no script runs there – deliver such packages as ZIP or ISO.</p>
+<p><b>Create ISO</b> takes a Windows ISO (the original ISO from Microsoft), adds the generated files and writes a new
+bootable ISO – BIOS and UEFI as in the original, without oscdimg, AnyBurn or admin rights. That is the way for VMs, Ventoy
+and Rufus. The source ISO is not loaded into memory; its files are taken straight from disk. Details under
+<a data-help="settings">Settings → ISO image</a>.</p>
 
 <h3>The two-phase model</h3>
 <table>
@@ -587,6 +729,11 @@ several at once, and dropping anywhere on the page works too.</p>
       <td>Is <b>extended rather than replaced</b> (see <a data-help="settings">Settings → Trigger</a>). With
       <code>UseConfigurationSet=true</code> the generator sets the location to "both places".</td></tr>
   <tr><td><code>.ps1</code></td><td>Shipped as a file; the call is added under Own commands → PowerShell.</td></tr>
+  <tr><td><code>.reg</code></td><td>Goes to <a data-help="tweaks">Tweaks → Registry files</a> (REGEDIT4 and 5.00, UTF-16 too).</td></tr>
+  <tr><td>AppLocker policy (<code>.xml</code> with <code>&lt;AppLockerPolicy&gt;</code>)</td>
+      <td>Taken over into the <a data-help="answer">answer file designer</a> (AppLocker section).</td></tr>
+  <tr><td>Wi-Fi profile (<code>.xml</code> with <code>&lt;WLANProfile&gt;</code>, from <code>netsh wlan export profile</code>)</td>
+      <td>Taken over into the <a data-help="answer">answer file designer</a> (OOBE → Wi-Fi).</td></tr>
   <tr><td><code>.exe</code>, <code>.msi</code> and other binaries</td><td>Go to <a data-help="files">Own files</a>.</td></tr>
   <tr><td><code>.oemproj.json</code></td><td>Loads a saved project completely.</td></tr>
 </table>
@@ -696,6 +843,25 @@ shows category, description and particulars.</p>
 existing user account. Such cmdlets can wait forever in phase 1 – and Windows Setup waits with them. The generator
 therefore moves these parts into a second module <code>Set-Tweaks-Spaet.ps1</code> that runs in phase 2; the note above
 names the tweaks concerned. Each of these calls has its own time limit.</p>
+
+<h3>Registry files (.reg)</h3>
+<p><b>Import .reg file</b> (or drag &amp; drop on the import page) takes over exported registry files value by value;
+they run with the tweaks in the same phase. Read are <code>REGEDIT4</code> and <code>Windows Registry Editor Version
+5.00</code> (UTF-16, as exported by <code>regedit</code>), all common value types, the default value <code>@</code> and
+deletions (<code>"Value"=-</code>, <code>[-Key]</code>).</p>
+<table>
+  <tr><th>Hive in the file</th><th>Target</th></tr>
+  <tr><td><code>HKEY_LOCAL_MACHINE</code></td><td>machine</td></tr>
+  <tr><td><code>HKEY_CURRENT_USER</code></td><td>default profile (and all users if selected) – like the user tweaks</td></tr>
+  <tr><td><code>HKEY_CLASSES_ROOT</code></td><td><code>HKLM\SOFTWARE\Classes</code></td></tr>
+  <tr><td><code>HKEY_CURRENT_CONFIG</code></td><td><code>HKLM\SYSTEM\CurrentControlSet\Hardware Profiles\Current</code></td></tr>
+  <tr><td><code>HKEY_USERS</code></td><td>skipped – <code>.DEFAULT</code> is the SYSTEM profile, SIDs do not exist on a new system</td></tr>
+</table>
+<p>A plain <code>reg import</code> in the script would be wrong: it runs as SYSTEM and would write <code>HKCU</code> into
+the SYSTEM profile. Every entry can be deselected on its own; notes (skipped hives, rare types written as
+<code>REG_BINARY</code>) appear above the table. The import refuses to delete keys very high up (such as
+<code>[-HKEY_LOCAL_MACHINE\SOFTWARE]</code>). A file with the same name replaces the previous one; the values are
+stored in the project file.</p>
 
 <h3>Tips</h3>
 <ul>
@@ -852,7 +1018,10 @@ Installers can be run with silent parameters.</p>
   <dd>Parameters for the unattended installation. <b>Empty = copy only.</b> <code>.msi</code> is started through
   <code>msiexec /i</code> (default <code>/qn /norestart</code>). Common switches for <code>.exe</code>: <code>/S</code> (NSIS),
   <code>/VERYSILENT /NORESTART</code> (Inno Setup), <code>/quiet /norestart</code> (WiX/Burn), <code>/s /v"/qn"</code>
-  (InstallShield). When in doubt, <code>setup.exe /?</code> helps.</dd>
+  (InstallShield). When in doubt, <code>setup.exe /?</code> helps.
+  <br>When adding a file the generator fills the field itself: known programs have templates (e.g. Right-Click Tools,
+  with notes on the phase); for other <code>.exe</code> files it detects Inno Setup, NSIS and WiX Burn from the file header.
+  If an installer has no parameters, the table shows a warning – it would only be copied.</dd>
   <dt>Phase</dt><dd>Phase 1 (SYSTEM, before sign-in) or phase 2 (after the first sign-in).</dd>
 </dl>
 <p>Exit codes <code>0</code>, <code>3010</code> and <code>1641</code> count as success.</p>
@@ -899,6 +1068,80 @@ powercfg /setactive SCHEME_MIN
 Write-Log 'Power plan set'</pre>`
     },
 
+    answer: {
+      title: 'Answer file designer',
+      html: `
+<p>The designer creates a complete <code>autounattend.xml</code>. The generator then adds its calls just as with an imported
+file (phase 1 in the <code>specialize</code> pass, phase 2 via <code>FirstLogonCommands</code>) and sets
+<code>UseConfigurationSet</code> according to the target system under <a data-help="settings">Settings</a>.</p>
+<p>The designer is a port of the generator by Christoph Schneegans
+(<a href="https://github.com/cschneegans/unattend-generator" target="_blank" rel="noopener noreferrer">unattend-generator</a>,
+MIT licence). The logic is taken over file by file; the ported state is recorded in
+<code>vendor/schneegans/UPSTREAM.json</code>. A GitHub workflow reports changes in the original every week.</p>
+
+<h3>What the designer does</h3>
+<dl>
+  <dt>Language &amp; region</dt><dd>Image language, up to three locales with keyboard, location, time zone. “interactive” lets
+    Setup ask.</dd>
+  <dt>Setup &amp; edition</dt><dd>Edition via generic key, own key or key from the firmware; optionally an activation key.
+    Bypass the hardware check (TPM, Secure Boot, RAM) and set up without internet (<code>BypassNRO</code>).</dd>
+  <dt>Computer name</dt><dd>random, fixed or asked during installation (input window in the <code>specialize</code> pass).</dd>
+  <dt>User accounts</dt><dd>interactive (Microsoft or local account) or predefined local accounts with group and password, plus
+    automatic sign-in. “Obscure” stores passwords Base64-encoded like Windows SIM – that is <b>no</b> protection.</dd>
+  <dt>OOBE &amp; security</dt><dd>Privacy pages, Wi-Fi page, account lockout, password expiration.</dd>
+  <dt>Wi-Fi</dt><dd>Interactive, skip, with network name/password/security (WPA2, WPA3, open; hidden networks too) or as
+    profile XML from <code>netsh wlan export profile key=clear</code>. The profile is added for all users in the
+    <code>specialize</code> pass via <code>netsh wlan add profile</code> and optionally connected right away – the Wi-Fi page in
+    OOBE is skipped then. The password is stored in plain text in the answer file.</dd>
+  <dt>Installation &amp; partitioning</dt><dd><b>Windows Setup</b> (default): partitions are chosen in Setup.
+    <b>pe.cmd</b>: a script handles the windowsPE phase – determine the target disk (by criteria such as size, index,
+    “without partitions”, fixed, asked or via own VBScript), partition it with <code>diskpart</code> (GPT/MBR matching the
+    firmware, with or without recovery partition, or an own diskpart script), apply the image via <code>dism</code> (by
+    edition, index or name), <code>bcdboot</code>, drivers from <code>$WinPEDriver$</code>, copy <code>$OEM$</code> via
+    <code>robocopy</code>, restart. Plus Compact OS, paging file, 8.3 names, Defender. <b>Careful:</b> automatic
+    partitioning wipes the target disk without asking. If determining the disk fails (no or several matches), Setup halts
+    instead of deleting anything.</dd>
+  <dt>Personalization</dt><dd>Colors (theme for taskbar/Start and apps, accent color, accent on Start and title bars,
+    transparency), lock keys (state at startup, ignore a key via <code>Scancode Map</code>), visual effects (best appearance,
+    best performance or own selection), desktop icons, delete the Edge shortcut, folders on Start. Applies to every new
+    account at its first sign-in (<code>UserOnce.ps1</code>, Explorer restarts afterwards) – also without activation, when
+    Windows locks these settings. Choosing the same setting again as a tweak (e.g. “Dark mode”, “Desktop icons”, “NumLock”)
+    applies it twice; better pick only one.</dd>
+  <dt>Wallpaper &amp; lock screen</dt><dd>A solid-color background or an image – either uploaded (embedded Base64-encoded in
+    the answer file, so shrink large photos first) or delivered by an own PowerShell script that outputs the image data as bytes.
+    The image is written in the <code>specialize</code> pass; the wallpaper is set by the per-user one-time script, the lock screen
+    via <code>PersonalizationCSP</code> for everyone.</dd>
+  <dt>Guest additions</dt><dd>VirtualBox Guest Additions, VMware Tools, VirtIO Guest Tools (QEMU/KVM, Proxmox) and Parallels
+    Tools are installed if the matching medium is inserted in the VM (drive D: to Z:). With <code>pe.cmd</code>, VirtIO also loads
+    the storage and network drivers from the medium – so Setup finds a VirtIO SCSI disk as well.</dd>
+  <dt>AppLocker</dt><dd>A policy as XML – exported with <code>Get-AppLockerPolicy -Local -Xml</code> or from
+    <code>secpol.msc</code>, loaded via the button or simply dropped onto the page (UTF-16 as written by PowerShell 5.1 works too).
+    The designer checks it against the original's schema and reports errors immediately; in the <code>specialize</code> pass the
+    <code>AppIDSvc</code> service is set to automatic and the policy is applied with <code>Set-AppLockerPolicy</code>.
+    Test new rules with <code>AuditOnly</code> first – enforced rules without the default rules can block sign-in.</dd>
+</dl>
+<p>In pe.cmd mode the script copies <code>$OEM$</code> from the <b>root</b> of the medium itself –
+<code>UseConfigurationSet</code> does not matter then, but the location must be “root” or “both places”. Edition and hardware
+check from “Setup &amp; edition” do not apply in this mode.</p>
+
+<h3>Validation</h3>
+<p>Every change runs through the same validation rules as the original (account names, computer name, product key, at least
+one administrator …). If the configuration cannot be created, the reason appears at the top of the page; the package then
+contains <code>autounattend-FEHLER.txt</code> instead of the answer file.</p>
+
+<h3>Important</h3>
+<ul>
+  <li>As in the original, a script deletes <code>C:\\Windows\\Panther\\unattend.xml</code> at the first sign-in because it may
+    contain passwords. To prevent that: “Keep unattend.xml”. With predefined accounts, deleting requires automatic sign-in.</li>
+  <li>While the designer is active, an imported <code>autounattend.xml</code> is not used.</li>
+  <li>Not ported yet: Wi-Fi profile, personalisation, AppLocker, VM guest tools. Tweaks and bloatware are provided by the
+    generator itself anyway.</li>
+  <li>A golden test compares the port byte by byte with the C# original on every push (<code>tools/test-golden.js</code>).</li>
+  <li>Non-ASCII characters (umlauts in display names) are written as character references – Windows Setup only processes ASCII
+    reliably.</li>
+</ul>`
+    },
+
     settings: {
       title: 'Settings',
       html: `
@@ -923,10 +1166,18 @@ Write-Log 'Power plan set'</pre>`
 channel – such as the key stored in the BIOS/UEFI of a branded device (Home and Pro). The <code>autounattend.xml</code>
 does not depend on that: phase 1 runs in the <code>specialize</code> pass, phase 2 through
 <code>FirstLogonCommands</code>. That is why <b>both</b> is the default; duplicate runs are detected.</p>
-<p><b>Write <code>UseConfigurationSet=true</code></b> – without this value Windows Setup (Windows 11, build 26300) did not
-copy <code>$OEM$</code> at all in a test: no installation folder, no phase 2. The generator therefore sets it in the generated
-and in an imported answer file. Setup then copies the folder of the answer file to <code>C:\\Windows\\ConfigSetRoot</code> –
-harmless on a normal medium, but on multi-boot sticks such as Ventoy that can get very large.</p>
+<p><b>Target system</b> – determines <code>UseConfigurationSet</code> in the generated and in an imported answer file:</p>
+<table>
+  <tr><th>Choice</th><th>Value</th><th>Effect</th></tr>
+  <tr><td>Windows 11 24H2 and later</td><td><code>true</code></td><td>Setup copies <code>$OEM$</code> only with this value
+    (without it, in a test with build 26300: no installation folder, no phase 2); no <code>ConfigSetRoot</code> is created.</td></tr>
+  <tr><td>Windows 10 / Windows 11 up to 23H2</td><td><code>false</code></td><td>Setup copies <code>sources\\$OEM$</code>. An
+    imported file with <code>true</code> is set to <code>false</code>.</td></tr>
+  <tr><td>both generations</td><td><code>true</code></td><td>works everywhere, but up to 23H2 Setup copies everything next to
+    the answer file to <code>C:\\Windows\\ConfigSetRoot</code> – the whole medium, with Ventoy the whole data partition.</td></tr>
+</table>
+<p>When a source ISO is chosen, the generator reads the build from <code>install.wim</code>/<code>.esd</code> and sets the
+target system accordingly (except for “both”).</p>
 <p><b>Import existing autounattend.xml</b> – for instance from the schneegans.de generator. It is <b>extended rather than
 replaced</b>: the calls go into the existing blocks with a continuing <code>&lt;Order&gt;</code>, earlier entries of the
 generator are replaced. The summary below shows passes, commands, <code>UseConfigurationSet</code> and an entered
@@ -946,6 +1197,29 @@ product key.</p>
   <dt>Delete the installation folder when done</dt><dd>Removes scripts, installers and <code>Diagnose.ps1</code>; the <code>Logs</code> folder is kept.</dd>
   <dt>Show a completion message</dt><dd>Shows a message box with the log path at the end. Only visible when phase 2 runs in the user context (RunOnce or FirstLogonCommands) – as SYSTEM Windows cannot put a window on the desktop.</dd>
 </dl>
+
+<h3>ISO image</h3>
+<p><b>Create ISO</b> in the header writes a new Windows ISO from the source ISO and the generated files. The source can be
+set here beforehand via <b>Choose source ISO</b>; otherwise the button asks for it on the first click. The summary shows
+the label, the image (<code>install.wim</code>/<code>.esd</code>), the boot entries and what gets replaced.</p>
+<ul>
+  <li><b>What is added:</b> everything the ZIP holds – <code>autounattend.xml</code>, <code>$OEM$</code> (in one or both
+    places, depending on the location setting), <code>$WinPEDriver$</code>, <code>README.txt</code> and the project file.
+    Existing folders <code>$OEM$</code>, <code>sources\$OEM$</code> and <code>$WinPEDriver$</code> of the source are replaced.
+    Unlike the folder export, <code>.dll</code> files arrive under their own name.</li>
+  <li><b>Existing autounattend.xml:</b> if the source ISO brings its own and none is imported, the generator asks once
+    whether to adopt it and add its calls, or to replace it.</li>
+  <li><b>Unchanged:</b> <code>install.wim</code>/<code>install.esd</code>, <code>boot.wim</code> and all other files.
+    The label and the boot catalogue (BIOS and UEFI) are taken over.</li>
+  <li><b>Layout</b> as with Microsoft (<code>oscdimg -u2</code>): UDF 1.02 with the whole content, ISO 9660 only as a shell
+    with one <code>README.TXT</code>. Files over 4 GB are no problem.</li>
+  <li><b>Destination:</b> Chrome and Edge ask via “Save as”, Firefox downloads. An ISO over 4 GB does not fit on a FAT32 drive.</li>
+  <li><b>Not supported:</b> ISOs from burning software with UDF 2.x (metadata partition) or hard-disk emulation – use the
+    original ISO instead.</li>
+</ul>
+<p><b>Start without “Press any key”</b> uses <code>efisys_noprompt.bin</code> for UEFI and leaves out
+<code>boot\bootfix.bin</code> for BIOS – Setup then starts without a key press. Handy for VMs, but dangerous: if the ISO
+stays inserted, the installation starts over after every restart.</p>
 
 <h3>Troubleshooting on the target machine</h3>
 <pre>powershell -ExecutionPolicy Bypass -File C:\\Install\\Diagnose.ps1

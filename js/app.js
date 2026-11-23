@@ -30,7 +30,8 @@
       paths: { installRoot: 'C:\\Install', zipRoot: 'both' },
       options: {
         transcript: true, selfDelete: false, cleanupInstall: false,
-        toastOnFinish: false, phase2Runner: 'task', finish: 'none', trigger: 'both', configSet: true
+        toastOnFinish: false, phase2Runner: 'task', finish: 'none', trigger: 'both', configSet: true,
+        configSetMode: 'new'
       },
       unattend: { xml: null, name: '', info: null },
       apps: {
@@ -46,13 +47,17 @@
       },
       tweaks: {
         enabled: true, phase: 'setup', allUsers: true,
-        selected: ['fileExt', 'hiddenFiles', 'launchToThisPC', 'longPaths', 'taskbarSearch', 'clockSeconds']
+        selected: ['fileExt', 'hiddenFiles', 'launchToThisPC', 'longPaths', 'taskbarSearch', 'clockSeconds'],
+        regFiles: []
       },
       bloat: { enabled: false, phase: 'setup', provisioned: true, selected: [] },
       features: { enabled: false, phase: 'firstlogon', timeoutMin: 20, selected: [] },
       drivers: { enabled: false, phase: 'setup', timeoutMin: 10, items: [] },
       files: { items: [] },
-      custom: { cmdEnabled: true, cmd: '', psEnabled: true, psPhase: 'setup', ps: '' }
+      custom: { cmdEnabled: true, cmd: '', psEnabled: true, psPhase: 'setup', ps: '' },
+      iso: { noPrompt: false },
+      /* Antwortdatei-Designer (js/ug, Port des Schneegans-Generators) */
+      answer: answerDefaults()
     };
   }
 
@@ -88,6 +93,43 @@
   }
 
   /* Zwei-Wege-Bindung für einfache Felder */
+  /* Designer-Konfiguration plus Felder, die nur die Oberflaeche braucht:
+     Hintergrund/Sperrbildschirm unterscheiden "Bild" (eingebettet) und
+     "eigenes Skript"; derivePictures() setzt daraus mode/script fuer den Port. */
+  function answerDefaults() {
+    const a = Object.assign({ enabled: false }, window.UG ? UG.defaultConfig() : {});
+    if (a.wallpaper) Object.assign(a.wallpaper, { ui: 'default', imageScript: '', imageName: '', imageSize: 0, customScript: '' });
+    if (a.lockScreen) Object.assign(a.lockScreen, { ui: 'default', imageScript: '', imageName: '', imageSize: 0, customScript: '' });
+    return a;
+  }
+  function derivePictures() {
+    for (const [key, solid] of [['wallpaper', true], ['lockScreen', false]]) {
+      const o = state.answer[key];
+      if (!o) continue;
+      const ui = o.ui || 'default';
+      if (ui === 'solid' && solid) { o.mode = 'solid'; o.script = ''; }
+      else if (ui === 'image' && o.imageScript) { o.mode = 'script'; o.script = o.imageScript; }
+      else if (ui === 'script') { o.mode = 'script'; o.script = o.customScript || ''; }
+      else { o.mode = 'default'; o.script = ''; }
+    }
+  }
+  async function loadPicture(key, file) {
+    const o = state.answer[key];
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    let bin = '';
+    for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    const kb = Math.max(1, Math.round(bytes.length / 1024));
+    o.imageName = file.name;
+    o.imageSize = bytes.length;
+    o.imageScript = '# Bild: ' + file.name.replace(/[\r\n]/g, ' ') + ' (' + kb + ' KB)\n' +
+      "return ,[System.Convert]::FromBase64String('" + btoa(bin) + "');";
+    if (bytes.length > 2 * 1024 * 1024) {
+      toast(F('{0} ist {1} MB groß – die Antwortdatei wächst um rund {2} MB. Besser vorher verkleinern.',
+        file.name, (bytes.length / 1048576).toFixed(1), (bytes.length * 4 / 3 / 1048576).toFixed(1)), 'warn');
+    }
+    renderAnswer(); refresh();
+  }
+
   const BINDINGS = [
     ['projectName', 'meta.name', 'text'],
     ['appsEnabled', 'apps.enabled', 'bool'],
@@ -134,7 +176,102 @@
     ['setSelfDelete', 'options.selfDelete', 'bool'],
     ['setKeepInstall', 'options.cleanupInstall', 'bool'],
     ['setToastOnFinish', 'options.toastOnFinish', 'bool'],
-    ['setConfigSet', 'options.configSet', 'bool']
+    ['setConfigSetMode', 'options.configSetMode', 'text'],
+    ['isoNoPrompt', 'iso.noPrompt', 'bool'],
+    ['answerEnabled', 'answer.enabled', 'bool'],
+    ['ansLangMode', 'answer.language.mode', 'text'],
+    ['ansImageLang', 'answer.language.image', 'text'],
+    ['ansGeo', 'answer.language.geo', 'text'],
+    ['ansTzMode', 'answer.timeZone.mode', 'text'],
+    ['ansTz', 'answer.timeZone.id', 'text'],
+    ['ansEditionMode', 'answer.edition.mode', 'text'],
+    ['ansEdition', 'answer.edition.edition', 'text'],
+    ['ansKey', 'answer.edition.key', 'text'],
+    ['ansActivationKey', 'answer.activationKey', 'text'],
+    ['ansBypassReq', 'answer.bypassRequirements', 'bool'],
+    ['ansBypassNet', 'answer.bypassNetwork', 'bool'],
+    ['ansNarrator', 'answer.useNarrator', 'bool'],
+    ['ansCnMode', 'answer.computerName.mode', 'text'],
+    ['ansCnName', 'answer.computerName.name', 'text'],
+    ['ansExpress', 'answer.expressSettings', 'text'],
+    ['ansWifi', 'answer.wifi.mode', 'text'],
+    ['ansLockMode', 'answer.lockout.mode', 'text'],
+    ['ansLockThreshold', 'answer.lockout.threshold', 'num'],
+    ['ansLockDuration', 'answer.lockout.duration', 'num'],
+    ['ansLockWindow', 'answer.lockout.window', 'num'],
+    ['ansPwMode', 'answer.passwordExpiration.mode', 'text'],
+    ['ansPwAge', 'answer.passwordExpiration.maxAge', 'num'],
+    ['ansHidePs', 'answer.hidePowerShellWindows', 'bool'],
+    ['ansKeepFiles', 'answer.keepSensitiveFiles', 'bool'],
+    ['ansAccMode', 'answer.account.mode', 'text'],
+    ['ansAutoLogon', 'answer.account.autoLogon', 'text'],
+    ['ansBuiltinPw', 'answer.account.builtinPassword', 'text'],
+    ['ansObscure', 'answer.account.obscure', 'bool'],
+    ['ansPeMode', 'answer.pe.mode', 'text'],
+    ['ansPeScript', 'answer.pe.script', 'text'],
+    ['ansPartMode', 'answer.pe.partition.mode', 'text'],
+    ['ansPartLayout', 'answer.pe.partition.layout', 'text'],
+    ['ansPartRecovery', 'answer.pe.partition.recovery', 'text'],
+    ['ansPartSystem', 'answer.pe.partition.systemSize', 'num'],
+    ['ansPartRecoverySize', 'answer.pe.partition.recoverySize', 'num'],
+    ['ansPartCustom', 'answer.pe.partition.customScript', 'text'],
+    ['ansTargetMode', 'answer.pe.partition.target.mode', 'text'],
+    ['ansTargetIndex', 'answer.pe.partition.target.index', 'numnull'],
+    ['ansTargetIndexGen', 'answer.pe.partition.target.index', 'numnull'],
+    ['ansTargetMin', 'answer.pe.partition.target.minSizeGiB', 'numnull'],
+    ['ansTargetMax', 'answer.pe.partition.target.maxSizeGiB', 'numnull'],
+    ['ansTargetEmpty', 'answer.pe.partition.target.assertNoPartitions', 'bool'],
+    ['ansTargetIface', 'answer.pe.partition.target.assertInterfaceType', 'bool'],
+    ['ansTargetMedia', 'answer.pe.partition.target.assertMediaType', 'bool'],
+    ['ansTargetScript', 'answer.pe.partition.target.script', 'text'],
+    ['ansInstMode', 'answer.pe.installFrom.mode', 'text'],
+    ['ansInstEdition', 'answer.pe.installFrom.edition', 'text'],
+    ['ansInstIndex', 'answer.pe.installFrom.index', 'num'],
+    ['ansInstName', 'answer.pe.installFrom.name', 'text'],
+    ['ansPagingMode', 'answer.pe.pagingFile.mode', 'text'],
+    ['ansPagingInitial', 'answer.pe.pagingFile.initialSizeMiB', 'num'],
+    ['ansPagingMax', 'answer.pe.pagingFile.maxSizeMiB', 'num'],
+    ['ansPeDefender', 'answer.pe.disableDefender', 'bool'],
+    ['ansPe83', 'answer.pe.disable8Dot3Names', 'bool'],
+    ['ansPeCompact', 'answer.pe.compactOs', 'bool'],
+    ['ansPeSkipCheck', 'answer.pe.skipIntegrityCheck', 'bool'],
+    ['ansPePauseFormat', 'answer.pe.pauseBeforeFormatting', 'bool'],
+    ['ansPePauseReboot', 'answer.pe.pauseBeforeReboot', 'bool'],
+    ['ansColMode', 'answer.colors.mode', 'text'],
+    ['ansColSystem', 'answer.colors.systemTheme', 'text'],
+    ['ansColApps', 'answer.colors.appsTheme', 'text'],
+    ['ansColAccent', 'answer.colors.accentColor', 'text'],
+    ['ansColOnStart', 'answer.colors.accentOnStart', 'bool'],
+    ['ansColOnBorders', 'answer.colors.accentOnBorders', 'bool'],
+    ['ansColTransparency', 'answer.colors.transparency', 'bool'],
+    ['ansLockKeysMode', 'answer.lockKeys.mode', 'text'],
+    ['ansCapsInit', 'answer.lockKeys.capsLock.initial', 'text'],
+    ['ansCapsBeh', 'answer.lockKeys.capsLock.behavior', 'text'],
+    ['ansNumInit', 'answer.lockKeys.numLock.initial', 'text'],
+    ['ansNumBeh', 'answer.lockKeys.numLock.behavior', 'text'],
+    ['ansScrollInit', 'answer.lockKeys.scrollLock.initial', 'text'],
+    ['ansScrollBeh', 'answer.lockKeys.scrollLock.behavior', 'text'],
+    ['ansFxMode', 'answer.effects.mode', 'text'],
+    ['ansIconsMode', 'answer.desktopIcons.mode', 'text'],
+    ['ansDeleteEdge', 'answer.deleteEdgeDesktopIcon', 'bool'],
+    ['ansFoldersMode', 'answer.startFolders.mode', 'text'],
+    ['ansAlMode', 'answer.appLocker.mode', 'text'],
+    ['ansWpUi', 'answer.wallpaper.ui', 'text'],
+    ['ansWpColor', 'answer.wallpaper.color', 'text'],
+    ['ansWpScript', 'answer.wallpaper.customScript', 'text'],
+    ['ansLsUi', 'answer.lockScreen.ui', 'text'],
+    ['ansLsScript', 'answer.lockScreen.customScript', 'text'],
+    ['ansVmVbox', 'answer.vmTools.virtualBox', 'bool'],
+    ['ansVmVmware', 'answer.vmTools.vmware', 'bool'],
+    ['ansVmVirtio', 'answer.vmTools.virtIo', 'bool'],
+    ['ansVmParallels', 'answer.vmTools.parallels', 'bool'],
+    ['ansWifiName', 'answer.wifi.name', 'text'],
+    ['ansWifiAuth', 'answer.wifi.authentication', 'text'],
+    ['ansWifiPw', 'answer.wifi.password', 'text'],
+    ['ansWifiAuto', 'answer.wifi.connectAutomatically', 'bool'],
+    ['ansWifiHidden', 'answer.wifi.nonBroadcast', 'bool'],
+    ['ansWifiXml', 'answer.wifi.xml', 'text'],
+    ['ansAlXml', 'answer.appLocker.policyXml', 'text']
   ];
 
   function bindAll() {
@@ -142,16 +279,23 @@
       const el = document.getElementById(id);
       if (!el) continue;
       el.addEventListener(type === 'bool' ? 'change' : 'input', () => {
-        set(path, type === 'bool' ? el.checked : type === 'num' ? parseInt(el.value, 10) || 0 : el.value);
+        set(path, type === 'bool' ? el.checked : type === 'num' ? parseInt(el.value, 10) || 0
+          : type === 'numnull' ? (el.value.trim() === '' ? null : (parseInt(el.value, 10) || 0)) : el.value);
+        if (id === 'setConfigSetMode') applyConfigSetMode();
+        if (id === 'ansTargetIndex' || id === 'ansTargetIndexGen') {
+          const v = get(path);
+          $(id === 'ansTargetIndex' ? '#ansTargetIndexGen' : '#ansTargetIndex').value = v === null || v === undefined ? '' : v;
+        }
+        if (id === 'answerEnabled' || id.startsWith('ans')) renderAnswer();
         if (id === 'officeXml') renderOfficeSummary();
         if (id === 'tweaksPhase') renderTweaks();
         if (id === 'featuresPhase') renderFeatureHints();
-        if ((id === 'setConfigSet' || id === 'setTrigger') && configSetActive() && state.paths.zipRoot === 'sources') {
+        if ((id === 'setConfigSetMode' || id === 'setTrigger') && configSetActive() && state.paths.zipRoot === 'sources') {
           state.paths.zipRoot = 'both';
           syncInputs();
           toast(T('UseConfigurationSet=true: Setup sucht $OEM$ im Wurzelverzeichnis – Ablage auf „beide Orte“ gestellt.'), 'warn');
         }
-        if (id === 'setConfigSet' || id === 'setTrigger' || id === 'setZipRoot') renderUnattend();
+        if (id === 'setConfigSetMode' || id === 'setTrigger' || id === 'setZipRoot') { renderUnattend(); renderIsoSource(); }
         refresh();
       });
     }
@@ -335,6 +479,7 @@
       box.appendChild(lab);
     }
     renderTweakDeferHint();
+    renderRegFiles();
   }
 
   function renderTweakDeferHint() {
@@ -359,6 +504,355 @@
     el.innerHTML = teile.join('. ') +
       T('. Diese Einstellungen werden automatisch in Phase 2 nachgeholt, jeweils mit Zeitgrenze. Die Registry-Anteile bleiben in Phase 1.');
     el.style.color = 'var(--acc2)';
+  }
+
+  /* ---------------- Antwortdatei-Designer ---------------- */
+  /*  Oberflaeche fuer js/ug (Port des Generators von Christoph Schneegans).
+      Die Auswahllisten kommen aus dessen Datentabellen (resources.js); die
+      Pruefung laeuft bei jeder Aenderung ueber denselben Code, der die Datei
+      erzeugt - eine ConfigurationException erscheint als Hinweis oben. */
+  function fillSelect(sel, items, value, empty) {
+    sel.innerHTML = '';
+    if (empty) { const o = document.createElement('option'); o.value = ''; o.textContent = empty; sel.appendChild(o); }
+    for (const it of items) {
+      const o = document.createElement('option');
+      o.value = it.Id; o.textContent = it.DisplayName;
+      sel.appendChild(o);
+    }
+    sel.value = value || '';
+  }
+  const byName = (a, b) => a.DisplayName.localeCompare(b.DisplayName);
+  function ugList(name) {
+    if (!window.UG) return [];
+    const l = UG.list(name);
+    if (name === 'WindowsEdition') return l.filter((e) => e.Visible);
+    return name === 'TimeOffset' ? l : l.slice().sort(byName);
+  }
+
+  function renderAnswerLists() {
+    if (!window.UG || !$('#ansImageLang')) return;
+    $$('#view-answer select[data-list]').forEach((sel) => {
+      const binding = BINDINGS.find((b) => b[0] === sel.id);
+      fillSelect(sel, ugList(sel.dataset.list), binding ? get(binding[1]) : '');
+    });
+    renderAnsLocales();
+    renderAnsAccounts();
+    renderAnsPersonalization();
+    $$('.ans-arch').forEach((cb) => { cb.checked = (state.answer.architectures || []).includes(cb.value); });
+    renderAnswer();
+  }
+
+  function renderAnsLocales() {
+    const box = $('#ansLocales');
+    if (!box) return;
+    const a = state.answer.language;
+    if (!Array.isArray(a.locales)) a.locales = [];
+    const locales = ugList('UserLocale'), keyboards = ugList('KeyboardIdentifier');
+    box.innerHTML = '';
+    for (let i = 0; i < 3; i++) {
+      const pair = a.locales[i] || { locale: '', keyboard: '' };
+      const row = document.createElement('div');
+      row.className = 'row wrap';
+      row.innerHTML = '<label class="field grow"><span></span><select class="loc"></select></label>' +
+        '<label class="field grow"><span></span><select class="kbd"></select></label>';
+      row.querySelectorAll('span')[0].textContent = i === 0 ? T('Gebietsschema') : F('Gebietsschema {0} (optional)', i + 1);
+      row.querySelectorAll('span')[1].textContent = i === 0 ? T('Tastatur') : F('Tastatur {0}', i + 1);
+      const loc = row.querySelector('.loc'), kbd = row.querySelector('.kbd');
+      fillSelect(loc, locales, pair.locale, i === 0 ? null : '—');
+      fillSelect(kbd, keyboards, pair.keyboard, i === 0 ? null : '—');
+      const store = () => {
+        while (a.locales.length < i) a.locales.push({ locale: '', keyboard: '' });
+        a.locales[i] = { locale: loc.value, keyboard: kbd.value };
+        renderAnswer(); refresh();
+      };
+      loc.addEventListener('change', () => {
+        /* Wie auf der Seite des Originals: Tastatur und Standort folgen dem Gebietsschema */
+        const l = locales.find((x) => x.Id === loc.value);
+        if (l && l.KeyboardLayout) kbd.value = l.KeyboardLayout;
+        if (!loc.value) kbd.value = '';
+        if (i === 0 && l && l.GeoLocation) { a.geo = l.GeoLocation; $('#ansGeo').value = l.GeoLocation; }
+        store();
+      });
+      kbd.addEventListener('change', store);
+      box.appendChild(row);
+    }
+  }
+
+  function renderAnsAccounts() {
+    const tbl = $('#ansAccounts');
+    if (!tbl) return;
+    const acc = state.answer.account;
+    if (!Array.isArray(acc.accounts)) acc.accounts = [];
+    tbl.innerHTML = '<thead><tr><th>' + T('Name') + '</th><th>' + T('Anzeigename') + '</th><th>' + T('Kennwort') +
+      '</th><th>' + T('Gruppe') + '</th><th></th></tr></thead><tbody></tbody>';
+    const body = tbl.querySelector('tbody');
+    acc.accounts.forEach((u, i) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = '<td><input type="text" class="n" maxlength="20" spellcheck="false"></td>' +
+        '<td><input type="text" class="d" spellcheck="false"></td>' +
+        '<td><input type="text" class="p" spellcheck="false" autocomplete="off"></td>' +
+        '<td><select class="g"><option value="Administrators"></option><option value="Users"></option></select></td>' +
+        '<td><button class="btn small danger" type="button">✕</button></td>';
+      tr.querySelector('.n').value = u.name || '';
+      tr.querySelector('.d').value = u.displayName || '';
+      tr.querySelector('.p').value = u.password || '';
+      const g = tr.querySelector('.g');
+      g.options[0].textContent = T('Administratoren'); g.options[1].textContent = T('Benutzer');
+      g.value = u.group || 'Administrators';
+      tr.querySelector('.n').addEventListener('input', (e) => { u.name = e.target.value; renderAnswer(); });
+      tr.querySelector('.d').addEventListener('input', (e) => { u.displayName = e.target.value; renderAnswer(); });
+      tr.querySelector('.p').addEventListener('input', (e) => { u.password = e.target.value; renderAnswer(); });
+      g.addEventListener('change', () => { u.group = g.value; renderAnswer(); });
+      tr.querySelector('button').addEventListener('click', () => { acc.accounts.splice(i, 1); renderAnsAccounts(); renderAnswer(); refresh(); });
+      body.appendChild(tr);
+    });
+  }
+
+  /* Personalisierung: Checkbox-Listen fuer Effekte, Desktopsymbole und
+     Ordner im Startmenue. Bezeichnungen wie in den deutschen Windows-Dialogen;
+     gespeichert werden die Ids des Originals. */
+  const FX_LABELS = {
+    ControlAnimations: 'Steuerelemente und Elemente innerhalb von Fenstern animieren',
+    AnimateMinMax: 'Animation beim Minimieren und Maximieren von Fenstern',
+    TaskbarAnimations: 'Animationen in der Taskleiste',
+    DWMAeroPeekEnabled: 'Aero Peek aktivieren',
+    MenuAnimation: 'Menüs in Ansicht ein- oder ausblenden',
+    TooltipAnimation: 'QuickInfos in Ansicht ein- oder ausblenden',
+    SelectionFade: 'Menüelemente nach Aufruf ausblenden',
+    DWMSaveThumbnailEnabled: 'Vorschauen von Miniaturansichten der Taskleiste speichern',
+    CursorShadow: 'Schatten unter dem Mauszeiger anzeigen',
+    ListviewShadow: 'Schatten für Symbolbeschriftungen auf dem Desktop',
+    ThumbnailsOrIcon: 'Miniaturansichten anstelle von Symbolen anzeigen',
+    ListviewAlphaSelect: 'Durchsichtiges Auswahlrechteck anzeigen',
+    DragFullWindows: 'Fensterinhalt beim Ziehen anzeigen',
+    ComboBoxAnimation: 'Kombinationsfelder beim Öffnen einblenden',
+    FontSmoothing: 'Kanten der Bildschirmschriftarten verfeinern',
+    ListBoxSmoothScrolling: 'Bildlauf in Listenfeldern',
+    DropShadow: 'Fensterschatten anzeigen'
+  };
+  const PLACE_LABELS = {
+    Music: 'Musik', ThisPC: 'Dieser PC', Downloads: 'Downloads', Pictures: 'Bilder', ControlPanel: 'Systemsteuerung',
+    UserFiles: 'Benutzerdateien', RecycleBin: 'Papierkorb', Videos: 'Videos', Documents: 'Dokumente', Desktop: 'Desktop',
+    Gallery: 'Katalog', Network: 'Netzwerk', Home: 'Startseite', Settings: 'Einstellungen', FileExplorer: 'Explorer',
+    PersonalFolder: 'Persönlicher Ordner'
+  };
+  function ansCheckGrid(box, items, isOn, onChange) {
+    box.innerHTML = '';
+    for (const it of items) {
+      const l = document.createElement('label');
+      l.className = 'chk';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.value = it.id;
+      cb.checked = isOn(it.id);
+      cb.addEventListener('change', () => { onChange(it.id, cb.checked); renderAnswer(); refresh(); });
+      l.append(cb, ' ', document.createTextNode(it.label));
+      box.appendChild(l);
+    }
+  }
+  function renderAnsPersonalization() {
+    if (!$('#ansFxList')) return;
+    const a = state.answer;
+    const lbl = (map, id, fallback) => T(map[id] || fallback || id);
+    if (!a.effects.custom) a.effects.custom = {};
+    ansCheckGrid($('#ansFxList'), UG.EFFECTS.map((k) => ({ id: k, label: lbl(FX_LABELS, k) })),
+      (k) => !!a.effects.custom[k], (k, on) => { a.effects.custom[k] = on; });
+    const toggle = (list) => (id, on) => {
+      const i = list.indexOf(id);
+      if (on && i < 0) list.push(id);
+      if (!on && i >= 0) list.splice(i, 1);
+    };
+    const byLabel = (x, y) => x.label.localeCompare(y.label);
+    if (!Array.isArray(a.desktopIcons.show)) a.desktopIcons.show = [];
+    ansCheckGrid($('#ansIconList'), UG.list('DesktopIcon').map((d) => ({ id: d.Id, label: lbl(PLACE_LABELS, d.Id, d.DisplayName) })).sort(byLabel),
+      (id) => a.desktopIcons.show.includes(id), toggle(a.desktopIcons.show));
+    if (!Array.isArray(a.startFolders.show)) a.startFolders.show = [];
+    ansCheckGrid($('#ansFolderList'), UG.startFolders().map((f) => ({ id: f.Id, label: lbl(PLACE_LABELS, f.Id, f.DisplayName) })).sort(byLabel),
+      (id) => a.startFolders.show.includes(id), toggle(a.startFolders.show));
+  }
+
+  /* AppLocker: Richtlinie (Export von Get-AppLockerPolicy -Xml) in den
+     Designer uebernehmen. FileReader erkennt UTF-16 am BOM - so schreibt
+     PowerShell 5.1 die Umleitung "> datei.xml". */
+  const AL_SAMPLE = [
+    '<AppLockerPolicy Version="1">',
+    '  <RuleCollection Type="Exe" EnforcementMode="AuditOnly">',
+    '    <FilePathRule Id="921cc481-6e17-4653-8f75-050b80acca20" Name="(Standardregel) Alle Dateien im Ordner &quot;Programme&quot;" Description="Ermöglicht Mitgliedern der Gruppe &quot;Jeder&quot; das Ausführen von Anwendungen, die sich im Ordner &quot;Programme&quot; befinden." UserOrGroupSid="S-1-1-0" Action="Allow">',
+    '      <Conditions>',
+    '        <FilePathCondition Path="%PROGRAMFILES%\\*" />',
+    '      </Conditions>',
+    '    </FilePathRule>',
+    '    <FilePathRule Id="a61c8b2c-a319-4cd0-9690-d2177cad7b51" Name="(Standardregel) Alle Dateien im Ordner &quot;Windows&quot;" Description="Ermöglicht Mitgliedern der Gruppe &quot;Jeder&quot; das Ausführen von Anwendungen, die sich im Ordner &quot;Windows&quot; befinden." UserOrGroupSid="S-1-1-0" Action="Allow">',
+    '      <Conditions>',
+    '        <FilePathCondition Path="%WINDIR%\\*" />',
+    '      </Conditions>',
+    '    </FilePathRule>',
+    '    <FilePathRule Id="fd686d83-a829-4351-8ff4-27c7de5755d2" Name="(Standardregel) Alle Dateien" Description="Ermöglicht Mitgliedern der lokalen Gruppe &quot;Administratoren&quot; das Ausführen aller Anwendungen." UserOrGroupSid="S-1-5-32-544" Action="Allow">',
+    '      <Conditions>',
+    '        <FilePathCondition Path="*" />',
+    '      </Conditions>',
+    '    </FilePathRule>',
+    '  </RuleCollection>',
+    '</AppLockerPolicy>'
+  ].join('\n');
+  function importAppLocker(name, text) {
+    state.answer.appLocker = { mode: 'configure', policyXml: text.replace(/^\uFEFF/, '').trim() };
+    syncInputs(); renderAnswer(); refresh();
+    logImport(F('AppLocker-Richtlinie übernommen: {0}', name));
+    toast(T('AppLocker-Richtlinie übernommen – sie wirkt, sobald die Antwortdatei mit dem Designer erzeugt wird.'), state.answer.enabled ? 'ok' : 'warn');
+  }
+
+  /* WLAN-Profil (netsh wlan export profile) in den Designer uebernehmen */
+  function importWifi(name, text) {
+    Object.assign(state.answer.wifi, { mode: 'xml', xml: text.replace(/^\uFEFF/, '').trim() });
+    syncInputs(); renderAnswer(); refresh();
+    logImport(F('WLAN-Profil übernommen: {0}', name));
+    toast(T('WLAN-Profil übernommen – es wirkt, sobald die Antwortdatei mit dem Designer erzeugt wird.'), state.answer.enabled ? 'ok' : 'warn');
+  }
+
+  /* Sichtbarkeit (data-show="pfad=wert") und Pruefung */
+  function renderAnswer() {
+    const view = $('#view-answer');
+    if (!view) return;
+    derivePictures();
+    for (const [key, id] of [['wallpaper', '#ansWpInfo'], ['lockScreen', '#ansLsInfo']]) {
+      const o = state.answer[key];
+      if (o && $(id)) $(id).textContent = o.imageScript ? o.imageName + ' (' + Math.max(1, Math.round(o.imageSize / 1024)) + ' KB)' : T('kein Bild gewählt');
+    }
+    /* data-show="pfad=wert", "pfad!=wert"; data-show-not="pfad=wert1,wert2" */
+    $$('[data-show]', view).forEach((el) => {
+      const neg = el.dataset.show.includes('!=');
+      const [path, value] = el.dataset.show.split(neg ? '!=' : '=');
+      el.hidden = (String(get(path)) === value) === neg;
+    });
+    $$('[data-show-not]', view).forEach((el) => {
+      const [path, values] = el.dataset.showNot.split('=');
+      el.hidden = values.split(',').includes(String(get(path)));
+    });
+    const st = $('#answerStatus');
+    if (!window.UG) { st.textContent = T('Der Designer ist nicht geladen (js/ug fehlt).'); st.style.color = 'var(--warn)'; return; }
+    if (!state.answer.enabled) {
+      st.textContent = T('Aus – es wird die eigenständige bzw. importierte Antwortdatei verwendet.');
+      st.style.color = '';
+      return;
+    }
+    const notes = [];
+    try {
+      UG.generate(Object.assign({}, state.answer, { useConfigurationSet: state.options.configSet !== false }));
+      notes.push(T('Konfiguration gültig – die Antwortdatei steht in der Vorschau.'));
+      st.style.color = 'var(--ok)';
+    } catch (e) {
+      notes.push(F('Nicht erzeugbar: {0}', e.message));
+      st.style.color = 'var(--warn)';
+    }
+    if (state.options.trigger === 'setupcomplete') notes.push(T('Achtung: Unter Einstellungen → Auslöser ist „nur SetupComplete.cmd“ gewählt – dann entsteht keine autounattend.xml.'));
+    if (state.unattend && state.unattend.xml) notes.push(T('Die importierte autounattend.xml wird nicht verwendet, solange der Designer aktiv ist.'));
+    if (state.answer.wallpaper && state.answer.wallpaper.ui === 'image' && !state.answer.wallpaper.imageScript) notes.push(T('Kein Bild gewählt – Hintergrundbild bleibt Windows-Standard.'));
+    if (state.answer.lockScreen && state.answer.lockScreen.ui === 'image' && !state.answer.lockScreen.imageScript) notes.push(T('Kein Bild gewählt – Sperrbildschirm bleibt Windows-Standard.'));
+    const pe = state.answer.pe || {};
+    if (pe.mode === 'generate' || pe.mode === 'script') {
+      if (state.paths.zipRoot === 'sources') notes.push(T('Achtung: pe.cmd kopiert nur <Medium>\\$OEM$ – die Ablage steht auf „sources“. Unter Einstellungen → Pfade „beide Orte“ wählen.'));
+      if (pe.mode === 'generate' && pe.partition && pe.partition.mode === 'unattended') {
+        notes.push(T('Achtung: pe.cmd löscht den Zieldatenträger ohne Rückfrage.'));
+      }
+    }
+    st.textContent = notes.join(' ');
+  }
+
+  /* ---------------- Registry-Dateien ---------------- */
+  /*  Importierte .reg-Dateien laufen im Tweaks-Modul mit: gleiche Phase,
+      HKCU wie die Benutzer-Tweaks ins Default-Profil bzw. zu allen Benutzern.
+      Eine Datei gleichen Namens ersetzt die vorherige. */
+  async function importReg(name, text) {
+    let res;
+    try { res = Importers.parseReg(text, name); }
+    catch (e) {
+      logImport(name + ': ' + e.message, 'err');
+      toast(F('{0} ist keine gültige .reg-Datei.', name), 'err');
+      return;
+    }
+    if (!state.tweaks.regFiles) state.tweaks.regFiles = [];
+    const entry = { name, enabled: true, entries: res.entries, warnings: res.warnings };
+    const idx = state.tweaks.regFiles.findIndex((f) => f.name.toLowerCase() === name.toLowerCase());
+    if (idx >= 0) state.tweaks.regFiles[idx] = entry; else state.tweaks.regFiles.push(entry);
+    state.tweaks.enabled = true;
+    logImport(F('Registry-Datei übernommen: {0} – {1} Einträge', name, res.entries.length));
+    res.warnings.slice(0, 20).forEach((w) => logImport(w, 'warnl'));
+    if (res.warnings.length > 20) logImport(F('… und {0} weitere Hinweise', res.warnings.length - 20), 'warnl');
+    toast(res.warnings.length
+      ? F('{0}: {1} Einträge übernommen, {2} – siehe Tweaks.', name, res.entries.length, hinweise(res.warnings.length))
+      : F('{0}: {1} Einträge übernommen.', name, res.entries.length), res.warnings.length ? 'warn' : 'ok');
+    syncInputs(); renderTweaks(); refresh();
+  }
+
+  function hinweise(n) { return n === 1 ? T('1 Hinweis') : F('{0} Hinweise', n); }
+
+  function regValueText(e) {
+    if (e.op === 'delkey') return T('Schlüssel löschen');
+    if (e.op === 'delvalue') return T('Wert löschen');
+    switch (e.type) {
+      case 'DWord': return '0x' + e.value.toString(16).padStart(8, '0') + ' (' + e.value + ')';
+      case 'QWord': return e.value;
+      case 'MultiString': return e.value.join(' ¦ ');
+      case 'Binary': {
+        const hex = e.value.slice(0, 24).map((b) => b.toString(16).padStart(2, '0')).join(' ');
+        return hex + (e.value.length > 24 ? ' … (' + e.value.length + ' Bytes)' : '');
+      }
+      default: return e.value;
+    }
+  }
+
+  function renderRegFiles() {
+    const box = $('#regFilesBox');
+    if (!box) return;
+    const files = state.tweaks.regFiles || [];
+    box.innerHTML = '';
+    if (!files.length) {
+      box.innerHTML = '<p class="muted">' + T('Keine .reg-Datei importiert.') + '</p>';
+      return;
+    }
+    files.forEach((f, fi) => {
+      const on = f.entries.filter((e) => e.enabled).length;
+      const wrap = document.createElement('details');
+      wrap.className = 'regfile';
+      wrap.open = f.entries.length <= 30;
+      const sum = document.createElement('summary');
+      sum.innerHTML = '<label class="chk"><input type="checkbox"' + (f.enabled ? ' checked' : '') + '> <b>' + esc(f.name) + '</b></label> ' +
+        '<span class="muted">' + esc(F('{0} von {1} Einträgen aktiv', on, f.entries.length)) +
+        (f.warnings.length ? ' · <span style="color:var(--warn)">' + esc(hinweise(f.warnings.length)) + '</span>' : '') +
+        '</span> <button class="btn small danger" type="button">' + T('Entfernen') + '</button>';
+      sum.querySelector('input').addEventListener('click', (ev) => ev.stopPropagation());
+      sum.querySelector('input').addEventListener('change', (ev) => { f.enabled = ev.target.checked; refresh(); });
+      sum.querySelector('button').addEventListener('click', (ev) => {
+        ev.preventDefault();
+        state.tweaks.regFiles.splice(fi, 1);
+        renderRegFiles(); refresh();
+      });
+      wrap.appendChild(sum);
+      if (f.warnings.length) {
+        const ul = document.createElement('ul');
+        ul.className = 'log';
+        f.warnings.forEach((w) => { const li = document.createElement('li'); li.className = 'warnl'; li.textContent = w; ul.appendChild(li); });
+        wrap.appendChild(ul);
+      }
+      const tw = document.createElement('div');
+      tw.className = 'table-wrap';
+      const rows = f.entries.map((e, ei) =>
+        '<tr><td><input type="checkbox" data-i="' + ei + '"' + (e.enabled ? ' checked' : '') + '></td>' +
+        '<td>' + (e.scope === 'user' ? T('Benutzer') : T('Rechner')) + '</td>' +
+        '<td class="mono">' + esc(e.path) + '</td>' +
+        '<td class="mono">' + esc(e.op === 'delkey' ? '' : e.name) + '</td>' +
+        '<td>' + esc(e.type || '') + '</td>' +
+        '<td class="mono">' + esc(regValueText(e)) + '</td></tr>').join('');
+      tw.innerHTML = '<table class="tbl"><thead><tr><th></th><th>' + T('Ziel') + '</th><th>' + T('Schlüssel') + '</th><th>' +
+        T('Name') + '</th><th>' + T('Typ') + '</th><th>' + T('Wert') + '</th></tr></thead><tbody>' + rows + '</tbody></table>';
+      tw.querySelectorAll('input[data-i]').forEach((cb) => cb.addEventListener('change', () => {
+        f.entries[+cb.dataset.i].enabled = cb.checked;
+        renderRegFiles(); refresh();
+      }));
+      wrap.appendChild(tw);
+      box.appendChild(wrap);
+    });
   }
 
   /* ---------------- Bloatware ---------------- */
@@ -456,8 +950,34 @@
       ri.type = 'text'; ri.value = f.run; ri.placeholder = T('/S  bzw.  /qn /norestart  – leer = nur kopieren');
       if (f.dest === 'scripts') { ri.disabled = true; ri.placeholder = T('Aufruf über eigene CMD-Zeilen (%~dp0)'); }
       if (f.dest === 'office') { ri.disabled = true; ri.placeholder = T('wird vom Office-Modul gestartet'); }
-      ri.addEventListener('change', () => { f.run = ri.value; refresh(); });
-      runTd.appendChild(ri); tr.appendChild(runTd);
+      ri.addEventListener('change', () => { f.run = ri.value; renderFiles(); refresh(); });
+      runTd.appendChild(ri);
+      const tpl = f.template && Catalog.INSTALLERS.find((t) => t.id === f.template);
+      const note = document.createElement('div');
+      note.className = 'hint';
+      note.style.fontSize = '11px';
+      if (f.dest === 'files' && !f.run.trim() && /\.(exe|msi|msix|appx|msixbundle|appxbundle)$/i.test(f.name)) {
+        note.textContent = T('Wird nur kopiert, nicht ausgeführt – Parameter eintragen, damit installiert wird.');
+        note.style.color = 'var(--warn)';
+        const match = Catalog.INSTALLERS.find((t) => t.match.test(f.name));
+        if (match) {
+          const b = document.createElement('button');
+          b.type = 'button'; b.className = 'btn small mt-s';
+          b.textContent = F('Vorlage „{0}“ anwenden', match.name);
+          b.addEventListener('click', () => {
+            Object.assign(f, { run: match.run, phase: match.phase, template: match.id });
+            renderFiles(); refresh();
+          });
+          note.appendChild(document.createElement('br'));
+          note.appendChild(b);
+        }
+      } else if (tpl) {
+        note.textContent = F('Vorlage: {0}. {1}', tpl.name, T(tpl.note));
+      } else if (f.detected) {
+        note.textContent = F('Erkannt: {0} – Standardschalter vorgeschlagen.', f.detected);
+      }
+      if (note.textContent) runTd.appendChild(note);
+      tr.appendChild(runTd);
 
       const phTd = document.createElement('td');
       const ps = document.createElement('select');
@@ -483,6 +1003,7 @@
   /* ---------------- Treiber ---------------- */
 
   function fmtSize(n) {
+    if (n >= 1073741824) return (n / 1073741824).toFixed(2) + ' GB';
     return n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
   }
 
@@ -703,6 +1224,20 @@
     box.appendChild(warn);
   }
 
+  /*  Zielsystem -> UseConfigurationSet (siehe Issue #474 bei Schneegans und
+      eigene Tests): Ab Windows 11 24H2 kopiert Setup $OEM$ nur mit true, ein
+      ConfigSetRoot entsteht dort nicht. Bis 23H2 kopiert Setup mit true alles,
+      was neben der Antwortdatei liegt, nach C:\Windows\ConfigSetRoot - das
+      ganze Medium, bei Ventoy die ganze Datenpartition; mit false wird
+      sources\$OEM$ kopiert. */
+  const NEW_SETUP_BUILD = 26100;
+
+  function applyConfigSetMode() {
+    const m = state.options.configSetMode;
+    state.options.configSetMode = m === 'old' || m === 'mixed' ? m : 'new';
+    state.options.configSet = state.options.configSetMode !== 'old';
+  }
+
   /* UseConfigurationSet wirkt nur, wenn eine autounattend.xml erzeugt wird. */
   function configSetActive() {
     return state.options.configSet !== false && state.options.trigger !== 'setupcomplete';
@@ -714,14 +1249,18 @@
     let txt = '', warn = false;
     if (state.options.trigger === 'setupcomplete') {
       txt = T('Ohne autounattend.xml ohne Wirkung – $OEM$ gehört dann nach sources\\.');
-    } else if (state.options.configSet === false) {
-      txt = T('Achtung: Ohne UseConfigurationSet hat Windows Setup (Windows 11, Build 26300) $OEM$ im Test gar nicht kopiert – kein Installationsordner, keine Phase 2.');
-      warn = true;
+    } else if (state.options.configSetMode === 'old') {
+      txt = T('UseConfigurationSet=false: Setup kopiert sources\\$OEM$, eine Kopie des Mediums entsteht nicht. Achtung: Windows 11 ab 24H2 kopiert $OEM$ damit überhaupt nicht – kein Installationsordner, keine Phase 2.');
+      warn = state.paths.zipRoot === 'oem';
+      if (warn) txt += ' ' + T('Die Ablage steht auf „Wurzelverzeichnis“ – ohne UseConfigurationSet braucht Setup aber sources\\$OEM$.');
     } else if (state.paths.zipRoot === 'sources') {
       txt = T('Achtung: Mit UseConfigurationSet=true sucht Setup $OEM$ im Wurzelverzeichnis – die Ablage „sources“ allein wird ignoriert.');
       warn = true;
+    } else if (state.options.configSetMode === 'mixed') {
+      txt = T('UseConfigurationSet=true für beide Generationen. Auf Windows 10 und Windows 11 bis 23H2 kopiert Setup damit alles, was neben der Antwortdatei liegt, nach C:\\Windows\\ConfigSetRoot – das ganze Medium (mehrere GB), bei Ventoy die ganze Datenpartition. Ab 24H2 entsteht kein ConfigSetRoot.');
+      warn = true;
     } else {
-      txt = T('Setup kopiert den Ordner der Antwortdatei nach C:\\Windows\\ConfigSetRoot. Auf einem normalen Installationsmedium unkritisch; auf Multiboot-Sticks (Ventoy) kann das sehr groß werden.');
+      txt = T('UseConfigurationSet=true: Ab Windows 11 24H2 kopiert Setup $OEM$ nur mit diesem Wert; ein ConfigSetRoot entsteht dort nicht. Für ältere Builds „Windows 10 / Windows 11 bis 23H2“ wählen – dort würde das ganze Medium nach C:\\Windows\\ConfigSetRoot kopiert.');
     }
     h.textContent = txt;
     h.style.color = warn ? 'var(--warn)' : '';
@@ -757,7 +1296,8 @@
     row(T('Vorhandene Befehle'), String(u.info.commandCount));
     row(T('Passes'), u.info.passes.filter(Boolean).join(', ') || '–');
     row(T('UseConfigurationSet'), (u.info.useConfigurationSet ? 'true' : 'false') +
-      (configSetActive() && !u.info.useConfigurationSet ? ' → true' + T(' (setzt der Generator)') : ''));
+      (configSetActive() && !u.info.useConfigurationSet ? ' → true' + T(' (setzt der Generator)') : '') +
+      (state.options.configSetMode === 'old' && u.info.useConfigurationSet ? ' → false' + T(' (setzt der Generator)') : ''));
     if (u.info.productKey) row(T('Produktschlüssel'), u.info.productKey);
     box.appendChild(dl);
 
@@ -1004,7 +1544,9 @@
          ganze Elementinhalte neu und wuerde sie sonst wieder ueberbuegeln. */
       I18n.apply();
       $('#badgeApps').textContent = state.apps.items.filter((p) => p.enabled).length;
-      $('#badgeTweaks').textContent = state.tweaks.selected.length;
+      /* Tweaks plus importierte .reg-Dateien - je Datei eins, nicht je Zeile */
+      $('#badgeTweaks').textContent = state.tweaks.selected.length +
+        (state.tweaks.regFiles || []).filter((f) => f.enabled && f.entries.some((e) => e.enabled)).length;
       $('#badgeBloat').textContent = state.bloat.selected.length;
       $('#badgeFeatures').textContent = state.features.selected.length;
       labelHelp();
@@ -1097,6 +1639,8 @@
     syncInputs();
     I18n.apply();
     renderApps(); renderTweaks(); renderBloat(); renderFeatures(); renderDrivers(); renderFiles(); renderOfficeSummary(); renderUnattend();
+    renderIsoSource();
+    renderAnswerLists();
     refresh();
   }
 
@@ -1136,12 +1680,14 @@
     opts = opts || {};
     const name = file.name;
 
+    /* .reg zuerst: regedit exportiert UTF-16, readText ginge von UTF-8 aus */
+    if (/\.reg$/i.test(name)) {
+      await importReg(name, Importers.decodeRegBytes(new Uint8Array(await file.arrayBuffer())));
+      return;
+    }
+
     if (BINARY_EXT.test(name) && !/\.reg$/i.test(name)) {
-      state.files.items.push({
-        name, target: name, run: /\.msi$/i.test(name) ? '/qn /norestart' : '',
-        phase: 'firstlogon', enabled: true, dest: defaultFileDest(name), blob: file, blobPresent: true,
-        src: opts.handle ? await rememberSource(opts.handle, 'file') : null
-      });
+      state.files.items.push(await newFileItem(file, opts.handle ? await rememberSource(opts.handle, 'file') : null));
       logImport(F('Datei übernommen: {0} ({1} KB)', name, Math.round(file.size / 1024)));
       renderFiles(); refresh();
       return;
@@ -1219,6 +1765,18 @@
         renderAll();
         return;
       }
+      case 'reg': {
+        await importReg(name, text);
+        return;
+      }
+      case 'applocker': {
+        importAppLocker(name, text);
+        return;
+      }
+      case 'wlan': {
+        importWifi(name, text);
+        return;
+      }
       case 'unattend': {
         let info;
         try { info = Importers.parseUnattend(text); }
@@ -1281,7 +1839,16 @@
       }
       return dst;
     };
+    const hadMode = obj && obj.options && obj.options.configSetMode;
     state = merge(base, obj);
+    /* Projekte vor der Zielsystem-Auswahl: abgeschaltetes UseConfigurationSet hiess "alte Builds" */
+    if (!hadMode) state.options.configSetMode = state.options.configSet === false ? 'old' : 'new';
+    applyConfigSetMode();
+    /* Aufgeteilte Tweaks: aus einem alten Eintrag werden beide neuen */
+    const SPLIT_TWEAKS = { edgePolicies: ['edgeFirstRun', 'edgeStartupBoost'] };
+    if (Array.isArray(state.tweaks.selected)) {
+      state.tweaks.selected = [...new Set(state.tweaks.selected.flatMap((id) => SPLIT_TWEAKS[id] || [id]))];
+    }
     state.apps.items = (state.apps.items || []).map((p) => Importers.mkPkg(p));
     if (!state.unattend) state.unattend = { xml: null, name: '', info: null };
     state.files.items = (state.files.items || []).map((f) => ({
@@ -1370,7 +1937,7 @@
     };
   })();
 
-  const PLACE_KEYS = ['oem-project', 'oem-zip', 'oem-folder'];
+  const PLACE_KEYS = ['oem-project', 'oem-zip', 'oem-folder', 'oem-iso', 'oem-iso-src'];
 
   /* ---------------- Quellen merken und wieder einbinden ---------------- */
   /*  Die Projektdatei enthaelt keine Binaerdateien, und der Browser verraet
@@ -1489,18 +2056,46 @@
     return /^setup\.exe$/i.test(name) && state.office.enabled && state.office.setupSource === 'bundled' ? 'office' : 'files';
   }
 
+  /*  Neuer Eintrag unter "Eigene Dateien": Vorlage aus dem Katalog, sonst den
+      Installer-Typ am Dateianfang erkennen und Standardschalter vorschlagen. */
+  async function newFileItem(file, src) {
+    const name = file.name;
+    const item = {
+      name, target: name, run: /\.msi$/i.test(name) ? '/qn /norestart' : '',
+      phase: 'firstlogon', enabled: true, dest: defaultFileDest(name), blob: file, blobPresent: true, src: src || null
+    };
+    if (item.dest !== 'files') return item;
+    const tpl = Catalog.INSTALLERS.find((t) => t.match.test(name));
+    if (tpl) {
+      Object.assign(item, { run: tpl.run, phase: tpl.phase, template: tpl.id });
+      logImport(F('Vorlage „{0}“ angewendet: {1}', tpl.name, tpl.run));
+      return item;
+    }
+    if (/\.exe$/i.test(name)) {
+      const type = await detectInstaller(file);
+      if (type) {
+        Object.assign(item, { run: type.run, detected: type.name });
+        logImport(F('{0}: als {1} erkannt – Parameter {2} vorgeschlagen', name, type.name, type.run));
+      }
+    }
+    return item;
+  }
+  async function detectInstaller(file) {
+    try {
+      const head = new Uint8Array(await file.slice(0, 1024 * 1024).arrayBuffer());
+      let text = '';
+      for (let i = 0; i < head.length; i += 0x8000) text += String.fromCharCode.apply(null, head.subarray(i, i + 0x8000));
+      return Catalog.INSTALLER_TYPES.find((t) => t.re.test(text)) || null;
+    } catch (e) { return null; }
+  }
+
   async function pickFiles() {
     let hs;
     try { hs = await window.showOpenFilePicker({ id: 'oem-files', multiple: true }); }
     catch (e) { if (!e || e.name !== 'AbortError') toast(F('Ordner nicht verfügbar: {0}', e.message), 'err'); return; }
     for (const h of hs || []) {
       const f = await h.getFile();
-      state.files.items.push({
-        name: f.name, target: f.name,
-        run: /\.msi$/i.test(f.name) ? '/qn /norestart' : '',
-        phase: 'firstlogon', enabled: true, dest: defaultFileDest(f.name), blob: f, blobPresent: true,
-        src: await rememberSource(h, 'file')
-      });
+      state.files.items.push(await newFileItem(f, await rememberSource(h, 'file')));
     }
     renderFiles(); refresh();
   }
@@ -1525,11 +2120,16 @@
       handle = await window.showSaveFilePicker(startIn ? Object.assign({ startIn }, base) : base);
     } catch (e) {
       if (e && e.name === 'AbortError') return false;
+      /* Ohne frische Benutzeraktion (SecurityError) darf der Aufrufer entscheiden,
+         statt still auf den Download auszuweichen - bei einer ISO waeren das
+         mehrere Gigabyte im Download-Ordner. */
+      if (opts.strict && e && e.name === 'SecurityError') throw e;
       /* Ein veralteter Ort (Datei geloescht, Laufwerk weg) darf den Dialog nicht verhindern. */
       if (startIn) {
         try { handle = await window.showSaveFilePicker(base); }
         catch (e2) {
           if (e2 && e2.name === 'AbortError') return false;
+          if (opts.strict && e2 && e2.name === 'SecurityError') throw e2;
           console.warn('Speichern-Dialog nicht verfuegbar, falle auf Download zurueck:', e2);
           return null;
         }
@@ -1570,8 +2170,8 @@
       Fehler laesst sich der Datei zuordnen, an der er auftrat. */
   const WRITE_CHUNK = 8 * 1024 * 1024;
 
-  async function writeParts(w, parts, labels) {
-    let buf = [], bufLen = 0;
+  async function writeParts(w, parts, labels, onProgress) {
+    let buf = [], bufLen = 0, written = 0;
     const flush = async () => {
       if (!bufLen) return;
       const all = new Uint8Array(bufLen);
@@ -1579,6 +2179,8 @@
       for (const b of buf) { all.set(b, p); p += b.length; }
       buf = []; bufLen = 0;
       await w.write(all);
+      written += all.length;
+      if (onProgress) onProgress(written);
     };
     for (let i = 0; i < parts.length; i++) {
       const part = parts[i];
@@ -1586,12 +2188,17 @@
         if (part instanceof Blob) {
           await flush();
           const reader = part.stream().getReader();
+          let got = 0;
           for (;;) {
             const { done, value } = await reader.read();
             if (done) break;
+            got += value.length;
             buf.push(value); bufLen += value.length;
             if (bufLen >= WRITE_CHUNK) await flush();
           }
+          /* Jeder Verweis steht im Inhaltsverzeichnis mit seiner Groesse -
+             liefert er mehr oder weniger, waere das Archiv kaputt. */
+          if (got !== part.size) throw new Error(F('{0} statt {1} Bytes gelesen – die Datei wurde verändert', got, part.size));
           await flush();
         } else {
           buf.push(part); bufLen += part.length;
@@ -1608,10 +2215,11 @@
     await flush();
   }
 
-  async function writeToHandle(handle, blob) {
+  async function writeToHandle(handle, blob, onProgress) {
     const w = await handle.createWritable();
     try {
-      if (blob.zipParts) await writeParts(w, blob.zipParts, blob.zipLabels);
+      if (blob.zipParts) await writeParts(w, blob.zipParts, blob.zipLabels, onProgress);
+      else if (blob.isoParts) await writeParts(w, blob.isoParts, blob.isoLabels, onProgress);
       else await w.write(blob);
       await w.close();
     } catch (e) {
@@ -1920,6 +2528,273 @@
     }
   }
 
+  /* ---------------- ISO-Abbild ---------------- */
+  /*  Workflow "ISO neu schreiben": Windows-ISO waehlen, die erzeugten Dateien
+      kommen hinzu, es entsteht eine neue, bootfaehige ISO (js/iso.js). Die
+      Quell-ISO wird nicht eingelesen - ihre Dateien gehen als Ausschnitt der
+      Datei ins Ergebnis. Die Quelle bleibt fuer diese Sitzung gewaehlt; nach
+      einem Neuladen oeffnet der Dialog im Ordner der zuletzt gewaehlten ISO. */
+  let isoSource = null;          // { file, info, unattendDone }
+
+  const ISO_DROP = /^(\$oem\$|sources\/\$oem\$|\$winpedriver\$)(\/|$)/i;
+
+  function isoErrorText(e) {
+    const detail = e && e.message ? e.message : String(e);
+    switch (e && e.isoCode) {
+      case 'noudf': return T('Die Datei enthält kein UDF-Dateisystem – das ist keine Windows-Installations-ISO.');
+      case 'unsupported': return T('Diese ISO nutzt einen Aufbau, den der Generator nicht schreiben kann (UDF 2.x oder Festplatten-Emulation, typisch für Brennprogramme). Bitte die Original-ISO von Microsoft verwenden.') + '\n' + detail;
+      case 'boot': return T('Der Bootkatalog der ISO ist beschädigt.') + '\n' + detail;
+      default: return detail;
+    }
+  }
+
+  async function pickIsoFile() {
+    if (typeof window.showOpenFilePicker !== 'function') {
+      return new Promise((resolve) => {
+        const inp = $('#isoInput');
+        const done = () => { inp.removeEventListener('change', done); const f = inp.files[0] || null; inp.value = ''; resolve(f); };
+        inp.addEventListener('change', done);
+        inp.click();
+      });
+    }
+    const startIn = await startInFor('oem-iso-src');
+    const base = { id: 'oem-iso-src', multiple: false,
+      types: [{ description: T('ISO-Abbild'), accept: { 'application/x-iso9660-image': ['.iso'] } }] };
+    let handles;
+    try {
+      handles = await window.showOpenFilePicker(startIn ? Object.assign({ startIn }, base) : base);
+    } catch (e) {
+      if (e && e.name === 'AbortError') return null;
+      try { handles = await window.showOpenFilePicker(base); }
+      catch (e2) { if (!e2 || e2.name !== 'AbortError') toast(F('Datei nicht verfügbar: {0}', e2.message), 'err'); return null; }
+    }
+    if (!handles || !handles[0]) return null;
+    await lastPlace.set('oem-iso-src', handles[0]);
+    return handles[0].getFile();
+  }
+
+  async function chooseIsoSource() {
+    const file = await pickIsoFile();
+    if (!file) return false;
+    const box = $('#isoSourceBox');
+    if (box) box.innerHTML = '<p class="muted">' + esc(F('Lese {0} …', file.name)) + '</p>';
+    try {
+      const info = await IsoImage.readIso(file);
+      isoSource = { file, info, unattendDone: false };
+      isoAdoptBuild(info);
+      renderIsoSource();
+      const w = info.warnings.length ? ' ' + F('({0} Einträge übersprungen)', info.warnings.length) : '';
+      toast(F('Quell-ISO eingelesen: {0} – {1} Dateien.', info.label || file.name, info.files.length) + w, 'ok');
+      if (!info.windows.image) toast(T('In dieser ISO fehlt sources\\install.wim bzw. install.esd – ist das eine Windows-Installations-ISO?'), 'warn');
+      return true;
+    } catch (e) {
+      console.error(e);
+      isoSource = null;
+      renderIsoSource();
+      toast(F('ISO nicht lesbar: {0}', isoErrorText(e)), 'err');
+      return false;
+    }
+  }
+
+  /*  Zielsystem nach dem Build der Quell-ISO stellen - "beide" bleibt, weil
+      der Benutzer damit ausdruecklich ein Medium fuer alle Builds will. */
+  function isoAdoptBuild(info) {
+    const w = info.windows.wim;
+    if (!w || !w.build || state.options.configSetMode === 'mixed') return;
+    const want = w.minBuild >= NEW_SETUP_BUILD ? 'new' : w.build < NEW_SETUP_BUILD ? 'old' : 'mixed';
+    if (want === state.options.configSetMode) return;
+    state.options.configSetMode = want;
+    applyConfigSetMode();
+    if (configSetActive() && state.paths.zipRoot === 'sources') state.paths.zipRoot = 'both';
+    syncInputs(); renderUnattend(); refresh();
+    toast(F('Quell-ISO mit Build {0}: Zielsystem auf „{1}“ gestellt (UseConfigurationSet={2}).', w.build,
+      T(want === 'new' ? 'Windows 11 24H2 und neuer' : want === 'old' ? 'Windows 10 / Windows 11 bis 23H2' : 'beide Generationen'),
+      state.options.configSet ? 'true' : 'false'), 'info');
+  }
+
+  function wimSummary(w) {
+    const editions = w.images.map((i) => i.name || i.edition).filter(Boolean);
+    const shown = editions.slice(0, 4).join(', ') + (editions.length > 4 ? ' …' : '');
+    const arch = Array.from(new Set(w.images.map((i) => i.arch).filter(Boolean))).join('/');
+    const build = w.build === w.minBuild ? String(w.build) : w.minBuild + '–' + w.build;
+    return F('Build {0}', build) + (arch ? ' · ' + arch : '') + ' · ' +
+      (w.images.length === 1 ? T('1 Edition') : F('{0} Editionen', w.images.length)) + (shown ? ': ' + esc(shown) : '');
+  }
+
+  function bootLabel(b) {
+    const plat = b.platform === 0xEF ? 'UEFI' : b.platform === 0 ? 'BIOS' : '0x' + b.platform.toString(16);
+    return plat + ' (' + fmtSize(b.data.length) + ')';
+  }
+
+  function renderIsoSource() {
+    const box = $('#isoSourceBox');
+    if (!box) return;
+    $('#btnIsoDrop').hidden = !isoSource;
+    if (!isoSource) {
+      box.innerHTML = '<p class="muted">' + T('Noch keine Quell-ISO gewählt.') + '</p>';
+      return;
+    }
+    const i = isoSource.info;
+    const old = i.files.filter((f) => ISO_DROP.test(f.path)).length;
+    const rows = [
+      [T('Datei'), esc(i.name) + ' · ' + fmtSize(i.size)],
+      [T('Bezeichnung'), esc(i.label || '–')],
+      [T('Abbild'), i.windows.image ? '<code>' + esc(i.windows.image.replace(/\//g, '\\')) + '</code> · ' + fmtSize(i.windows.imageSize)
+        : '<span style="color:var(--warn)">' + T('fehlt – keine Windows-Installations-ISO?') + '</span>'],
+      [T('Windows'), i.windows.wim ? wimSummary(i.windows.wim) : '<span class="muted">' + T('Build nicht lesbar (verschlüsseltes ESD?)') + '</span>'],
+      [T('Booten'), i.boot.length ? i.boot.map(bootLabel).join(', ') : '<span style="color:var(--warn)">' + T('kein Bootkatalog – die neue ISO startet nicht') + '</span>'],
+      [T('Inhalt'), F('{0} Dateien, {1} Ordner', i.files.length, i.dirs.length)]
+    ];
+    if (old) {
+      rows.push([T('Wird ersetzt'), old === 1 ? T('1 Datei unter $OEM$, sources\\$OEM$ bzw. $WinPEDriver$ aus der Quelle')
+        : F('{0} Dateien unter $OEM$, sources\\$OEM$ bzw. $WinPEDriver$ aus der Quelle', old)]);
+    }
+    if (i.files.some((f) => f.path.toLowerCase() === 'autounattend.xml')) {
+      rows.push(['autounattend.xml', state.unattend && state.unattend.xml
+        ? T('in der Quelle vorhanden – die importierte Antwortdatei ersetzt sie')
+        : T('in der Quelle vorhanden – beim Erzeugen wird gefragt, ob sie übernommen und ergänzt wird')]);
+    }
+    box.innerHTML = '<dl>' + rows.map((r) => '<dt>' + r[0] + '</dt><dd>' + r[1] + '</dd>').join('') + '</dl>';
+  }
+
+  /*  Liegt in der Quelle eine autounattend.xml und hat der Benutzer keine
+      importiert, wuerde die des Generators sie ersetzen. Einmal je Quelle
+      fragen: uebernehmen und ergaenzen oder ersetzen. */
+  async function isoAdoptUnattend() {
+    if (isoSource.unattendDone) return;
+    isoSource.unattendDone = true;
+    if ((state.options.trigger || 'both') === 'setupcomplete' || (state.unattend && state.unattend.xml)) return;
+    const f = isoSource.info.files.find((x) => x.path.toLowerCase() === 'autounattend.xml');
+    if (!f) return;
+    if (!confirm(T('Die Quell-ISO enthält bereits eine autounattend.xml.\n\nOK: übernehmen und um die Aufrufe des Generators ergänzen (empfohlen)\nAbbrechen: durch die Antwortdatei des Generators ersetzen'))) return;
+    const text = await f.data.text();
+    await importFile(new File([text], 'autounattend.xml', { type: 'text/xml' }), { forceType: 'unattend' });
+  }
+
+  function isoName() {
+    const base = (isoSource.info.name || 'Windows.iso').replace(/\.iso$/i, '');
+    return base + '-' + (state.meta.name || 'OEM').replace(/[^\w.-]+/g, '_') + '.iso';
+  }
+
+  async function isoContents() {
+    const src = isoSource.info;
+    const gen = previewFiles.map((f) => ({ path: f.path, data: f.data }));
+    gen.push({ path: (state.meta.name || 'Projekt').replace(/[^\w.-]+/g, '_') + '.oemproj.json', data: projectJson() });
+    const genKeys = new Set(gen.map((e) => e.path.toLowerCase()));
+    const noPrompt = !!(state.iso && state.iso.noPrompt);
+    let files = src.files.filter((f) => !ISO_DROP.test(f.path) && !genKeys.has(f.path.toLowerCase()));
+    if (noPrompt) files = files.filter((f) => f.path.toLowerCase() !== 'boot/bootfix.bin');
+    const boot = src.boot.map((b) => Object.assign({}, b));
+    if (noPrompt && src.windows.efiNoPrompt) {
+      const data = new Uint8Array(await src.windows.efiNoPrompt.data.arrayBuffer());
+      boot.filter((b) => b.platform === 0xEF).forEach((b) => {
+        if (b.count > 1) b.count = Math.min(0xFFFF, Math.ceil(data.length / 512));
+        b.data = data;
+      });
+    }
+    return {
+      label: src.label, isoLabel: src.isoLabel, volId: src.volId, fileSetId: src.fileSetId,
+      root: src.root, dirs: src.dirs.filter((d) => !ISO_DROP.test(d.path)),
+      files: files.concat(gen), boot,
+      filePerms: mostCommon(src.files.map((f) => f.perms)), dirPerms: mostCommon(src.dirs.map((d) => d.perms))
+    };
+  }
+
+  function mostCommon(arr) {
+    const n = new Map();
+    let best = 0, bestN = 0;
+    arr.forEach((v) => { if (!v) return; const c = (n.get(v) || 0) + 1; n.set(v, c); if (c > bestN) { best = v; bestN = c; } });
+    return best || undefined;
+  }
+
+  async function exportIso() {
+    if (!isoSource) {
+      if (!(await chooseIsoSource())) return;
+    } else {
+      /* Quelle seit dem Einlesen veraendert oder geloescht? */
+      try { await isoSource.file.slice(0, 1).arrayBuffer(); }
+      catch (e) {
+        isoSource = null; renderIsoSource();
+        toast(T('Die Quell-ISO ist nicht mehr lesbar – bitte neu wählen.'), 'err');
+        return;
+      }
+    }
+    await isoAdoptUnattend();
+    previewFiles = Templates.build(state);
+
+    const src = isoSource.info;
+    const notes = [];
+    if (!src.windows.image) notes.push(T('In der Quell-ISO fehlt sources\\install.wim bzw. install.esd – sie ist vermutlich keine Windows-Installations-ISO.'));
+    if (!src.boot.length) notes.push(T('Die Quell-ISO hat keinen Bootkatalog – die neue ISO startet nicht von selbst.'));
+    if (state.iso && state.iso.noPrompt) {
+      notes.push(src.windows.efiNoPrompt
+        ? T('Ohne „Press any key“: Die ISO startet Windows Setup sofort. Bleibt sie in einer VM eingelegt, beginnt die Installation nach dem ersten Neustart von vorn – mit einer autounattend.xml, die Datenträger löscht, ein echtes Risiko.')
+        : T('„Ohne Press any key“ ist gewählt, aber efi\\microsoft\\boot\\efisys_noprompt.bin fehlt in der Quelle – UEFI fragt weiterhin nach.'));
+    }
+    const lost = missingBinaries();
+    if (lost.length) notes.push(F('Diese Dateien fehlen und kommen nur als Platzhalter in die ISO: {0}', lost.join(', ')));
+    if (notes.length && !confirm(F('ISO erzeugen aus „{0}“:\n\n{1}\n\nFortfahren?', src.name, notes.map((x) => '• ' + x).join('\n\n')))) return;
+
+    let handle;
+    try {
+      handle = await pickSaveTarget(isoName(), {
+        id: 'oem-iso', description: T('ISO-Abbild'), accept: { 'application/x-iso9660-image': ['.iso'] }, strict: true
+      });
+    } catch (e) {
+      /* Einlesen und Rueckfragen haben die Benutzeraktion aufgebraucht */
+      toast(T('Quell-ISO ist eingelesen – zum Speichern bitte noch einmal auf „ISO erzeugen“ klicken.'), 'info');
+      return;
+    }
+    if (handle === false) return;
+
+    const btn = $('#btnExportIso');
+    const label = btn.textContent;
+    btn.disabled = true; $('#btnExport').disabled = true; $('#btnExportFolder').disabled = true;
+    btn.textContent = T('Erzeuge …');
+    let blob = null;
+    try {
+      blob = IsoImage.buildIso(await isoContents());
+      const total = blob.size;
+      const over4 = total >= 4 * 1024 * 1024 * 1024;
+      if (handle) {
+        let last = -1;
+        try {
+          await writeToHandle(handle, blob, (n) => {
+            const pct = Math.floor(n * 100 / total);
+            if (pct !== last) { last = pct; btn.textContent = F('ISO {0} %', pct); }
+          });
+        } catch (e) {
+          if (!over4) throw e;
+          const e2 = new Error(((e && e.message) || e) + ' ' + T('– Die ISO ist größer als 4 GB. Liegt das Ziel auf einem FAT32-Laufwerk (viele USB-Sticks)? FAT32 erlaubt höchstens 4 GB je Datei – die ISO auf die Festplatte oder ein NTFS-/exFAT-Laufwerk speichern.'));
+          e2.name = e.name; e2.data = e.data; e2.path = e.path;
+          throw e2;
+        }
+        toast(F('ISO gespeichert: {0} ({1})', handle.name, fmtSize(total)), 'ok');
+      } else {
+        download(blob, isoName());
+        toast(F('ISO erstellt ({0}) – der Browser lädt sie herunter.', fmtSize(total)), 'ok');
+      }
+    } catch (e) {
+      console.error(e);
+      if (e && e.isoCode) toast(F('ISO nicht erzeugt: {0}', isoErrorText(e)), 'err');
+      else if (isoSource && !(await stillReadable(isoSource.file))) {
+        isoSource = null; renderIsoSource();
+        alert(F('Export fehlgeschlagen: {0}', e.message) + '\n\n' +
+          T('Die Quell-ISO ist nicht mehr lesbar – sie wurde seit dem Einlesen geändert, verschoben oder gelöscht. Bitte neu wählen.'));
+      } else if (isReadError(e) || (e && e.data && !(await stillReadable(e.data)))) {
+        const who = (e && e.data && markUnreadable(e.data)) || e.path || '?';
+        alert(F('Export fehlgeschlagen: {0}', e.message) + '\n\n' +
+          F('Die Datei ist nicht mehr lesbar – sie wurde seit dem Hinzufügen geändert, verschoben oder gelöscht. Bitte neu zuordnen: {0}', who));
+        renderFiles(); renderDrivers(); refresh();
+      } else {
+        toast(F('Export fehlgeschlagen: {0}', e.message), 'err');
+      }
+    } finally {
+      btn.disabled = false; $('#btnExport').disabled = false; $('#btnExportFolder').disabled = false;
+      btn.textContent = label;
+    }
+  }
+
   /* ---------------- Ereignisse ---------------- */
 
   function wire() {
@@ -1927,6 +2802,48 @@
 
     $('#btnExport').addEventListener('click', exportZip);
     $('#btnExportFolder').addEventListener('click', exportFolder);
+    $('#btnExportIso').addEventListener('click', exportIso);
+    $('#btnIsoPick').addEventListener('click', chooseIsoSource);
+    $('#btnIsoDrop').addEventListener('click', () => { isoSource = null; renderIsoSource(); });
+    $('#btnRegImport').addEventListener('click', () => $('#regInput').click());
+    if ($('#btnAnsAddAccount')) {
+      $('#btnAnsAddAccount').addEventListener('click', () => {
+        const acc = state.answer.account;
+        acc.accounts.push({ name: '', displayName: '', password: '', group: acc.accounts.some((u) => u.group === 'Administrators') ? 'Users' : 'Administrators' });
+        renderAnsAccounts(); renderAnswer(); refresh();
+      });
+      $$('.ans-arch').forEach((cb) => cb.addEventListener('change', () => {
+        state.answer.architectures = $$('.ans-arch').filter((x) => x.checked).map((x) => x.value);
+        renderAnswer(); refresh();
+      }));
+      $('#btnAlSample').addEventListener('click', () => {
+        state.answer.appLocker.policyXml = AL_SAMPLE;
+        syncInputs(); renderAnswer(); refresh();
+      });
+      $('#btnAlLoad').addEventListener('click', () => $('#alInput').click());
+      for (const [btn, input, key] of [['#btnWpImage', '#wpInput', 'wallpaper'], ['#btnLsImage', '#lsInput', 'lockScreen']]) {
+        $(btn).addEventListener('click', () => $(input).click());
+        $(input).addEventListener('change', async (e) => {
+          const f = e.target.files[0];
+          e.target.value = '';
+          if (f) await loadPicture(key, f);
+        });
+      }
+      $('#btnWifiLoad').addEventListener('click', () => $('#wifiInput').click());
+      $('#wifiInput').addEventListener('change', async (e) => {
+        const f = e.target.files[0];
+        e.target.value = '';
+        if (f) importWifi(f.name, await readText(f));
+      });
+      $('#alInput').addEventListener('change', async (e) => {
+        const f = e.target.files[0];
+        e.target.value = '';
+        if (f) importAppLocker(f.name, await readText(f));
+      });
+      $('#view-answer').addEventListener('change', () => refresh());
+      $('#view-answer').addEventListener('input', () => refresh());
+    }
+    $('#regInput').addEventListener('change', async (e) => { await importFiles(e.target.files); e.target.value = ''; });
     if (typeof window.showDirectoryPicker !== 'function') $('#btnExportFolder').hidden = true;
     $('#btnSaveProject').addEventListener('click', saveProject);
     $('#btnLoadProject').addEventListener('click', openProjectFile);
@@ -2084,13 +3001,7 @@
     });
 
     $('#filesInput').addEventListener('change', async (e) => {
-      for (const f of Array.from(e.target.files)) {
-        state.files.items.push({
-          name: f.name, target: f.name,
-          run: /\.msi$/i.test(f.name) ? '/qn /norestart' : '',
-          phase: 'firstlogon', enabled: true, dest: defaultFileDest(f.name), blob: f, blobPresent: true
-        });
-      }
+      for (const f of Array.from(e.target.files)) state.files.items.push(await newFileItem(f, null));
       e.target.value = '';
       renderFiles(); refresh();
     });

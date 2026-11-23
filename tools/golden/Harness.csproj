@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Golden-Test: bindet die Quellen von cschneegans/unattend-generator
+    UNVERAENDERT ein (Pfad per -p:UGDIR=<Klon>) und erzeugt fuer jede
+    Konfiguration aus resolved.json die autounattend.xml des Originals.
+    Aufruf ueber tools/test-golden.js, nicht direkt.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <!-- Bloatware.json nennt Typen mit "..., UnattendGenerator" (TypeNameHandling.Auto) -->
+    <AssemblyName>UnattendGenerator</AssemblyName>
+    <RootNamespace>Schneegans.Unattend</RootNamespace>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
+    <NoWarn>$(NoWarn);CS8618;CS8600;CS8602;CS8603;CS8604;CS8625</NoWarn>
+    <!-- Kein Commit-Hash im Ergebnis: der Vergleich blendet <Build> ohnehin aus -->
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(UGDIR)/*.cs" Exclude="$(UGDIR)/Example.cs" />
+    <Compile Include="$(UGDIR)/modifier/*.cs" />
+    <Compile Include="Program.cs" />
+    <EmbeddedResource Include="$(UGDIR)/resource/*" LogicalName="Schneegans.Unattend.resource.%(Filename)%(Extension)" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+  </ItemGroup>
+</Project>

@@ -36,7 +36,7 @@ const name = 'OEM-Script-Generator-' + tag;
 const dist = path.join(root, 'dist');
 const stage = path.join(dist, name);
 
-const INCLUDE = ['index.html', 'css', 'js', 'samples', 'tools', 'LICENSE', 'README.md', 'README.en.md'];
+const INCLUDE = ['index.html', 'css', 'js', 'samples', 'tools', 'vendor', 'LICENSE', 'README.md', 'README.en.md'];
 const READMES = new Set(['README.md', 'README.en.md']);
 
 fs.rmSync(dist, { recursive: true, force: true });
