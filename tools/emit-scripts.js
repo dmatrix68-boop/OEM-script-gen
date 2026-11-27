@@ -7,7 +7,8 @@
     Je Profil ein Unterordner mit der Struktur wie im ZIP (nur Textdateien):
       voll     - alle Module aktiv, alle Tweaks/Bloatware/Komponenten, mehrere
                  Paketmanager, Office mit lokaler Quelle, Treiber mit
-                 Modellfilter, eigene Dateien und Befehle, .reg-Werte
+                 Modellfilter, eigene Dateien und Befehle, .reg-Werte,
+                 Win-ProfileKit-Profile (Phase 1 und 2)
       phase1   - Anwendungen, Office und Komponenten in Phase 1, nur
                  SetupComplete.cmd, RunOnce, Neustart am Ende
       standard - Voreinstellungen der Oberflaeche
@@ -59,6 +60,7 @@ function base() {
     features: { enabled: false, phase: 'firstlogon', timeoutMin: 20, selected: [] },
     drivers: { enabled: false, phase: 'setup', timeoutMin: 10, items: [] },
     files: { items: [] },
+    profiles: { enabled: false, phase1Windows: true, exe: null, exePresent: false, items: [] },
     custom: { cmdEnabled: true, cmd: '', psEnabled: true, psPhase: 'setup', ps: '' },
     iso: { noPrompt: false },
     answer: { enabled: false }
@@ -97,6 +99,15 @@ const profiles = {
     s.files.items = [
       { name: 'setup.exe', target: 'setup.exe', run: '/S', phase: 'firstlogon', dest: 'files', enabled: true, blob: new Blob(['MZ']), blobPresent: true },
       { name: 'paket.msi', target: 'paket.msi', run: '/qn', phase: 'setup', dest: 'files', enabled: true, blob: new Blob(['x']), blobPresent: true }
+    ];
+    /* Win-ProfileKit: ein Profil fuer die erste Anmeldung, eines fuer einen festen Benutzer */
+    s.profiles.enabled = true;
+    s.profiles.exe = new Blob(['MZ']); s.profiles.exePresent = true;
+    s.profiles.items = [
+      { name: 'Dev', user: '', enabled: true, blob: new Blob(['PK']), blobPresent: true,
+        modules: [{ id: '7zip', name: '7-Zip', wingetId: '7zip.7zip' }, { id: 'windows.mouse', name: 'Maus', wingetId: '' }] },
+      { name: "Test O'Brien", user: 'test2', enabled: true, blob: null, blobPresent: false,
+        modules: [{ id: 'vlc', name: 'VLC', wingetId: 'VideoLAN.VLC' }] }
     ];
     s.custom.cmd = 'echo Hallo';
     s.custom.ps = "Write-Host 'Eigener Code mit Umlauten: äöü'";

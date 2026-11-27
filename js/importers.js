@@ -642,8 +642,73 @@
     return { entries, warnings, unicode };
   }
 
+  /* ---------- Win-ProfileKit-Profile (.pkprofile) ---------- */
+
+  /*  Ein .pkprofile ist ein ZIP mit profile.json im Wurzelverzeichnis. Fuer die
+      Anzeige und die winget-Pakete reicht dieser eine Eintrag: das Zentralverzeichnis
+      wird von hinten gesucht, der Eintrag gezielt gelesen und - bei Methode 8 -
+      ueber DecompressionStream('deflate-raw') entpackt. Das Archiv selbst kommt
+      unveraendert auf das Medium; profilekit.exe entpackt es dort. */
+  async function readZipEntry(bytes, wanted) {
+    const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    let eocd = -1;
+    for (let i = bytes.length - 22; i >= Math.max(0, bytes.length - 65557); i--) {
+      if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+    }
+    if (eocd < 0) throw new Error('kein ZIP-Archiv (Zentralverzeichnis fehlt)');
+    const count = dv.getUint16(eocd + 10, true);
+    let p = dv.getUint32(eocd + 16, true);
+    const want = wanted.toLowerCase();
+    for (let n = 0; n < count; n++) {
+      if (dv.getUint32(p, true) !== 0x02014b50) throw new Error('beschaedigtes Zentralverzeichnis');
+      const method = dv.getUint16(p + 10, true);
+      const compSize = dv.getUint32(p + 20, true);
+      const nameLen = dv.getUint16(p + 28, true);
+      const extraLen = dv.getUint16(p + 30, true);
+      const commentLen = dv.getUint16(p + 32, true);
+      const local = dv.getUint32(p + 42, true);
+      const name = new TextDecoder().decode(bytes.subarray(p + 46, p + 46 + nameLen)).replace(/\\/g, '/');
+      if (name.toLowerCase() === want) {
+        if (dv.getUint32(local, true) !== 0x04034b50) throw new Error('beschaedigter Eintrag ' + name);
+        const start = local + 30 + dv.getUint16(local + 26, true) + dv.getUint16(local + 28, true);
+        const data = bytes.subarray(start, start + compSize);
+        if (method === 0) return data;
+        if (method !== 8) throw new Error('Kompressionsmethode ' + method + ' wird nicht unterstuetzt');
+        const stream = new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+        return new Uint8Array(await new Response(stream).arrayBuffer());
+      }
+      p += 46 + nameLen + extraLen + commentLen;
+    }
+    return null;
+  }
+
+  /*  Liefert die Eckdaten eines Profils: Name, Quelle und Module (mit winget-ID).
+      Windows-Module (windows.*) gehen in Phase 1 ins Default-Profil. */
+  async function parsePkProfile(bytes) {
+    const raw = await readZipEntry(bytes, 'profile.json');
+    if (!raw) throw new Error('profile.json fehlt – kein Win-ProfileKit-Profil');
+    let text = new TextDecoder('utf-8').decode(raw);
+    if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+    const m = JSON.parse(text);
+    const pick = (o, a, b) => (o ? (o[a] !== undefined ? o[a] : o[b]) : undefined);
+    const modules = (pick(m, 'modules', 'Modules') || []).map((x) => ({
+      id: String(pick(x, 'id', 'Id') || ''),
+      name: String(pick(x, 'displayName', 'DisplayName') || pick(x, 'id', 'Id') || ''),
+      wingetId: pick(x, 'wingetId', 'WingetId') ? String(pick(x, 'wingetId', 'WingetId')) : '',
+      keyfiles: !!pick(x, 'containsKeyfiles', 'ContainsKeyfiles')
+    })).filter((x) => x.id);
+    const src = pick(m, 'source', 'Source') || {};
+    return {
+      name: String(pick(m, 'name', 'Name') || 'Profil'),
+      sourceUser: String(pick(src, 'userName', 'UserName') || ''),
+      sourceMachine: String(pick(src, 'machine', 'Machine') || ''),
+      modules
+    };
+  }
+
   global.Importers = {
     parseBundle, parseSetupComplete, parseOfficeConfig, parseUnattend, patchUnattend,
-    ensureSilentDisplay, detectType, normManager, mkPkg, dedupe, parseReg, decodeRegBytes
+    ensureSilentDisplay, detectType, normManager, mkPkg, dedupe, parseReg, decodeRegBytes,
+    readZipEntry, parsePkProfile
   };
 })(window);

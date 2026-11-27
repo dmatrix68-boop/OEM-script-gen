@@ -59,7 +59,7 @@
     'nav-einstellungen': 'Settings',
     'nav-vorschau': 'Preview',
     'dateien-irgendwo-ablegen-zum-importieren':
-      'Drop files anywhere to import<br><small>.ubundle · .cmd · .ps1 · .reg · .xml · .json</small>',
+      'Drop files anywhere to import<br><small>.ubundle · .cmd · .ps1 · .reg · .xml · .json · .pkprofile</small>',
 
     /* Übersicht */
     'uebersicht-2': 'Overview',
@@ -444,6 +444,18 @@
       + 'inserted – with an <code>autounattend.xml</code> that partitions disks, the machine is reinstalled over and over.',
     'in-ordner-exportieren': 'Export to folder',
     'in-ordner-exportieren-titel': 'Write the structure straight into a folder – e.g. the root of the USB stick. No ZIP, nothing to unpack (Chrome, Edge)',
+    'nav-profile': 'Profiles',
+    'profile-titel': 'Profiles (Win-ProfileKit)',
+    'profile-lead': 'Ship the program and Windows settings of a reference user: Win-ProfileKit profiles (<code>.pkprofile</code>) are '
+      + 'applied to the users after the installations; the Windows settings can be written to the Default profile in phase 1 already.',
+    'profile-exe-waehlen': 'Choose profilekit.exe',
+    'profile-hinzufuegen': 'Add profiles',
+    'profile-pakete-uebernehmen': 'Add winget packages to the applications',
+    'profile-nur-zip': 'Profiles and profilekit.exe are only shipped in the ZIP, not stored in the project file.',
+    'profile-phase1-windows': 'Write the Windows settings of the profiles to the Default profile in phase 1',
+    'th-profil': 'Profile',
+    'th-module': 'Modules',
+    'th-zielbenutzer': 'Target user',
   };
 
 
@@ -1016,6 +1028,16 @@
     '– Das ZIP ist größer als 4 GB. Liegt das Ziel auf einem FAT32-Laufwerk (viele USB-Sticks)? FAT32 erlaubt höchstens 4 GB je Datei – das ZIP auf die Festplatte speichern oder „In Ordner exportieren“ verwenden.': '– The ZIP is larger than 4 GB. Is the target on a FAT32 drive (many USB sticks)? FAT32 allows 4 GB per file at most – save the ZIP to the hard disk or use “Export to folder”.',
     'Das ZIP ist größer als 4 GB (ZIP64). Auf FAT32-Laufwerken lässt es sich nicht speichern – dort „In Ordner exportieren“ verwenden.': 'The ZIP is larger than 4 GB (ZIP64). It cannot be saved on FAT32 drives – use “Export to folder” there.',
     'Die Datei ist nicht mehr lesbar – sie wurde seit dem Hinzufügen geändert, verschoben oder gelöscht (etwa weil sie im Zielordner eines früheren Exports lag). Bitte neu zuordnen: {0}': 'The file is no longer readable – it was changed, moved or deleted since it was added (for example because it was in the target folder of an earlier export). Please assign it again: {0}',
+    /* Win-ProfileKit */
+    'Bitte profilekit.exe wählen.': 'Please choose profilekit.exe.',
+    'Profil {0}: {1} Module': 'Profile {0}: {1} modules',
+    '{0} Pakete in die Anwendungen übernommen.': '{0} packages added to the applications.',
+    'Alle Pakete der Profile sind schon in der Liste.': 'All packages of the profiles are already in the list.',
+    'profilekit.exe ({0})': 'profilekit.exe ({0})',
+    'profilekit.exe fehlt – wird als Hinweisdatei angelegt': 'profilekit.exe missing – a note file is created instead',
+    'Keine Profile hinzugefügt.': 'No profiles added.',
+    '{0} Programme, {1} Windows': '{0} programs, {1} Windows',
+    'leer = Benutzer der ersten Anmeldung': 'empty = user of the first sign-in',
   };
 
   const DICTS = { de: null, en: EN };

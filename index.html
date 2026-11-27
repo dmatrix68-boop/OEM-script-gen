@@ -40,12 +40,13 @@
     <button class="nav-item" data-view="features"><span class="ico">⊞</span><span data-i18n="nav-komponenten">Windows-Komponenten</span><span class="badge" id="badgeFeatures">0</span></button>
     <button class="nav-item" data-view="drivers"><span class="ico">⌗</span><span data-i18n="nav-treiber">Treiber</span><span class="badge" id="badgeDrivers">0</span></button>
     <button class="nav-item" data-view="files"><span class="ico">🗀</span><span data-i18n="nav-eigene-dateien">Eigene Dateien</span><span class="badge" id="badgeFiles">0</span></button>
+    <button class="nav-item" data-view="profiles"><span class="ico">👤</span><span data-i18n="nav-profile">Profile</span><span class="badge" id="badgeProfiles">0</span></button>
     <button class="nav-item" data-view="custom"><span class="ico">›_</span><span data-i18n="nav-eigene-befehle">Eigene Befehle</span></button>
     <button class="nav-item" data-view="answer"><span class="ico">✎</span><span data-i18n="nav-antwortdatei">Antwortdatei</span></button>
     <button class="nav-item" data-view="settings"><span class="ico">⚒</span><span data-i18n="nav-einstellungen">Einstellungen</span></button>
     <button class="nav-item" data-view="preview"><span class="ico">◲</span><span data-i18n="nav-vorschau">Vorschau</span></button>
     <div class="sidebar-foot">
-      <div id="dropHint" class="drop-hint" data-i18n="dateien-irgendwo-ablegen-zum-importieren">Dateien irgendwo ablegen zum Importieren<br><small>.ubundle · .cmd · .ps1 · .reg · .xml · .json</small></div>
+      <div id="dropHint" class="drop-hint" data-i18n="dateien-irgendwo-ablegen-zum-importieren">Dateien irgendwo ablegen zum Importieren<br><small>.ubundle · .cmd · .ps1 · .reg · .xml · .json · .pkprofile</small></div>
     </div>
   </nav>
 
@@ -409,6 +410,36 @@
         <div class="table-wrap">
           <table class="tbl" id="filesTable">
             <thead><tr><th class="w-chk"></th><th data-i18n="th-datei">Datei</th><th data-i18n="th-zielordner">Zielordner</th><th data-i18n="th-zielpfad-relativ">Zielpfad (relativ)</th><th data-i18n="th-ausfuehren-mit">Ausführen mit</th><th data-i18n="th-phase">Phase</th><th class="w-act"></th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- PROFILE (Win-ProfileKit) -->
+    <section class="view" id="view-profiles">
+      <h2 data-i18n="profile-titel">Profile (Win-ProfileKit)</h2>
+      <p class="lead" data-i18n="profile-lead">Programm- und Windows-Einstellungen eines Referenzbenutzers mitliefern: Win-ProfileKit-Profile
+      (<code>.pkprofile</code>) werden nach den Installationen auf die Benutzer angewendet, die Windows-Einstellungen auf Wunsch
+      schon in Phase 1 ins Default-Profil geschrieben.</p>
+      <label class="switch"><input type="checkbox" id="profilesEnabled"><span></span><span data-i18n="modul-aktiv">Modul aktiv</span></label>
+
+      <div class="panel">
+        <div class="row wrap">
+          <button class="btn" id="btnProfilesExe" data-i18n="profile-exe-waehlen">profilekit.exe wählen</button>
+          <input type="file" id="profilesExeInput" accept=".exe" hidden>
+          <span class="hint" id="profilesExeInfo"></span>
+        </div>
+        <div class="row wrap mt-s">
+          <button class="btn primary" id="btnProfilesAdd" data-i18n="profile-hinzufuegen">Profile hinzufügen</button>
+          <input type="file" id="profilesInput" accept=".pkprofile" multiple hidden>
+          <button class="btn" id="btnProfilesPackages" data-i18n="profile-pakete-uebernehmen">winget-Pakete in die Anwendungen übernehmen</button>
+          <span class="hint" data-i18n="profile-nur-zip">Profile und profilekit.exe werden nur im ZIP mitgeliefert, nicht in der Projektdatei gespeichert.</span>
+        </div>
+        <label class="switch mt-s"><input type="checkbox" id="profilesPhase1Windows"><span></span><span data-i18n="profile-phase1-windows">Windows-Einstellungen der Profile in Phase 1 ins Default-Profil schreiben</span></label>
+        <div class="table-wrap">
+          <table class="tbl" id="profilesTable">
+            <thead><tr><th class="w-chk"></th><th data-i18n="th-profil">Profil</th><th data-i18n="th-module">Module</th><th data-i18n="th-zielbenutzer">Zielbenutzer</th><th class="w-act"></th></tr></thead>
             <tbody></tbody>
           </table>
         </div>
