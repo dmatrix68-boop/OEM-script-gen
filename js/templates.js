@@ -616,6 +616,20 @@ function Invoke-OemProcess {
     return st.files.items.some((f) => f.enabled && f.blob && f.dest === 'office' && /^setup\.exe$/i.test(f.target));
   }
 
+  /* ---------- Win-ProfileKit-Profile ---------- */
+
+  function activeProfiles(st) {
+    return st.profiles && st.profiles.enabled ? (st.profiles.items || []).filter((p) => p.enabled) : [];
+  }
+  function profilesPhase1(st) {
+    return st.profiles && st.profiles.phase1Windows
+      ? activeProfiles(st).filter((p) => (p.modules || []).some((m) => /^windows\./i.test(m.id)))
+      : [];
+  }
+  function profileFile(p) {
+    return (p.name || 'Profil').replace(/[^\w.-]+/g, '_').replace(/\.pkprofile$/i, '') + '.pkprofile';
+  }
+
   function moduleList(st, phase) {
     const mods = [];
     if (st.drivers && st.drivers.enabled && st.drivers.phase === phase &&
@@ -631,6 +645,10 @@ function Invoke-OemProcess {
     if (st.files.items.some((f) => f.enabled && runsAsInstaller(f) && f.phase === phase && f.run)) {
       mods.push([phase === 'setup' ? 'Install-Files-P1.ps1' : 'Install-Files-P2.ps1', 'Eigene Installer']);
     }
+    /*  Win-ProfileKit: Phase 1 schreibt die Windows-Module ins Default-Profil,
+        Phase 2 wendet die Profile nach den Installationen auf die Benutzer an. */
+    if (phase === 'setup' && profilesPhase1(st).length) mods.push(['Restore-Profile-P1.ps1', 'Windows-Einstellungen aus Profilen']);
+    if (phase === 'firstlogon' && activeProfiles(st).length) mods.push(['Restore-Profile.ps1', 'Profile (Win-ProfileKit)']);
     if (st.custom.psEnabled && st.custom.psPhase === phase && st.custom.ps.trim()) mods.push(['Invoke-Custom.ps1', 'Eigene PowerShell-Befehle']);
     return mods;
   }
@@ -1959,6 +1977,104 @@ if ($fehler.Count -gt 0) { throw ('Nicht ausgefuehrt: ' + ($fehler -join ', ')) 
     return s;
   }
 
+  /* ---------- Modules/Restore-Profile(-P1).ps1 (Win-ProfileKit) ---------- */
+
+  /*  Phase 1 (SYSTEM): Windows-Module der Profile ins Default-Profil - wie die
+      Tweaks; jeder spaeter angelegte Benutzer erbt sie.
+      Phase 2: Profile nach den Installationen anwenden. Ohne Zielbenutzer gilt das
+      Profil fuer den angemeldeten Benutzer; laeuft Phase 2 als SYSTEM (geplante
+      Aufgabe), wird dieser ueber Win32_ComputerSystem ermittelt. Mit Zielbenutzer
+      wendet profilekit.exe das Profil offline auf dessen Hive an und erzeugt das
+      Profil selbst, falls sich das Konto noch nie angemeldet hat (Adminrechte).
+      Exitcodes von profilekit.exe: 0 OK, 2 Teilerfolg (Warnungen), sonst Fehler. */
+  function profileModule(st, phase) {
+    const items = phase === 'setup' ? profilesPhase1(st) : activeProfiles(st);
+    const lang = uiLang() === 'en' ? 'en' : 'de';
+    let s = banner(phase === 'setup'
+      ? 'Schreibt die Windows-Einstellungen der Win-ProfileKit-Profile ins Default-Profil.'
+      : 'Wendet Win-ProfileKit-Profile auf die Benutzer an.', st.meta.name);
+    s += bootstrapHeader(phase === 'setup' ? 'Restore-Profile-P1' : 'Restore-Profile');
+    s += toCRLF(`
+$pkRoot = Join-Path $Global:OemRoot 'ProfileKit'
+$exe = Join-Path $pkRoot 'profilekit.exe'
+if (-not (Test-Path -LiteralPath $exe)) { throw ('profilekit.exe fehlt: ' + $exe) }
+
+$profiles = @(
+${items.map((p) => '    [pscustomobject]@{ Name = ' + psq(p.name || profileFile(p)) + '; File = ' + psq(profileFile(p)) + '; User = ' + psq(phase === 'setup' ? '' : (p.user || '').trim()) + ' }').join(NL)}
+)
+
+function Invoke-ProfileKit {
+    param([string[]]$Arguments)
+    Write-Log ('profilekit ' + ($Arguments -join ' ')) -Level Debug
+    $out = & $exe @Arguments 2>&1
+    $code = $LASTEXITCODE
+    foreach ($line in @($out)) {
+        $text = [string]$line
+        if ($text.Trim()) { Write-Log ('  ' + $text) }
+    }
+    return $code
+}
+
+$fehler = @()
+`);
+    if (phase === 'setup') {
+      s += toCRLF(`
+foreach ($p in $profiles) {
+    $file = Join-Path $pkRoot ('Profiles\\' + $p.File)
+    if (-not (Test-Path -LiteralPath $file)) { Write-Log ('Profil fehlt: ' + $file) -Level Warn; $fehler += $p.Name; continue }
+    Write-Log ('Windows-Einstellungen aus ' + $p.Name + ' ins Default-Profil') -Level Step
+    $code = Invoke-ProfileKit @('apply', '--profile', $file, '--default-user', '--only', 'windows.*', '--no-backup', '--lang', ${psq(lang)})
+    if ($code -eq 0) { Write-Log ('OK: ' + $p.Name) }
+    elseif ($code -eq 2) { Write-Log ('Mit Warnungen: ' + $p.Name) -Level Warn }
+    else { Write-Log ('Exitcode {0}: {1}' -f $code, $p.Name) -Level Error; $fehler += $p.Name }
+}
+`);
+    } else {
+      s += toCRLF(`
+$isSystem = Test-OemSystem
+$me = [Environment]::UserName
+
+function Get-OemInteractiveUser {
+    try {
+        $u = (Get-CimInstance -ClassName Win32_ComputerSystem -ErrorAction Stop).UserName
+        if ($u) { return ($u -split '\\\\')[-1] }
+    } catch { }
+    return $null
+}
+
+foreach ($p in $profiles) {
+    $file = Join-Path $pkRoot ('Profiles\\' + $p.File)
+    if (-not (Test-Path -LiteralPath $file)) { Write-Log ('Profil fehlt: ' + $file) -Level Warn; $fehler += $p.Name; continue }
+
+    $user = [string]$p.User
+    if (-not $user -and $isSystem) {
+        $user = Get-OemInteractiveUser
+        if (-not $user) { Write-Log ('Kein angemeldeter Benutzer fuer ' + $p.Name + ' gefunden.') -Level Warn; $fehler += $p.Name; continue }
+    }
+    if (-not $user -or (-not $isSystem -and $user -ieq $me)) {
+        $target = @('--current-user')
+        $label = $me
+    } else {
+        if (-not (Test-OemAdmin)) { Write-Log ('Fuer ' + $user + ' sind Administratorrechte noetig - uebersprungen.') -Level Warn; $fehler += $p.Name; continue }
+        $target = @('--user', $user)
+        $label = $user
+    }
+
+    Write-Log ('Profil ' + $p.Name + ' -> ' + $label) -Level Step
+    $code = Invoke-ProfileKit (@('apply', '--profile', $file) + $target + @('--no-backup', '--lang', ${psq(lang)}))
+    if ($code -eq 0) { Write-Log ('OK: ' + $p.Name) }
+    elseif ($code -eq 2) { Write-Log ('Mit Warnungen: ' + $p.Name + ' (Details oben)') -Level Warn }
+    else { Write-Log ('Exitcode {0}: {1}' -f $code, $p.Name) -Level Error; $fehler += $p.Name }
+}
+`);
+    }
+    s += toCRLF(`
+# Weiterreichen, sonst stuende in der Zusammenfassung trotzdem OK.
+if ($fehler.Count -gt 0) { throw ('Nicht angewendet: ' + ($fehler -join ', ')) }
+`);
+    return s;
+  }
+
   /* ---------- Modules/Invoke-Custom.ps1 ---------- */
 
   function customModule(st) {
@@ -2709,6 +2825,26 @@ Write-Host ''
     if (all.has('Install-Files-P1.ps1')) add(inst + '/Modules/Install-Files-P1.ps1', filesModule(st, 'setup'));
     if (all.has('Install-Files-P2.ps1')) add(inst + '/Modules/Install-Files-P2.ps1', filesModule(st, 'firstlogon'));
     if (all.has('Invoke-Custom.ps1')) add(inst + '/Modules/Invoke-Custom.ps1', customModule(st));
+    if (all.has('Restore-Profile-P1.ps1')) add(inst + '/Modules/Restore-Profile-P1.ps1', profileModule(st, 'setup'));
+    if (all.has('Restore-Profile.ps1')) add(inst + '/Modules/Restore-Profile.ps1', profileModule(st, 'firstlogon'));
+
+    /*  Win-ProfileKit: profilekit.exe (self-contained, keine .NET-Runtime noetig) und
+        die Profile als .pkprofile. Fehlt eine Datei (z. B. nach dem Laden einer
+        Projektdatei), entsteht eine Hinweisdatei an ihrer Stelle. */
+    if (activeProfiles(st).length) {
+      const en = uiLang() === 'en';
+      const pk = inst + '/ProfileKit/';
+      if (st.profiles.exe) add(pk + 'profilekit.exe', st.profiles.exe, true);
+      else add(pk + (en ? 'PUT-profilekit.exe-HERE.txt' : 'HIER-profilekit.exe-ABLEGEN.txt'), toCRLF(en
+        ? 'Copy profilekit.exe (Win-ProfileKit, CI artifact profilekit-win-x64) into this folder\nand delete this note.\n'
+        : 'profilekit.exe (Win-ProfileKit, CI-Artefakt profilekit-win-x64) in diesen Ordner kopieren\nund diese Hinweisdatei loeschen.\n'));
+      activeProfiles(st).forEach((p) => {
+        if (p.blob) add(pk + 'Profiles/' + profileFile(p), p.blob, true);
+        else add(pk + 'Profiles/' + profileFile(p) + (en ? '.MISSING.txt' : '.FEHLT.txt'), toCRLF(en
+          ? 'Copy the profile ' + profileFile(p) + ' here (created with "profilekit capture --zip" or "collect --zip").\n'
+          : 'Das Profil ' + profileFile(p) + ' hierher kopieren (erzeugt mit "profilekit capture --zip" bzw. "collect --zip").\n'));
+      });
+    }
 
     if (st.office.enabled) {
       const useLocal = st.office.source === 'local';
@@ -2780,5 +2916,5 @@ Write-Host ''
     return files;
   }
 
-  global.Templates = { build, relFromRoot, moduleList, hasLateTweaks, collapseDriverFiles, driverFolder, regEntries };
+  global.Templates = { build, relFromRoot, moduleList, hasLateTweaks, collapseDriverFiles, driverFolder, regEntries, activeProfiles, profileFile };
 })(window);

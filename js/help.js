@@ -417,6 +417,48 @@ Lizenzdateien. Auf Wunsch werden Installer mit Silent-Parametern ausgeführt.</p
 </ul>`
     },
 
+    profiles: {
+      title: 'Profile (Win-ProfileKit)',
+      html: `
+<p>Liefert die <b>Einstellungen</b> von Programmen und Windows mit – erfasst mit
+<a href="https://github.com/dmatrix68-boop/Win-ProfileKit">Win-ProfileKit</a> auf einem Referenzrechner oder einer
+Referenz-VM. Die <a data-help="apps">Anwendungen</a> installieren die Programme, die Profile richten sie danach ein.</p>
+
+<h3>Ablauf</h3>
+<ol>
+  <li>Auf dem Referenzsystem ein Profil erfassen, z.&nbsp;B. <code>profilekit collect --out D:\\Profile --zip</code> oder
+  <code>profilekit capture … --zip</code> – es entsteht eine <code>.pkprofile</code>-Datei.</li>
+  <li>Hier <b>profilekit.exe wählen</b> (CI-Artefakt <code>profilekit-win-x64</code>, eine einzelne Datei ohne
+  .NET-Installation) und die Profile hinzufügen.</li>
+  <li><b>winget-Pakete übernehmen</b> trägt die Programme der Profile in die Anwendungsliste ein – fehlende werden so vor
+  dem Anwenden installiert.</li>
+</ol>
+
+<h3>Phasen</h3>
+<dl>
+  <dt>Phase 1 (SYSTEM)</dt>
+  <dd><code>Restore-Profile-P1.ps1</code> schreibt die Windows-Module der Profile (Maus, Design, Explorer,
+  Zwischenablageverlauf …) ins <b>Default-Profil</b> – jeder später angelegte Benutzer erbt sie, wie bei den
+  <a data-help="tweaks">Tweaks</a>. Haben mehrere Profile Windows-Module, gewinnt das letzte.</dd>
+  <dt>Phase 2 (nach den Installationen)</dt>
+  <dd><code>Restore-Profile.ps1</code> wendet jedes Profil an. <b>Zielbenutzer leer</b>: der Benutzer der ersten Anmeldung –
+  läuft Phase 2 als SYSTEM (geplante Aufgabe), wird der angemeldete Benutzer ermittelt. <b>Mit Zielbenutzer</b>: das Profil
+  wird offline auf dessen Konto angewendet; hat sich das Konto (z.&nbsp;B. aus der
+  <a data-help="answer">Antwortdatei</a>) noch nie angemeldet, legt profilekit.exe sein Profil an. Dafür sind
+  Administratorrechte nötig.</dd>
+</dl>
+
+<h3>Hinweise</h3>
+<ul>
+  <li>Pfade des Referenzbenutzers (<code>C:\\Users\\alt\\…</code>) werden beim Anwenden auf den Zielbenutzer umgeschrieben.</li>
+  <li>Zugangsdaten und Passwörter enthalten die Profile nicht; Lizenz-Keyfiles (z.&nbsp;B. <code>rarreg.key</code>) schon –
+  das Medium entsprechend behandeln.</li>
+  <li>Vor dem Überschreiben legt profilekit.exe im OEM-Lauf keine Sicherung an (<code>--no-backup</code>) – es ist ein
+  frisches System.</li>
+  <li>Die Ausgabe von profilekit.exe steht im Protokoll des Moduls; Exitcode 2 (Teilerfolg) gilt als Warnung.</li>
+</ul>`
+    },
+
     custom: {
       title: 'Eigene Befehle',
       html: `
@@ -1036,6 +1078,46 @@ Installers can be run with silent parameters.</p>
   prompt removes that step too. This only works in the same browser and profile; on another PC the entries stay
   placeholders. A deleted source is marked as "no longer available".</li>
   <li>Unpacked drivers (INF) belong in the <a data-help="drivers">Drivers</a> module.</li>
+</ul>`
+    },
+
+    profiles: {
+      title: 'Profiles (Win-ProfileKit)',
+      html: `
+<p>Ships the <b>settings</b> of programs and Windows – captured with
+<a href="https://github.com/dmatrix68-boop/Win-ProfileKit">Win-ProfileKit</a> on a reference computer or VM. The
+<a data-help="apps">applications</a> install the programs, the profiles then configure them.</p>
+
+<h3>Workflow</h3>
+<ol>
+  <li>Capture a profile on the reference system, e.g. <code>profilekit collect --out D:\\Profiles --zip</code> or
+  <code>profilekit capture … --zip</code> – this creates a <code>.pkprofile</code> file.</li>
+  <li><b>Choose profilekit.exe</b> here (CI artifact <code>profilekit-win-x64</code>, a single file without a .NET
+  installation) and add the profiles.</li>
+  <li><b>Add winget packages</b> puts the programs of the profiles into the application list – missing ones are installed
+  before the profiles are applied.</li>
+</ol>
+
+<h3>Phases</h3>
+<dl>
+  <dt>Phase 1 (SYSTEM)</dt>
+  <dd><code>Restore-Profile-P1.ps1</code> writes the Windows modules of the profiles (mouse, theme, Explorer, clipboard
+  history …) to the <b>Default profile</b> – every user created later inherits them, just like the
+  <a data-help="tweaks">tweaks</a>. If several profiles contain Windows modules, the last one wins.</dd>
+  <dt>Phase 2 (after the installations)</dt>
+  <dd><code>Restore-Profile.ps1</code> applies every profile. <b>Target user empty</b>: the user of the first sign-in – if
+  phase 2 runs as SYSTEM (scheduled task), the signed-in user is determined. <b>With a target user</b>: the profile is
+  applied offline to that account; if the account (e.g. from the <a data-help="answer">answer file</a>) has never signed
+  in, profilekit.exe creates its profile. This needs administrator rights.</dd>
+</dl>
+
+<h3>Notes</h3>
+<ul>
+  <li>Paths of the reference user (<code>C:\\Users\\old\\…</code>) are rewritten to the target user when applying.</li>
+  <li>Profiles contain no credentials or passwords, but they do contain license keyfiles (e.g. <code>rarreg.key</code>) –
+  treat the medium accordingly.</li>
+  <li>In the OEM run profilekit.exe makes no backup before overwriting (<code>--no-backup</code>) – it is a fresh system.</li>
+  <li>The output of profilekit.exe ends up in the module's log; exit code 2 (partial success) counts as a warning.</li>
 </ul>`
     },
 

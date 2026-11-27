@@ -54,6 +54,8 @@
       features: { enabled: false, phase: 'firstlogon', timeoutMin: 20, selected: [] },
       drivers: { enabled: false, phase: 'setup', timeoutMin: 10, items: [] },
       files: { items: [] },
+      /* Win-ProfileKit: profilekit.exe und .pkprofile-Dateien (nur im ZIP, nicht in der Projektdatei) */
+      profiles: { enabled: false, phase1Windows: true, exe: null, exePresent: false, items: [] },
       custom: { cmdEnabled: true, cmd: '', psEnabled: true, psPhase: 'setup', ps: '' },
       iso: { noPrompt: false },
       /* Antwortdatei-Designer (js/ug, Port des Schneegans-Generators) */
@@ -162,6 +164,8 @@
     ['driversEnabled', 'drivers.enabled', 'bool'],
     ['driversPhase', 'drivers.phase', 'text'],
     ['driversTimeout', 'drivers.timeoutMin', 'num'],
+    ['profilesEnabled', 'profiles.enabled', 'bool'],
+    ['profilesPhase1Windows', 'profiles.phase1Windows', 'bool'],
     ['customCmdEnabled', 'custom.cmdEnabled', 'bool'],
     ['customCmd', 'custom.cmd', 'text'],
     ['customPsEnabled', 'custom.psEnabled', 'bool'],
@@ -1002,6 +1006,102 @@
 
   /* ---------------- Treiber ---------------- */
 
+  /* ---------------- Win-ProfileKit-Profile ---------------- */
+
+  async function addProfileFile(file) {
+    try {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const info = await Importers.parsePkProfile(bytes);
+      const name = file.name.replace(/\.pkprofile$/i, '');
+      const existing = state.profiles.items.find((p) => p.name.toLowerCase() === name.toLowerCase());
+      const item = existing || { name, user: '', enabled: true };
+      Object.assign(item, {
+        profileName: info.name, sourceUser: info.sourceUser, sourceMachine: info.sourceMachine,
+        modules: info.modules, blob: file, blobPresent: true
+      });
+      if (!existing) state.profiles.items.push(item);
+      state.profiles.enabled = true;
+      syncInputs();
+      logImport(F('Profil {0}: {1} Module', name, info.modules.length), 'ok');
+    } catch (e) {
+      toast(F('{0}: {1}', file.name, e.message), 'err');
+    }
+  }
+
+  /* winget-IDs der Profile in die Anwendungsliste, damit die Programme vor dem Anwenden installiert sind */
+  function addProfilePackages() {
+    const have = new Set(state.apps.items.filter((p) => p.manager === 'winget').map((p) => p.id.toLowerCase()));
+    let added = 0;
+    for (const p of state.profiles.items.filter((x) => x.enabled)) {
+      for (const m of p.modules || []) {
+        if (!m.wingetId || have.has(m.wingetId.toLowerCase())) continue;
+        state.apps.items.push(Importers.mkPkg({ id: m.wingetId, name: m.name, manager: 'winget', source: 'winget' }));
+        have.add(m.wingetId.toLowerCase());
+        added++;
+      }
+    }
+    if (added) state.apps.enabled = true;
+    toast(added ? F('{0} Pakete in die Anwendungen übernommen.', added) : T('Alle Pakete der Profile sind schon in der Liste.'), added ? 'ok' : '');
+    renderApps(); syncInputs(); refresh();
+  }
+
+  function renderProfiles() {
+    const exeInfo = $('#profilesExeInfo');
+    exeInfo.textContent = state.profiles.exe
+      ? F('profilekit.exe ({0})', fmtSize(byteSize(state.profiles.exe)))
+      : T('profilekit.exe fehlt – wird als Hinweisdatei angelegt');
+    exeInfo.style.color = state.profiles.exe ? '' : 'var(--warn)';
+
+    const tbody = $('#profilesTable tbody');
+    tbody.innerHTML = '';
+    if (!state.profiles.items.length) {
+      tbody.innerHTML = '<tr><td colspan="5" class="muted" style="padding:18px;text-align:center">' + T('Keine Profile hinzugefügt.') + '</td></tr>';
+      return;
+    }
+    for (const p of state.profiles.items) {
+      const tr = document.createElement('tr');
+      tr.className = p.enabled ? '' : 'off';
+
+      const cbTd = document.createElement('td');
+      const cb = document.createElement('input');
+      cb.type = 'checkbox'; cb.checked = p.enabled;
+      cb.addEventListener('change', () => { p.enabled = cb.checked; tr.className = p.enabled ? '' : 'off'; refresh(); });
+      cbTd.appendChild(cb); tr.appendChild(cbTd);
+
+      const nameTd = document.createElement('td');
+      nameTd.innerHTML = '<span class="mono"></span><br><span class="muted" style="font-size:11px"></span>';
+      nameTd.querySelector('.mono').textContent = Templates.profileFile(p);
+      const sub = nameTd.querySelector('.muted');
+      if (p.blob) {
+        sub.textContent = [p.sourceUser && p.sourceMachine ? p.sourceUser + '@' + p.sourceMachine : '', fmtSize(byteSize(p.blob))].filter(Boolean).join(' · ');
+      } else {
+        sub.textContent = T('fehlt – nicht im Archiv');
+        sub.style.color = 'var(--warn)';
+      }
+      tr.appendChild(nameTd);
+
+      const modTd = document.createElement('td');
+      const mods = p.modules || [];
+      const win = mods.filter((m) => /^windows\./i.test(m.id)).length;
+      modTd.textContent = F('{0} Programme, {1} Windows', mods.length - win, win);
+      modTd.title = mods.map((m) => m.name + (m.wingetId ? ' (' + m.wingetId + ')' : '') + (m.keyfiles ? ' – Keyfile' : '')).join('\n');
+      tr.appendChild(modTd);
+
+      const userTd = document.createElement('td');
+      const ui = document.createElement('input');
+      ui.type = 'text'; ui.value = p.user || ''; ui.placeholder = T('leer = Benutzer der ersten Anmeldung');
+      ui.addEventListener('change', () => { p.user = ui.value.trim(); refresh(); });
+      userTd.appendChild(ui); tr.appendChild(userTd);
+
+      const actTd = document.createElement('td');
+      const del = document.createElement('button');
+      del.type = 'button'; del.className = 'btn small'; del.textContent = '✕'; del.title = T('Entfernen');
+      del.addEventListener('click', () => { state.profiles.items.splice(state.profiles.items.indexOf(p), 1); renderProfiles(); refresh(); });
+      actTd.appendChild(del); tr.appendChild(actTd);
+      tbody.appendChild(tr);
+    }
+  }
+
   function fmtSize(n) {
     if (n >= 1073741824) return (n / 1073741824).toFixed(2) + ' GB';
     return n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
@@ -1552,6 +1652,7 @@
       labelHelp();
       $('#badgeDrivers').textContent = state.drivers.items.filter((d) => d.enabled).length;
       $('#badgeFiles').textContent = state.files.items.filter((f) => f.enabled).length;
+      $('#badgeProfiles').textContent = state.profiles.items.filter((p) => p.enabled).length;
       const rel = Templates.relFromRoot(state.paths.installRoot);
       $('#officeSetupPath').textContent = '$OEM$\\$1\\' + rel + '\\Office\\setup.exe';
       $('#filesTargetPath').textContent = state.paths.installRoot.replace(/\\+$/, '') + '\\Files';
@@ -1638,7 +1739,7 @@
   function renderAll() {
     syncInputs();
     I18n.apply();
-    renderApps(); renderTweaks(); renderBloat(); renderFeatures(); renderDrivers(); renderFiles(); renderOfficeSummary(); renderUnattend();
+    renderApps(); renderTweaks(); renderBloat(); renderFeatures(); renderDrivers(); renderFiles(); renderProfiles(); renderOfficeSummary(); renderUnattend();
     renderIsoSource();
     renderAnswerLists();
     refresh();
@@ -1679,6 +1780,13 @@
   async function importFile(file, opts) {
     opts = opts || {};
     const name = file.name;
+
+    /* Win-ProfileKit-Profil (ZIP) - vor den Binaerdateien, sonst landet es unter "Eigene Dateien" */
+    if (/\.pkprofile$/i.test(name)) {
+      await addProfileFile(file);
+      renderProfiles(); refresh();
+      return;
+    }
 
     /* .reg zuerst: regedit exportiert UTF-16, readText ginge von UTF-8 aus */
     if (/\.reg$/i.test(name)) {
@@ -1817,8 +1925,10 @@
   /* ---------------- Projekt speichern / laden ---------------- */
 
   function projectJson() {
-    const clone = JSON.parse(JSON.stringify(state, (k, v) => (k === 'blob' ? undefined : v)));
+    const clone = JSON.parse(JSON.stringify(state, (k, v) => (k === 'blob' || k === 'exe' ? undefined : v)));
     clone.files.items.forEach((f) => { f.blobPresent = false; });
+    clone.profiles.exePresent = false;
+    clone.profiles.items.forEach((p) => { p.blobPresent = false; });
     /* Treiberdateien gehoeren nicht in die Projektdatei - auch nicht als Liste. */
     clone.drivers.items.forEach((d, i) => {
       const n = (state.drivers.items[i].files || []).filter((f) => f.blob).length || state.drivers.items[i].missing || 0;
@@ -1855,6 +1965,16 @@
       name: f.name, target: f.target || f.name, run: f.run || '',
       phase: f.phase || 'firstlogon', dest: /^(files|scripts|office)$/.test(f.dest) ? f.dest : 'files',
       enabled: f.enabled !== false, blob: null, blobPresent: false, src: validSrc(f.src)
+    }));
+    state.profiles.exe = null;
+    state.profiles.exePresent = false;
+    state.profiles.items = (state.profiles.items || []).map((p) => ({
+      name: String(p.name || 'Profil'), user: String(p.user || ''), enabled: p.enabled !== false,
+      profileName: String(p.profileName || ''), sourceUser: String(p.sourceUser || ''), sourceMachine: String(p.sourceMachine || ''),
+      modules: Array.isArray(p.modules) ? p.modules.map((m) => ({
+        id: String(m.id || ''), name: String(m.name || m.id || ''), wingetId: String(m.wingetId || ''), keyfiles: !!m.keyfiles
+      })) : [],
+      blob: null, blobPresent: false
     }));
     state.drivers.items = (state.drivers.items || []).map((d) => ({
       name: d.name || 'Treiber', dest: d.dest === 'winpe' ? 'winpe' : 'pnp', models: d.models || '',
@@ -2998,6 +3118,24 @@
       const inf = list.find((x) => /\.inf$/i.test(x.rel)) || list[0];
       await addDriverPackage(inf.rel.replace(/\.[^.]+$/, ''), list);
       syncInputs(); renderDrivers(); refresh();
+    });
+
+    /* Win-ProfileKit */
+    $('#btnProfilesAdd').addEventListener('click', () => $('#profilesInput').click());
+    $('#btnProfilesExe').addEventListener('click', () => $('#profilesExeInput').click());
+    $('#btnProfilesPackages').addEventListener('click', addProfilePackages);
+    $('#profilesInput').addEventListener('change', async (e) => {
+      for (const f of Array.from(e.target.files)) await addProfileFile(f);
+      e.target.value = '';
+      renderProfiles(); refresh();
+    });
+    $('#profilesExeInput').addEventListener('change', (e) => {
+      const f = e.target.files[0];
+      e.target.value = '';
+      if (!f) return;
+      if (!/\.exe$/i.test(f.name)) { toast(T('Bitte profilekit.exe wählen.'), 'err'); return; }
+      state.profiles.exe = f; state.profiles.exePresent = true;
+      renderProfiles(); refresh();
     });
 
     $('#filesInput').addEventListener('change', async (e) => {

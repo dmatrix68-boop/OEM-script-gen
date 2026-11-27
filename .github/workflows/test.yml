@@ -2,7 +2,7 @@ name: Tests
 
 # Bei jedem Push auf main und in jedem Pull Request:
 # - node: Pruefwerkzeuge, ISO-Schreiber (mit Gegenprobe 7-Zip/udfinfo),
-#   .reg-Import und Antwortdatei-Designer (Chromium ueber Playwright)
+#   .reg-Import, Win-ProfileKit-Profile und Antwortdatei-Designer (Chromium ueber Playwright)
 # - golden: Antwortdatei-Designer (js/ug) gegen das C#-Original von
 #   cschneegans/unattend-generator auf dem Port-Stand - Byte fuer Byte
 # - powershell: die erzeugten Skripte auf einem Windows-Runner - Syntax und
@@ -30,6 +30,7 @@ jobs:
       - run: node tools/check-escapes.js
       - run: node tools/check-i18n.js
       - run: node tools/test-reg.js
+      - run: node tools/test-profilekit.js
       - run: node tools/test-iso.js
       - name: Playwright (Chromium)
         run: |

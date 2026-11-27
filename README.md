@@ -70,6 +70,11 @@ ZIP entpacken, `index.html` öffnen. Im Paket sind die Screenshots nur verlinkt.
   bei anderen `.exe` erkennt der Generator Inno Setup, NSIS und WiX Burn am Dateianfang
   und schlägt die Standardschalter vor. Ein Installer ohne Parameter wird nur kopiert –
   darauf weist die Tabelle hin.
+* **Profile (Win-ProfileKit)** – Programm- und Windows-Einstellungen eines Referenzbenutzers
+  mitliefern: `.pkprofile`-Dateien aus [Win-ProfileKit](https://github.com/dmatrix68-boop/Win-ProfileKit)
+  samt `profilekit.exe` aufnehmen, die winget-Pakete der Profile per Klick in die Anwendungen
+  übernehmen. Phase 1 schreibt die Windows-Einstellungen ins Default-Profil, Phase 2 wendet die
+  Profile nach den Installationen an (siehe unten).
 * **autounattend.xml** – wird als Auslöser erzeugt oder, wenn Sie bereits eine
   Antwortdatei verwenden, importiert und **ergänzt statt ersetzt**: die Aufrufe
   werden mit fortlaufender `<Order>` in die vorhandenen Blöcke eingefügt.
@@ -313,6 +318,32 @@ ein; braucht Chrome dafür erneut die Freigabe, genügt ein Klick auf **Quellen
 einbinden** (nur im selben Browserprofil). Mit der ZIP-Wurzel „beide
 Orte“ liegen die pnputil-Pakete doppelt im Archiv. Treiber-Installer als EXE
 gehören weiterhin unter *Eigene Dateien*.
+
+### Profile (Win-ProfileKit)
+
+[Win-ProfileKit](https://github.com/dmatrix68-boop/Win-ProfileKit) erfasst die Einstellungen von
+Programmen und Windows auf einem Referenzsystem als Profil (`profilekit collect --zip` bzw.
+`capture --zip`, Ergebnis: `.pkprofile`). Auf der Seite **Profile** kommen diese Dateien und
+`profilekit.exe` (eine einzelne Datei ohne .NET-Installation) ins Paket:
+
+```
+$OEM$\$1\Install\
+├─ ProfileKit\profilekit.exe
+├─ ProfileKit\Profiles\<Profil>.pkprofile
+└─ Modules\Restore-Profile-P1.ps1, Restore-Profile.ps1
+```
+
+| Modul | Phase | Wirkung |
+|---|---|---|
+| `Restore-Profile-P1.ps1` | 1 (SYSTEM) | Windows-Module der Profile (`windows.*`) ins Default-Profil – jeder neue Benutzer erbt sie, wie bei den Tweaks |
+| `Restore-Profile.ps1` | 2, nach `Install-Apps.ps1` | Profile anwenden: ohne Zielbenutzer auf den Benutzer der ersten Anmeldung (läuft Phase 2 als SYSTEM, wird er über `Win32_ComputerSystem` ermittelt), mit Zielbenutzer offline auf dessen Konto |
+
+Konten aus der Antwortdatei, die sich noch nie angemeldet haben, haben noch kein Profil;
+`profilekit.exe` legt es dann selbst an. Pfade des Referenzbenutzers werden auf den Zielbenutzer
+umgeschrieben, Zugangsdaten enthalten die Profile nicht – Lizenz-Keyfiles wie `rarreg.key` aber
+schon. Exitcode 2 von `profilekit.exe` (Teilerfolg) gilt als Warnung, alles andere außer 0 als
+Fehler. Ohne Datei entsteht eine Hinweisdatei an ihrer Stelle (z. B. nach dem Laden einer
+Projektdatei – Profile und `profilekit.exe` stehen nicht in der Projektdatei).
 
 ### winget braucht einen Benutzerkontext
 
@@ -649,6 +680,7 @@ tools/            check-escapes.js – prüft die Template-Literale auf verschlu
                   check-i18n.js    – prüft Wörterbuch gegen Oberfläche
                   test-iso.js      – prüft den ISO-Schreiber
                   test-reg.js      – prüft den .reg-Import
+                  test-profilekit.js – prüft Import und Erzeugung der Win-ProfileKit-Profile
                   test-unattend.js – prüft den Antwortdatei-Designer (Playwright)
                   sync-schneegans.js – Abgleich mit dem Original, erzeugt resources.js
                   test-golden.js   – Port gegen das C#-Original (golden/: Harness, Fälle)
